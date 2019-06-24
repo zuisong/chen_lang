@@ -8,9 +8,9 @@ fn main() {
 # if 和 for 里面的表达式运算结果都是int类型 0 为假  非0 为真
 
 i = 9
-for i {
+for 0!=i {
     j = 10- i
-    for j {
+    for 0!=j {
         m = 10 - i
 
 # 注释

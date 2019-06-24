@@ -8,9 +8,9 @@ sum = 0
 # if 和 for 里面的表达式运算结果都是int类型 0 为假  非0 为真
 i = 100
 sum = 0
-for i {
+for i >= -100 {
     i = i - 1
-    if i%2 {
+    if 0==i%2 {
         println(i)
 # 打印出来的 i 都是奇数
         sum = sum + i

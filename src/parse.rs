@@ -59,6 +59,30 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
                 left: parse_expression(&line[0..1])?,
                 right: parse_expression(&line[2..])?,
             }));
+        },
+        Token::Operator(Operator::GT) => {
+            return Ok(Box::new(GT {
+                left: parse_expression(&line[0..1])?,
+                right: parse_expression(&line[2..])?,
+            }));
+        }
+        Token::Operator(Operator::GTE) => {
+            return Ok(Box::new(GTE {
+                left: parse_expression(&line[0..1])?,
+                right: parse_expression(&line[2..])?,
+            }));
+        }
+        Token::Operator(Operator::LT) => {
+            return Ok(Box::new(LT {
+                left: parse_expression(&line[0..1])?,
+                right: parse_expression(&line[2..])?,
+            }));
+        }
+        Token::Operator(Operator::LTE) => {
+            return Ok(Box::new(LTE {
+                left: parse_expression(&line[0..1])?,
+                right: parse_expression(&line[2..])?,
+            }));
         }
         _ => {
             return Err(failure::err_msg(format!(

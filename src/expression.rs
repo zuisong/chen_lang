@@ -73,6 +73,78 @@ impl Expression for NotEquals {
     }
 }
 
+/// 小于
+#[derive(Debug)]
+pub struct LT {
+    pub left: Box<dyn Expression>,
+    pub right: Box<dyn Expression>,
+}
+
+impl Expression for LT {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
+        let l = self.left.evaluate(ctx);
+        let r = self.right.evaluate(ctx);
+        match (l, r) {
+            (Some(Value::Int(l_int)), Some(Value::Int(r_int))) => Some(Value::Bool(l_int < r_int)),
+            (_, _) => panic!("不是数字不能做比较运算"),
+        }
+    }
+}
+
+/// 小于等于
+#[derive(Debug)]
+pub struct LTE {
+    pub left: Box<dyn Expression>,
+    pub right: Box<dyn Expression>,
+}
+
+impl Expression for LTE {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
+        let l = self.left.evaluate(ctx);
+        let r = self.right.evaluate(ctx);
+        match (l, r) {
+            (Some(Value::Int(l_int)), Some(Value::Int(r_int))) => Some(Value::Bool(l_int <= r_int)),
+            (_, _) => panic!("不是数字不能做比较运算"),
+        }
+    }
+}
+
+/// 大于等于
+#[derive(Debug)]
+pub struct GTE {
+    pub left: Box<dyn Expression>,
+    pub right: Box<dyn Expression>,
+}
+
+impl Expression for GTE {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
+        let l = self.left.evaluate(ctx);
+        let r = self.right.evaluate(ctx);
+        match (l, r) {
+            (Some(Value::Int(l_int)), Some(Value::Int(r_int))) => Some(Value::Bool(l_int >= r_int)),
+            (_, _) => panic!("不是数字不能做比较运算"),
+        }
+    }
+}
+
+/// 大于
+#[derive(Debug)]
+pub struct GT {
+    pub left: Box<dyn Expression>,
+    pub right: Box<dyn Expression>,
+}
+
+impl Expression for GT {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
+        let l = self.left.evaluate(ctx);
+        let r = self.right.evaluate(ctx);
+        match (l, r) {
+            (Some(Value::Int(l_int)), Some(Value::Int(r_int))) => Some(Value::Bool(l_int > r_int)),
+            (_, _) => panic!("不是数字不能做比较运算"),
+        }
+    }
+}
+
 /// 括号表达式
 #[derive(Debug)]
 pub struct Paren {
@@ -197,10 +269,10 @@ impl Expression for Loop {
     fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         loop {
             match self.predict.evaluate(ctx) {
-                Some(Value::Int(0)) => {
+                Some(Value::Bool(false)) => {
                     break;
                 }
-                Some(Value::Int(_)) => {
+                Some(Value::Bool(true)) => {
                     self.cmd.evaluate(ctx);
                 }
                 _ => {
@@ -220,13 +292,12 @@ pub struct If {
 
 impl Expression for If {
     fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
-        // if 语句返回 0 为 假  其他为真
         match self.predict.evaluate(ctx) {
-            Some(Value::Int(0)) => {}
-            Some(Value::Int(_)) => {
+            Some(Value::Bool(false)) => {}
+            Some(Value::Bool(true)) => {
                 self.cmd.evaluate(ctx);
             }
-            _ => panic!("if 语句条件只能是int类型"),
+            _ => panic!("if 语句条件只能是 bool 类型"),
         }
         None
     }
