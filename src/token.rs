@@ -82,7 +82,15 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
 
     let mut i = 0;
     while i < chars.len() {
-        if chars[i] == '\n' {
+        if chars[i] == '#' {
+            while chars[i] != '\r' && chars[i] != '\n' {
+                i += 1;
+            }
+            i = i + 1;
+            continue;
+        }
+
+        if chars[i] == '\r' || chars[i] == '\n' {
             i += 1;
             tokens.push(Token::NewLine);
             continue;
