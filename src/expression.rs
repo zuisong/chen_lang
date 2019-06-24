@@ -181,9 +181,15 @@ pub struct If {
 
 impl Expression for If {
     fn evaluate(&self, ctx: &mut Context) -> Option<Const> {
-        // if 语句返回 1 为 真
-        if let Some(Const::Int(1)) = self.predict.evaluate(ctx) {
-            self.cmd.evaluate(ctx);
+        // if 语句返回 0 为 假  其他为真
+        match self.predict.evaluate(ctx) {
+            Some(Const::Int(0)) => {}
+            Some(Const::Int(_)) => {
+                self.cmd.evaluate(ctx);
+            }
+            _ => {
+                panic!("if 语句条件只能是int类型")
+            }
         }
         None
     }
