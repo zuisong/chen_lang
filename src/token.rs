@@ -1,3 +1,5 @@
+use log::*;
+
 #[derive(Debug, PartialEq)]
 pub enum Keyword {
     INT,
@@ -41,6 +43,7 @@ pub enum Operator {
 
 #[derive(Debug, PartialEq)]
 pub enum StdFunction {
+    Println,
     Print,
 }
 
@@ -48,8 +51,9 @@ pub enum StdFunction {
 pub enum Token {
     Keyword(Keyword),
     Operator(Operator),
-    Num(i32),
-    NumFloat(f32),
+    Int(i32),
+    Float(f32),
+    String(String),
     Identifier(String),
     StdFunction(StdFunction),
     /// 左大括号
@@ -90,11 +94,6 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
         }
         if chars[i] == '{' {
             tokens.push(Token::LBig);
-            i += 1;
-            continue;
-        }
-        if chars[i] == '}' {
-            tokens.push(Token::RBig);
             i += 1;
             continue;
         }
@@ -182,6 +181,20 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
             continue;
         }
 
+
+        if chars[i] == '"' || chars[i] == '\'' {
+            let mut j = i + 1;
+
+            while chars[i] != chars[j] {
+                j += 1;
+            };
+            let s: String = chars.as_slice()[(i + 1)..j].iter().collect();
+            tokens.push(Token::String(s));
+
+            i = j + 1;
+            continue;
+        }
+
         if chars[i] == '<' {
             if chars[i + 1] == '=' {
                 tokens.push(Token::Operator(Operator::LTE));
@@ -203,7 +216,7 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
             continue;
         }
 
-        if chars[i] == '-' && chars[i + 1].is_whitespace() {
+        if chars[i] == '-' && !chars[i + 1].is_numeric() {
             tokens.push(Token::Operator(Operator::Subtract));
             i += 1;
             continue;
@@ -221,9 +234,9 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
 
             let s: String = chars.iter().skip(i).take(j - i).collect();
             if is_float {
-                tokens.push(Token::NumFloat(s.parse()?));
+                tokens.push(Token::Float(s.parse()?));
             } else {
-                tokens.push(Token::Num(s.parse()?));
+                tokens.push(Token::Int(s.parse()?));
             }
 
             i = j;
@@ -237,9 +250,12 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
                 j += 1;
             }
 
-            let s: String = chars.iter().skip(i).take(j - i).collect();
+            let s: String = chars.as_slice()[i..j].iter().collect();
 
             match s.as_str() {
+                "println" => {
+                    tokens.push(Token::StdFunction(StdFunction::Println));
+                }
                 "print" => {
                     tokens.push(Token::StdFunction(StdFunction::Print));
                 }

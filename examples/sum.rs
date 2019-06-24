@@ -1,13 +1,24 @@
 fn main() {
+    simple_logger::init();
+
     let code = r#"
-sum = 0
-i = 100
-print(i)
+i = 9
 for i {
-    sum = sum + i
-    i = i + -1
+    j = 10- i
+    for j {
+        m = 10 - i
+        n = 10 - i + j - 1
+        print(n)
+        print(" x ")
+        print(m)
+        print(" = ")
+        print(m*n)
+        print("    ")
+        j = j - 1
+    }
+    println("")
+    i = i- 1
 }
-print(sum)
 "#
         .to_string();
 

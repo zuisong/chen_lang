@@ -54,18 +54,18 @@ fn evlate(ast: Cmd) {
         output: vec![],
         variables: Default::default(),
     };
+    debug!("{:?}",&ast);
     for cmd in ast.iter() {
         cmd.evaluate(&mut ctx);
     }
-    debug!("{:?}",&ast);
 
     for x in ctx.output {
-        println!("{}", x.to_string());
+        print!("{}", x);
     }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Context {
-    output: Vec<Const>,
+    output: Vec<String>,
     variables: HashMap<String, Const>,
 }

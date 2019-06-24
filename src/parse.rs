@@ -10,22 +10,50 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
 
     if line.len() == 1 {
         return match &line[0] {
-            Token::Num(i) => Ok(Box::new(Const::Int(*i))),
+            Token::Int(i) => Ok(Box::new(Const::Int(*i))),
+            Token::String(s) => Ok(Box::new(Const::String(s.clone()))),
             Token::Identifier(name) => Ok(Box::new(Variable { name: name.clone() })),
             _ => Err(failure::err_msg(format!("错误的表达式, {:?}", line))),
         };
     }
 
-    if let Token::Operator(Operator::ADD) = line[1] {
-        return Ok(Box::new(Add {
-            left: parse_expression(&line[0..1])?,
-            right: parse_expression(&line[2..])?,
-        }));
-    } else {
-        return Err(failure::err_msg(format!(
-            "暂未支持 其他她运算符,{:?}",
-            line
-        )));
+    match line[1] {
+        Token::Operator(Operator::ADD) => {
+            return Ok(Box::new(Add {
+                left: parse_expression(&line[0..1])?,
+                right: parse_expression(&line[2..])?,
+            }));
+        }
+        Token::Operator(Operator::Mod) => {
+            return Ok(Box::new(Mod {
+                left: parse_expression(&line[0..1])?,
+                right: parse_expression(&line[2..])?,
+            }));
+        }
+        Token::Operator(Operator::Subtract) => {
+            return Ok(Box::new(Subtract {
+                left: parse_expression(&line[0..1])?,
+                right: parse_expression(&line[2..])?,
+            }));
+        }
+        Token::Operator(Operator::Multiply) => {
+            return Ok(Box::new(Multiply {
+                left: parse_expression(&line[0..1])?,
+                right: parse_expression(&line[2..])?,
+            }));
+        }
+        Token::Operator(Operator::Divide) => {
+            return Ok(Box::new(Divide {
+                left: parse_expression(&line[0..1])?,
+                right: parse_expression(&line[2..])?,
+            }));
+        }
+        _ => {
+            return Err(failure::err_msg(format!(
+                "暂未支持 其他她运算符,{:?}",
+                line
+            )));
+        }
     }
 }
 
@@ -45,6 +73,16 @@ pub fn parse_sequence(
                 let var = parse_for(&lines[..], start_line)?;
                 v.push_back(var.1);
                 start_line = var.0 + 1;
+            }
+            Token::Keyword(Keyword::IF) => {
+                let var = parse_if(&lines[..], start_line)?;
+                v.push_back(var.1);
+                start_line = var.0 + 1;
+            }
+            Token::StdFunction(StdFunction::Println) => {
+                let var = parse_println(&lines[start_line])?;
+                v.push_back(var);
+                start_line += 1;
             }
             Token::StdFunction(StdFunction::Print) => {
                 let var = parse_print(&lines[start_line])?;
@@ -81,6 +119,19 @@ pub fn parse_var(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> 
     };
 }
 
+pub fn parse_if(
+    lines: &[Box<[Token]>],
+    start_line: usize,
+) -> Result<(usize, Box<dyn Expression>), failure::Error> {
+    let cmd = parse_sequence(&lines, start_line + 1)?;
+    let loop_expr = If {
+        predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
+        cmd: cmd.1,
+    };
+    return Ok((cmd.0, Box::new(loop_expr)));
+}
+
+
 pub fn parse_for(
     lines: &[Box<[Token]>],
     start_line: usize,
@@ -91,6 +142,12 @@ pub fn parse_for(
         cmd: cmd.1,
     };
     return Ok((cmd.0, Box::new(loop_expr)));
+}
+
+fn parse_println(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
+    Ok(Box::new(Println {
+        expression: parse_expression(&line[2..(line.len() - 1)])?,
+    }))
 }
 
 fn parse_print(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
