@@ -1,7 +1,3 @@
-fn main() {
-    simple_logger::init();
-
-    let code = r#"
 sum = 0
 # 这里是注释,
 # 注释以# 开始, 直到行末
@@ -12,15 +8,9 @@ for i {
     i = i - 1
     if i%2 {
         println(i)
-# 打印出来的 i 都是奇数
+        # 打印出来的 i 都是奇数
         sum = sum + i
     }
 }
-# sum 为 100以为的奇数之和
+        # sum 为 100以为的奇数之和
 println(sum)
-
-"#
-        .to_string();
-
-    chen_lang::run(code).unwrap();
-}

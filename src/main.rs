@@ -3,7 +3,7 @@ use std::fs::OpenOptions;
 use std::io::Read;
 use log::*;
 fn main() -> Result<(), failure::Error> {
-    simple_logger::init_with_level(Level::Info)?;
+    simple_logger::init_with_level(Level::Warn)?;
     let args: Vec<_> = std::env::args().collect();
     if args.len() < 2 {
         panic!("请指定要执行的源代码文件");
@@ -15,10 +15,12 @@ fn main() -> Result<(), failure::Error> {
         .read(true)
         .open(s)?;
 
-    let mut code = String::new();
-    f.read_to_string(&mut code)?;
+    let mut v = vec![];
 
+    f.read_to_end(&mut v)?;
+    let mut code = String::from_utf8(v)?;
 
+    debug!("{:?}", code);
     chen_lang::run(code)?;
     Ok(())
 }
