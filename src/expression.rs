@@ -145,6 +145,43 @@ impl Expression for GT {
     }
 }
 
+/// && 与
+#[derive(Debug)]
+pub struct And {
+    pub left: Box<dyn Expression>,
+    pub right: Box<dyn Expression>,
+}
+
+impl Expression for And {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
+        let l = self.left.evaluate(ctx);
+        let r = self.right.evaluate(ctx);
+        match (l, r) {
+            (Some(Value::Bool(l_b)), Some(Value::Bool(r_b))) => Some(Value::Bool(l_b && r_b)),
+            (_, _) => panic!("不是bool类型不能做逻辑运算"),
+        }
+    }
+}
+
+/// || 或
+#[derive(Debug)]
+pub struct Or {
+    pub left: Box<dyn Expression>,
+    pub right: Box<dyn Expression>,
+}
+
+impl Expression for Or {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
+        let l = self.left.evaluate(ctx);
+        let r = self.right.evaluate(ctx);
+        match (l, r) {
+            (Some(Value::Bool(l_b)), Some(Value::Bool(r_b))) => Some(Value::Bool(l_b || r_b)),
+            (_, _) => panic!("不是bool类型不能做逻辑运算"),
+        }
+    }
+}
+
+
 /// 括号表达式
 #[derive(Debug)]
 pub struct Paren {

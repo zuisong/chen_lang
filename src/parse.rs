@@ -11,6 +11,7 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
     if line.len() == 1 {
         return match &line[0] {
             Token::Int(i) => Ok(Box::new(Value::Int(*i))),
+            Token::Bool(b) => Ok(Box::new(Value::Bool(*b))),
             Token::String(s) => Ok(Box::new(Value::String(s.clone()))),
             Token::Identifier(name) => Ok(Box::new(Variable { name: name.clone() })),
             _ => Err(failure::err_msg(format!("错误的表达式, {:?}", line))),
@@ -59,7 +60,7 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
                 left: parse_expression(&line[0..1])?,
                 right: parse_expression(&line[2..])?,
             }));
-        },
+        }
         Token::Operator(Operator::GT) => {
             return Ok(Box::new(GT {
                 left: parse_expression(&line[0..1])?,
@@ -80,6 +81,18 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
         }
         Token::Operator(Operator::LTE) => {
             return Ok(Box::new(LTE {
+                left: parse_expression(&line[0..1])?,
+                right: parse_expression(&line[2..])?,
+            }));
+        }
+        Token::Operator(Operator::And) => {
+            return Ok(Box::new(And {
+                left: parse_expression(&line[0..1])?,
+                right: parse_expression(&line[2..])?,
+            }));
+        }
+        Token::Operator(Operator::Or) => {
+            return Ok(Box::new(Or {
                 left: parse_expression(&line[0..1])?,
                 right: parse_expression(&line[2..])?,
             }));

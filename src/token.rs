@@ -23,13 +23,13 @@ pub enum Operator {
     /// =
     Assign,
     /// &&
-    AND,
+    And,
     /// ==
     Equals,
     /// !=
     NotEquals,
     /// ||
-    OR,
+    Or,
     /// !
     NOT,
     /// >
@@ -178,6 +178,16 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
                 tokens.push(Token::Operator(Operator::Assign));
                 i += 1;
             }
+            continue;
+        }
+        if chars[i] == '&' && chars[i + 1] == '&' {
+            tokens.push(Token::Operator(Operator::And));
+            i += 2;
+            continue;
+        }
+        if chars[i] == '|' && chars[i + 1] == '|' {
+            tokens.push(Token::Operator(Operator::Or));
+            i += 2;
             continue;
         }
         if chars[i] == '!' {
