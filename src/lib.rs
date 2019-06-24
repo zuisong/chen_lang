@@ -1,3 +1,5 @@
+#![feature(box_syntax)]
+
 #[allow(unused_imports)]
 #[allow(unused_parens)]
 #[allow(dead_code)]
@@ -23,8 +25,10 @@ pub mod token;
 
 pub fn run(code: String) -> Result<(), failure::Error> {
     let tokens = token::tokenlizer(code)?;
-    debug!("{:?}", &tokens);
+    debug!("tokens => {:?}", &tokens);
     let ast: Command = parser(tokens)?;
+    debug!("ast => {:?}", &ast);
+
     evaluate(ast);
     Ok(())
 }
@@ -67,4 +71,13 @@ fn evaluate(ast: Command) {
 pub struct Context {
     output: Vec<String>,
     variables: HashMap<String, Value>,
+}
+
+impl Default for Context {
+    fn default() -> Self {
+        Context {
+            output: vec![],
+            variables: Default::default(),
+        }
+    }
 }

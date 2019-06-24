@@ -2,7 +2,7 @@ use crate::Context;
 
 use std::clone::Clone;
 use std::collections::VecDeque;
-use std::fmt::Debug;
+use std::fmt::{Debug, Formatter};
 
 pub trait Expression: Debug {
     fn evaluate(&self, ctx: &mut Context) -> Option<Value>;
@@ -72,6 +72,23 @@ impl Expression for NotEquals {
         return Some(Value::Bool(l != r));
     }
 }
+
+/// 小于
+#[derive(Debug)]
+pub struct Not {
+    pub expr: Box<dyn Expression>,
+}
+
+impl Expression for Not {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
+        let res = self.expr.evaluate(ctx).unwrap();
+        match res {
+            Value::Bool(b) => { Some(Value::Bool(!b)) }
+            _ => panic!("逻辑运算符只能用在 bool 类型上")
+        }
+    }
+}
+
 
 /// 小于
 #[derive(Debug)]
@@ -181,7 +198,6 @@ impl Expression for Or {
     }
 }
 
-
 /// 括号表达式
 #[derive(Debug)]
 pub struct Paren {
@@ -193,7 +209,6 @@ impl Expression for Paren {
         self.inner.evaluate(ctx)
     }
 }
-
 
 #[derive(Debug)]
 pub struct Equals {
@@ -279,6 +294,7 @@ pub struct Var {
 impl Expression for Var {
     fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         let e = &self.right;
+        //        dbg!(&e);
         let res = e.evaluate(ctx).unwrap().clone();
         ctx.variables.insert((&self.left).clone(), res);
         None
@@ -289,10 +305,11 @@ pub type Command = Box<VecDeque<Box<dyn Expression>>>;
 
 impl Expression for Command {
     fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
-        for expre in self.iter() {
-            expre.evaluate(ctx);
+        let mut res = None;
+        for expr in self.iter() {
+            res = expr.evaluate(ctx);
         }
-        None
+        res
     }
 }
 
@@ -344,7 +361,25 @@ pub enum Element {
     /// 变量
     Variable(Variable),
     /// 常量
-    Const(Value),
+    Value(Value),
+}
+
+impl Debug for Element {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        match &self {
+            Element::Value(v) => v.fmt(f),
+            Element::Variable(v) => v.fmt(f),
+        }
+    }
+}
+
+impl Expression for Element {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
+        match &self {
+            Element::Value(v) => v.evaluate(ctx),
+            Element::Variable(v) => v.evaluate(ctx),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -388,8 +423,37 @@ impl ToString for Value {
             Value::Bool(b) => (*b).to_string(),
             Value::Void => String::new(),
             Value::String(s) => s.clone(),
-//            Value::Float(f) => f.to_string(),
+            //            Value::Float(f) => f.to_string(),
         }
     }
 }
 //-----------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use crate::expression::{Add, Expression};
+    use crate::expression::Element::Value;
+    use crate::expression::Value::{Bool, Int};
+    use crate::Context;
+
+    #[test]
+    fn test_add_int_int() {
+        let mut ctx = Context::default();
+        let add = Add {
+            left: box Value(Int(1)),
+            right: box Value(Int(1)),
+        };
+        assert_eq!(add.evaluate(&mut ctx), Some(Int(2)));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_add_bool_int() {
+        let mut ctx = Context::default();
+        let add = Add {
+            left: box Value(Bool(false)),
+            right: box Value(Int(1)),
+        };
+        add.evaluate(&mut ctx);
+    }
+}

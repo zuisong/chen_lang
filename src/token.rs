@@ -1,14 +1,14 @@
 #[allow(unused_imports)]
 use log::*;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Keyword {
     INT,
     IF,
     FOR,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Operator {
     /// +
     ADD,
@@ -42,18 +42,18 @@ pub enum Operator {
     LTE,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum StdFunction {
     Println,
     Print,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Token {
     Keyword(Keyword),
     Operator(Operator),
     Int(i32),
-    Float(f32),
+    //    Float(f32),
     Bool(bool),
     String(String),
     Identifier(String),
@@ -253,7 +253,7 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
 
             let s: String = chars.iter().skip(i).take(j - i).collect();
             if is_float {
-                tokens.push(Token::Float(s.parse()?));
+                //                tokens.push(Token::Float(s.parse()?));
             } else {
                 tokens.push(Token::Int(s.parse()?));
             }

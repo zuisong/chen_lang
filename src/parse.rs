@@ -3,107 +3,223 @@ use crate::expression::*;
 use crate::*;
 use std::collections::VecDeque;
 
+const H: i32 = 3;
+const M: i32 = 2;
+const S: i32 = 1;
+
+fn get_priority(token: &Token) -> i32 {
+    match token {
+        Token::LParen => 0,
+        Token::RParen => 0,
+        Token::Operator(opt) => match opt {
+            Operator::ADD => S,
+            Operator::Subtract => S,
+            Operator::Multiply => M,
+            Operator::Divide => M,
+            Operator::Mod => M,
+            Operator::Assign => S,
+            Operator::And => -1,
+            Operator::Equals => M,
+            Operator::NotEquals => M,
+            Operator::Or => -1,
+            Operator::NOT => M,
+            Operator::GT => M,
+            Operator::LT => M,
+            Operator::GTE => M,
+            Operator::LTE => M,
+        },
+        _ => 100,
+    }
+}
+
 pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
     if line.len() == 0 {
         return Err(failure::err_msg("不是一个表达式"));
     }
 
-    if line.len() == 1 {
-        return match &line[0] {
-            Token::Int(i) => Ok(Box::new(Value::Int(*i))),
-            Token::Bool(b) => Ok(Box::new(Value::Bool(*b))),
-            Token::String(s) => Ok(Box::new(Value::String(s.clone()))),
-            Token::Identifier(name) => Ok(Box::new(Variable { name: name.clone() })),
-            _ => Err(failure::err_msg(format!("错误的表达式, {:?}", line))),
-        };
+// 中缀表达式变后缀表达式
+    let mut result = VecDeque::new();
+    let mut stack = vec![];
+    for token in line {
+        loop {
+            let o2 = get_priority(token);
+            if o2 == 100 {
+                result.push_back(token.clone());
+                break;
+            }
+            match stack.last() {
+                Some(o) => match token {
+                    Token::LParen => {
+                        stack.push(token.clone());
+                        break;
+                    }
+                    Token::RParen => {
+                        if o == &Token::LParen {
+                            stack.pop().unwrap();
+                            break;
+                        } else {
+                            result.push_back(stack.pop().unwrap());
+                        }
+                    }
+                    _ => {
+                        let o1 = get_priority(o);
+                        if o1 < o2 {
+                            stack.push(token.clone());
+                            break;
+                        } else {
+                            result.push_back(stack.pop().unwrap());
+                        }
+                    }
+                },
+                None => {
+                    stack.push(token.clone());
+                    break;
+                }
+            }
+        }
+    }
+    while let Some(t) = stack.pop() {
+        result.push_back(t);
+    }
+    let mut result: VecDeque<_> = result
+        .into_iter()
+        .filter(|it| it != &Token::LParen && it != &Token::RParen)
+        .collect();
+
+    //    dbg!(&result);
+
+    let mut tmp: VecDeque<Box<dyn Expression>> = VecDeque::new();
+
+    while let Some(t) = result.pop_front() {
+        if let Token::Operator(opt) = t {
+            let new_exp: Box<dyn Expression> = match opt {
+                Operator::ADD => {
+                    let o1 = tmp.pop_back().unwrap();
+                    let o2 = tmp.pop_back().unwrap();
+                    box Add {
+                        left: o2,
+                        right: o1,
+                    }
+                }
+                Operator::Subtract => {
+                    let o1 = tmp.pop_back().unwrap();
+                    let o2 = tmp.pop_back().unwrap();
+                    box Subtract {
+                        left: o2,
+                        right: o1,
+                    }
+                }
+                Operator::Multiply => {
+                    let o1 = tmp.pop_back().unwrap();
+                    let o2 = tmp.pop_back().unwrap();
+                    box Multiply {
+                        left: o2,
+                        right: o1,
+                    }
+                }
+                Operator::Divide => {
+                    let o1 = tmp.pop_back().unwrap();
+                    let o2 = tmp.pop_back().unwrap();
+                    box Divide {
+                        left: o2,
+                        right: o1,
+                    }
+                }
+                Operator::Mod => {
+                    let o1 = tmp.pop_back().unwrap();
+                    let o2 = tmp.pop_back().unwrap();
+                    box Mod {
+                        left: o2,
+                        right: o1,
+                    }
+                }
+                Operator::Assign => {
+                    unreachable!();
+                }
+                Operator::And => {
+                    let o1 = tmp.pop_back().unwrap();
+                    let o2 = tmp.pop_back().unwrap();
+                    box And {
+                        left: o2,
+                        right: o1,
+                    }
+                }
+                Operator::Equals => {
+                    let o1 = tmp.pop_back().unwrap();
+                    let o2 = tmp.pop_back().unwrap();
+                    box Equals {
+                        left: o2,
+                        right: o1,
+                    }
+                }
+                Operator::NotEquals => {
+                    let o1 = tmp.pop_back().unwrap();
+                    let o2 = tmp.pop_back().unwrap();
+                    box NotEquals {
+                        left: o2,
+                        right: o1,
+                    }
+                }
+                Operator::Or => {
+                    let o1 = tmp.pop_back().unwrap();
+                    let o2 = tmp.pop_back().unwrap();
+                    box Or {
+                        left: o2,
+                        right: o1,
+                    }
+                }
+                Operator::NOT => {
+                    box Not {
+                        expr: tmp.pop_back().unwrap()
+                    }
+                }
+                Operator::GT => {
+                    let o1 = tmp.pop_back().unwrap();
+                    let o2 = tmp.pop_back().unwrap();
+                    box GT {
+                        left: o2,
+                        right: o1,
+                    }
+                }
+                Operator::LT => {
+                    let o1 = tmp.pop_back().unwrap();
+                    let o2 = tmp.pop_back().unwrap();
+                    box LT {
+                        left: o2,
+                        right: o1,
+                    }
+                }
+                Operator::GTE => {
+                    let o1 = tmp.pop_back().unwrap();
+                    let o2 = tmp.pop_back().unwrap();
+                    box GTE {
+                        left: o2,
+                        right: o1,
+                    }
+                }
+                Operator::LTE => {
+                    let o1 = tmp.pop_back().unwrap();
+                    let o2 = tmp.pop_back().unwrap();
+                    box LTE {
+                        left: o2,
+                        right: o1,
+                    }
+                }
+            };
+            tmp.push_back(new_exp);
+        } else {
+            let ele: Element = match t {
+                Token::Identifier(name) => Element::Variable(Variable { name }),
+                Token::Int(i) => Element::Value(Value::Int(i)),
+                Token::Bool(i) => Element::Value(Value::Bool(i)),
+                Token::String(i) => Element::Value(Value::String(i)),
+                _ => panic!("错误"),
+            };
+            tmp.push_back(Box::new(ele));
+        }
     }
 
-    match line[1] {
-        Token::Operator(Operator::ADD) => {
-            return Ok(Box::new(Add {
-                left: parse_expression(&line[0..1])?,
-                right: parse_expression(&line[2..])?,
-            }));
-        }
-        Token::Operator(Operator::Mod) => {
-            return Ok(Box::new(Mod {
-                left: parse_expression(&line[0..1])?,
-                right: parse_expression(&line[2..])?,
-            }));
-        }
-        Token::Operator(Operator::Subtract) => {
-            return Ok(Box::new(Subtract {
-                left: parse_expression(&line[0..1])?,
-                right: parse_expression(&line[2..])?,
-            }));
-        }
-        Token::Operator(Operator::Multiply) => {
-            return Ok(Box::new(Multiply {
-                left: parse_expression(&line[0..1])?,
-                right: parse_expression(&line[2..])?,
-            }));
-        }
-        Token::Operator(Operator::Divide) => {
-            return Ok(Box::new(Divide {
-                left: parse_expression(&line[0..1])?,
-                right: parse_expression(&line[2..])?,
-            }));
-        }
-        Token::Operator(Operator::Equals) => {
-            return Ok(Box::new(Equals {
-                left: parse_expression(&line[0..1])?,
-                right: parse_expression(&line[2..])?,
-            }));
-        }
-        Token::Operator(Operator::NotEquals) => {
-            return Ok(Box::new(NotEquals {
-                left: parse_expression(&line[0..1])?,
-                right: parse_expression(&line[2..])?,
-            }));
-        }
-        Token::Operator(Operator::GT) => {
-            return Ok(Box::new(GT {
-                left: parse_expression(&line[0..1])?,
-                right: parse_expression(&line[2..])?,
-            }));
-        }
-        Token::Operator(Operator::GTE) => {
-            return Ok(Box::new(GTE {
-                left: parse_expression(&line[0..1])?,
-                right: parse_expression(&line[2..])?,
-            }));
-        }
-        Token::Operator(Operator::LT) => {
-            return Ok(Box::new(LT {
-                left: parse_expression(&line[0..1])?,
-                right: parse_expression(&line[2..])?,
-            }));
-        }
-        Token::Operator(Operator::LTE) => {
-            return Ok(Box::new(LTE {
-                left: parse_expression(&line[0..1])?,
-                right: parse_expression(&line[2..])?,
-            }));
-        }
-        Token::Operator(Operator::And) => {
-            return Ok(Box::new(And {
-                left: parse_expression(&line[0..1])?,
-                right: parse_expression(&line[2..])?,
-            }));
-        }
-        Token::Operator(Operator::Or) => {
-            return Ok(Box::new(Or {
-                left: parse_expression(&line[0..1])?,
-                right: parse_expression(&line[2..])?,
-            }));
-        }
-        _ => {
-            return Err(failure::err_msg(format!(
-                "暂未支持 其它运算符,{:?}",
-                line
-            )));
-        }
-    }
+    return Ok(box box tmp);
 }
 
 pub fn parse_sequence(
