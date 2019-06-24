@@ -1,5 +1,5 @@
 fn main() {
-    simple_logger::init();
+    simple_logger::init().unwrap();
 
     let code = r#"
 sum = 0

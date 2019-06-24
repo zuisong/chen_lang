@@ -60,7 +60,7 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
 pub fn parse_sequence(
     lines: &[Box<[Token]>],
     mut start_line: usize,
-) -> Result<(usize, Cmd), failure::Error> {
+) -> Result<(usize, Command), failure::Error> {
     let mut v = VecDeque::new();
     while start_line < lines.len() && lines[start_line][0] != Token::RBig {
         match &lines[start_line][0] {
@@ -95,7 +95,7 @@ pub fn parse_sequence(
                 start_line += 1;
             }
             _ => {
-                unimplemented!("", );
+                unimplemented!("",);
             }
         }
     }
@@ -130,7 +130,6 @@ pub fn parse_if(
     };
     return Ok((cmd.0, Box::new(loop_expr)));
 }
-
 
 pub fn parse_for(
     lines: &[Box<[Token]>],

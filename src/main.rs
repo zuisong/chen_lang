@@ -1,7 +1,7 @@
 use log::Level;
+use log::*;
 use std::fs::OpenOptions;
 use std::io::Read;
-use log::*;
 fn main() -> Result<(), failure::Error> {
     simple_logger::init_with_level(Level::Warn)?;
     let args: Vec<_> = std::env::args().collect();
@@ -11,14 +11,12 @@ fn main() -> Result<(), failure::Error> {
     let s = std::env::current_dir()?.join(&args[1]);
 
     debug!("{:?}", s);
-    let mut f = OpenOptions::new()
-        .read(true)
-        .open(s)?;
+    let mut f = OpenOptions::new().read(true).open(s)?;
 
     let mut v = vec![];
 
     f.read_to_end(&mut v)?;
-    let mut code = String::from_utf8(v)?;
+    let code = String::from_utf8(v)?;
 
     debug!("{:?}", code);
     chen_lang::run(code)?;

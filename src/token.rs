@@ -189,13 +189,12 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
             continue;
         }
 
-
         if chars[i] == '"' || chars[i] == '\'' {
             let mut j = i + 1;
 
             while chars[i] != chars[j] {
                 j += 1;
-            };
+            }
             let s: String = chars.as_slice()[(i + 1)..j].iter().collect();
             tokens.push(Token::String(s));
 

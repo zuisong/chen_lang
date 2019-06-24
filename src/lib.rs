@@ -17,20 +17,19 @@ use crate::token::*;
 use failure::*;
 use log::*;
 
-
 pub mod expression;
 pub mod parse;
 pub mod token;
 
 pub fn run(code: String) -> Result<(), failure::Error> {
     let tokens = token::tokenlizer(code)?;
-    debug!("{:?}",&tokens);
-    let ast = parser(tokens)?;
-    evlate(ast);
+    debug!("{:?}", &tokens);
+    let ast: Command = parser(tokens)?;
+    evaluate(ast);
     Ok(())
 }
 
-fn parser(tokens: Vec<Token>) -> Result<Cmd, failure::Error> {
+fn parser(tokens: Vec<Token>) -> Result<Command, failure::Error> {
     let mut lines: Vec<Box<[Token]>> = vec![];
 
     let mut temp = vec![];
@@ -49,12 +48,12 @@ fn parser(tokens: Vec<Token>) -> Result<Cmd, failure::Error> {
     return Ok(ast);
 }
 
-fn evlate(ast: Cmd) {
+fn evaluate(ast: Command) {
     let mut ctx = Context {
         output: vec![],
         variables: Default::default(),
     };
-    debug!("{:?}",&ast);
+    debug!("{:?}", &ast);
     for cmd in ast.iter() {
         cmd.evaluate(&mut ctx);
     }

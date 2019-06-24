@@ -1,8 +1,8 @@
 use crate::Context;
+
 use std::clone::Clone;
 use std::collections::VecDeque;
 use std::fmt::Debug;
-use core::fmt::Write;
 
 pub trait Expression: Debug {
     fn evaluate(&self, ctx: &mut Context) -> Option<Const>;
@@ -135,10 +135,9 @@ impl Expression for Var {
     }
 }
 
+pub type Command = Box<VecDeque<Box<dyn Expression>>>;
 
-pub type Cmd = Box<VecDeque<Box<dyn Expression>>>;
-
-impl Expression for Cmd {
+impl Expression for Command {
     fn evaluate(&self, ctx: &mut Context) -> Option<Const> {
         for expre in self.iter() {
             expre.evaluate(ctx);
@@ -150,7 +149,7 @@ impl Expression for Cmd {
 #[derive(Debug)]
 pub struct Loop {
     pub predict: Box<dyn Expression>,
-    pub cmd: Cmd,
+    pub cmd: Command,
 }
 
 impl Expression for Loop {
@@ -172,11 +171,10 @@ impl Expression for Loop {
     }
 }
 
-
 #[derive(Debug)]
 pub struct If {
     pub predict: Box<dyn Expression>,
-    pub cmd: Cmd,
+    pub cmd: Command,
 }
 
 impl Expression for If {
@@ -187,9 +185,7 @@ impl Expression for If {
             Some(Const::Int(_)) => {
                 self.cmd.evaluate(ctx);
             }
-            _ => {
-                panic!("if 语句条件只能是int类型")
-            }
+            _ => panic!("if 语句条件只能是int类型"),
         }
         None
     }
@@ -210,7 +206,11 @@ pub struct Variable {
 impl Expression for Variable {
     fn evaluate(&self, context: &mut Context) -> Option<Const> {
         let val = context.variables.get(&self.name);
-        assert!(val.is_some(), "不能获取一个未定义的变量 {}", self.name);
+        assert!(
+            val.is_some(),
+            "不能获取一个未定义的变量 {}",
+            self.name
+        );
         return Some(val.unwrap().clone());
     }
 }

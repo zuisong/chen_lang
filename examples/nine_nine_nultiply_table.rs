@@ -1,5 +1,5 @@
 fn main() {
-    simple_logger::init();
+    simple_logger::init().unwrap();
 
     let code = r#"
 
@@ -35,7 +35,7 @@ for i {
 
 
 "#
-        .to_string();
+    .to_string();
 
     chen_lang::run(code).unwrap();
 }
