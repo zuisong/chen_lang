@@ -66,5 +66,5 @@ fn evaluate(ast: Command) {
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Context {
     output: Vec<String>,
-    variables: HashMap<String, Const>,
+    variables: HashMap<String, Value>,
 }

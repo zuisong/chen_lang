@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use std::fmt::Debug;
 
 pub trait Expression: Debug {
-    fn evaluate(&self, ctx: &mut Context) -> Option<Const>;
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value>;
 }
 
 #[derive(Debug)]
@@ -15,11 +15,11 @@ pub struct Subtract {
 }
 
 impl Expression for Subtract {
-    fn evaluate(&self, ctx: &mut Context) -> Option<Const> {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         let l = self.left.evaluate(ctx);
         let r = self.right.evaluate(ctx);
         match (l, r) {
-            (Some(Const::Int(l_int)), Some(Const::Int(r_int))) => Some(Const::Int(l_int - r_int)),
+            (Some(Value::Int(l_int)), Some(Value::Int(r_int))) => Some(Value::Int(l_int - r_int)),
             (_, _) => panic!("不是数字不能做求余数运算"),
         }
     }
@@ -32,11 +32,11 @@ pub struct Multiply {
 }
 
 impl Expression for Multiply {
-    fn evaluate(&self, ctx: &mut Context) -> Option<Const> {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         let l = self.left.evaluate(ctx);
         let r = self.right.evaluate(ctx);
         match (l, r) {
-            (Some(Const::Int(l_int)), Some(Const::Int(r_int))) => Some(Const::Int(l_int * r_int)),
+            (Some(Value::Int(l_int)), Some(Value::Int(r_int))) => Some(Value::Int(l_int * r_int)),
             (_, _) => panic!("不是数字不能做求余数运算"),
         }
     }
@@ -49,13 +49,54 @@ pub struct Divide {
 }
 
 impl Expression for Divide {
-    fn evaluate(&self, ctx: &mut Context) -> Option<Const> {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         let l = self.left.evaluate(ctx);
         let r = self.right.evaluate(ctx);
         match (l, r) {
-            (Some(Const::Int(l_int)), Some(Const::Int(r_int))) => Some(Const::Int(l_int / r_int)),
+            (Some(Value::Int(l_int)), Some(Value::Int(r_int))) => Some(Value::Int(l_int / r_int)),
             (_, _) => panic!("不是数字不能做求余数运算"),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct NotEquals {
+    pub left: Box<dyn Expression>,
+    pub right: Box<dyn Expression>,
+}
+
+impl Expression for NotEquals {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
+        let l = self.left.evaluate(ctx);
+        let r = self.right.evaluate(ctx);
+        return Some(Value::Bool(l != r));
+    }
+}
+
+/// 括号表达式
+#[derive(Debug)]
+pub struct Paren {
+    pub inner: Box<dyn Expression>,
+}
+
+impl Expression for Paren {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
+        self.inner.evaluate(ctx)
+    }
+}
+
+
+#[derive(Debug)]
+pub struct Equals {
+    pub left: Box<dyn Expression>,
+    pub right: Box<dyn Expression>,
+}
+
+impl Expression for Equals {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
+        let l = self.left.evaluate(ctx);
+        let r = self.right.evaluate(ctx);
+        return Some(Value::Bool(l == r));
     }
 }
 
@@ -66,11 +107,11 @@ pub struct Mod {
 }
 
 impl Expression for Mod {
-    fn evaluate(&self, ctx: &mut Context) -> Option<Const> {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         let l = self.left.evaluate(ctx);
         let r = self.right.evaluate(ctx);
         match (l, r) {
-            (Some(Const::Int(l_int)), Some(Const::Int(r_int))) => Some(Const::Int(l_int % r_int)),
+            (Some(Value::Int(l_int)), Some(Value::Int(r_int))) => Some(Value::Int(l_int % r_int)),
             (_, _) => panic!("不是数字不能做求余数运算"),
         }
     }
@@ -83,11 +124,11 @@ pub struct Add {
 }
 
 impl Expression for Add {
-    fn evaluate(&self, ctx: &mut Context) -> Option<Const> {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         let l = self.left.evaluate(ctx);
         let r = self.right.evaluate(ctx);
         match (l, r) {
-            (Some(Const::Int(l_int)), Some(Const::Int(r_int))) => Some(Const::Int(l_int + r_int)),
+            (Some(Value::Int(l_int)), Some(Value::Int(r_int))) => Some(Value::Int(l_int + r_int)),
             (_, _) => panic!("不是数字不能做加运算"),
         }
     }
@@ -99,7 +140,7 @@ pub struct Println {
 }
 
 impl Expression for Println {
-    fn evaluate(&self, ctx: &mut Context) -> Option<Const> {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         let res = self.expression.evaluate(ctx).unwrap();
         ctx.output.push(format!("{}\n", res.to_string()));
         None
@@ -112,7 +153,7 @@ pub struct Print {
 }
 
 impl Expression for Print {
-    fn evaluate(&self, ctx: &mut Context) -> Option<Const> {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         let res = self.expression.evaluate(ctx).unwrap();
         ctx.output.push(res.to_string());
         None
@@ -127,7 +168,7 @@ pub struct Var {
 }
 
 impl Expression for Var {
-    fn evaluate(&self, ctx: &mut Context) -> Option<Const> {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         let e = &self.right;
         let res = e.evaluate(ctx).unwrap().clone();
         ctx.variables.insert((&self.left).clone(), res);
@@ -138,7 +179,7 @@ impl Expression for Var {
 pub type Command = Box<VecDeque<Box<dyn Expression>>>;
 
 impl Expression for Command {
-    fn evaluate(&self, ctx: &mut Context) -> Option<Const> {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         for expre in self.iter() {
             expre.evaluate(ctx);
         }
@@ -153,13 +194,13 @@ pub struct Loop {
 }
 
 impl Expression for Loop {
-    fn evaluate(&self, ctx: &mut Context) -> Option<Const> {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         loop {
             match self.predict.evaluate(ctx) {
-                Some(Const::Int(0)) => {
+                Some(Value::Int(0)) => {
                     break;
                 }
-                Some(Const::Int(_)) => {
+                Some(Value::Int(_)) => {
                     self.cmd.evaluate(ctx);
                 }
                 _ => {
@@ -178,11 +219,11 @@ pub struct If {
 }
 
 impl Expression for If {
-    fn evaluate(&self, ctx: &mut Context) -> Option<Const> {
+    fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         // if 语句返回 0 为 假  其他为真
         match self.predict.evaluate(ctx) {
-            Some(Const::Int(0)) => {}
-            Some(Const::Int(_)) => {
+            Some(Value::Int(0)) => {}
+            Some(Value::Int(_)) => {
                 self.cmd.evaluate(ctx);
             }
             _ => panic!("if 语句条件只能是int类型"),
@@ -195,7 +236,7 @@ pub enum Element {
     /// 变量
     Variable(Variable),
     /// 常量
-    Const(Const),
+    Const(Value),
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
@@ -204,7 +245,7 @@ pub struct Variable {
 }
 
 impl Expression for Variable {
-    fn evaluate(&self, context: &mut Context) -> Option<Const> {
+    fn evaluate(&self, context: &mut Context) -> Option<Value> {
         let val = context.variables.get(&self.name);
         assert!(
             val.is_some(),
@@ -215,8 +256,10 @@ impl Expression for Variable {
     }
 }
 
+/// ----------------------------------------
+/// 常数类型
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub enum Const {
+pub enum Value {
     // 仅支持 int  bool类型
     Int(i32),
     Bool(bool),
@@ -224,19 +267,21 @@ pub enum Const {
     String(String),
 }
 
-impl Expression for Const {
-    fn evaluate(&self, _: &mut Context) -> Option<Const> {
+impl Expression for Value {
+    fn evaluate(&self, _: &mut Context) -> Option<Value> {
         Some(self.clone())
     }
 }
 
-impl ToString for Const {
+impl ToString for Value {
     fn to_string(&self) -> String {
         match self {
-            Const::Int(int) => (*int).to_string(),
-            Const::Bool(b) => (*b).to_string(),
-            Const::Void => String::new(),
-            Const::String(s) => s.clone(),
+            Value::Int(int) => (*int).to_string(),
+            Value::Bool(b) => (*b).to_string(),
+            Value::Void => String::new(),
+            Value::String(s) => s.clone(),
+//            Value::Float(f) => f.to_string(),
         }
     }
 }
+//-----------------------------------------

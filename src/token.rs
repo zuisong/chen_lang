@@ -1,3 +1,4 @@
+#[allow(unused_imports)]
 use log::*;
 
 #[derive(Debug, PartialEq)]
@@ -53,6 +54,7 @@ pub enum Token {
     Operator(Operator),
     Int(i32),
     Float(f32),
+    Bool(bool),
     String(String),
     Identifier(String),
     StdFunction(StdFunction),
@@ -274,6 +276,12 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
                 }
                 "for" => {
                     tokens.push(Token::Keyword(Keyword::FOR));
+                }
+                "true" => {
+                    tokens.push(Token::Bool(true));
+                }
+                "false" => {
+                    tokens.push(Token::Bool(false));
                 }
                 _ => {
                     tokens.push(Token::Identifier(s));

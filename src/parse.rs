@@ -10,8 +10,8 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
 
     if line.len() == 1 {
         return match &line[0] {
-            Token::Int(i) => Ok(Box::new(Const::Int(*i))),
-            Token::String(s) => Ok(Box::new(Const::String(s.clone()))),
+            Token::Int(i) => Ok(Box::new(Value::Int(*i))),
+            Token::String(s) => Ok(Box::new(Value::String(s.clone()))),
             Token::Identifier(name) => Ok(Box::new(Variable { name: name.clone() })),
             _ => Err(failure::err_msg(format!("错误的表达式, {:?}", line))),
         };
@@ -48,9 +48,21 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
                 right: parse_expression(&line[2..])?,
             }));
         }
+        Token::Operator(Operator::Equals) => {
+            return Ok(Box::new(Equals {
+                left: parse_expression(&line[0..1])?,
+                right: parse_expression(&line[2..])?,
+            }));
+        }
+        Token::Operator(Operator::NotEquals) => {
+            return Ok(Box::new(NotEquals {
+                left: parse_expression(&line[0..1])?,
+                right: parse_expression(&line[2..])?,
+            }));
+        }
         _ => {
             return Err(failure::err_msg(format!(
-                "暂未支持 其他她运算符,{:?}",
+                "暂未支持 其它运算符,{:?}",
                 line
             )));
         }
@@ -95,7 +107,7 @@ pub fn parse_sequence(
                 start_line += 1;
             }
             _ => {
-                unimplemented!("",);
+                unimplemented!("", );
             }
         }
     }
