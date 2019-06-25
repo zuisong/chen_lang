@@ -22,7 +22,7 @@ fn get_priority(token: &Token) -> i32 {
             Operator::Equals => M,
             Operator::NotEquals => M,
             Operator::Or => -1,
-            Operator::NOT => M,
+            Operator::NOT => 0,
             Operator::GT => M,
             Operator::LT => M,
             Operator::GTE => M,
