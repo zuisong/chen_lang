@@ -6,7 +6,6 @@ use std::result::Result::Err;
 use failure::err_msg;
 
 use crate::token::Operator;
-
 use crate::Context;
 
 /// 表达式  核心对象
@@ -29,9 +28,11 @@ impl Expression for BinaryOperator {
         match self.operator {
             Operator::ADD => match (l, r) {
                 (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Int(l_int + r_int)),
-                (Value::String(_), _) | (_, Value::String(_)) => {
-                    //                    Ok(Value::String(format!("{}{}", l.to_string(), r.to_string())))
-                    unimplemented!("字符串加法还在做")
+                (Value::String(a), b) => {
+                    Ok(Value::String(format!("{}{}", a.to_string(), b.to_string())))
+                }
+                (a, Value::String(b)) => {
+                    Ok(Value::String(format!("{}{}", a.to_string(), b.to_string())))
                 }
                 _ => Err(err_msg("不是 int string 类型不能做加法")),
             },

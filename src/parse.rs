@@ -220,13 +220,17 @@ pub fn parse_for(
 }
 
 fn parse_println(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
+    debug!("{:?}", line);
+    let expression = parse_expression(&line[2..(line.len() - 1)])?;
     Ok(box Println {
-        expression: parse_expression(&line[2..(line.len() - 1)])?,
+        expression: expression,
     })
 }
 
 fn parse_print(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
+    debug!("{:?}", line);
+    let expression = parse_expression(&line[2..(line.len() - 1)])?;
     Ok(box Print {
-        expression: parse_expression(&line[2..(line.len() - 1)])?,
+        expression: expression,
     })
 }
