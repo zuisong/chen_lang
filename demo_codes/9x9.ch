@@ -1,1 +1,1 @@
-# 这里是注释,# 注释以# 开始, 到行尾结束# if 和 for 里面的表达式运算结果都是int类型 0 为假  非0 为真i=1for i<=9 {    j = 1    # 有了逻辑运算符以后 可以像普通语言一样写代码了    for j<=i {        print(j)        print(" x ")        print(i)        print(" = ")        print(i*j)        print("   ")        j=j+1    }    println("")    i=i+1}
+# 这里是注释,# 注释以# 开始, 到行尾结束# if 和 for 里面的表达式运算结果都是int类型 0 为假  非0 为真i=1for i<=9 {    j = 1    for j<=i {        # 字符串拼接, 现在可以用 + 号直接连起来了        print(j + "x" + i + "=" + i*j + " ")        j = j + 1    }    println("")    i=i+1}
