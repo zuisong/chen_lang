@@ -1,14 +1,20 @@
 #[allow(unused_imports)]
 use log::*;
 
+/// 关键字
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Keyword {
+    /// int
     INT,
+    /// if
     IF,
-    FOR,
+    /// else
     ELSE,
+    /// for
+    FOR,
 }
 
+/// 操作符
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Operator {
     /// +
@@ -43,21 +49,32 @@ pub enum Operator {
     LTE,
 }
 
+/// 标准库函数
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum StdFunction {
+    /// println
     Println,
+    /// print
     Print,
 }
 
+/// token 类型
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Token {
+    /// 关键字
     Keyword(Keyword),
+    /// 操作符
     Operator(Operator),
+    /// int
     Int(i32),
     //    Float(f32),
+    /// bool
     Bool(bool),
+    /// string
     String(String),
+    /// 标识符
     Identifier(String),
+    /// 标准库函数
     StdFunction(StdFunction),
     /// 左大括号
     LBig,
@@ -75,9 +92,11 @@ pub enum Token {
     LParen,
     /// )
     RParen,
+    /// 换行符
     NewLine,
 }
 
+/// 代码转成token串
 pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
     let chars: Vec<_> = code.chars().collect();
 

@@ -1,6 +1,10 @@
 fn main() {
     simple_logger::init().unwrap();
     let cpde: String = r#"
+def print(){
+
+}
+
 i = 0
 for i<=100{
     if i%2 == 0{

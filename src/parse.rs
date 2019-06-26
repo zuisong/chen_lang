@@ -31,6 +31,7 @@ fn get_priority(token: &Token) -> i32 {
     }
 }
 
+/// 简单表达式分析 (只有运算的 一行)
 pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
     if line.len() == 0 {
         return Err(failure::err_msg("不是一个表达式"));
@@ -123,9 +124,10 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
         }
     }
 
-    return Ok(box box tmp);
+    return Ok(box tmp);
 }
 
+/// 分析很多行的方法
 pub fn parse_sequence(
     lines: &[Box<[Token]>],
     mut start_line: usize,
@@ -168,9 +170,10 @@ pub fn parse_sequence(
             }
         }
     }
-    return Ok((start_line, box v));
+    return Ok((start_line, v));
 }
 
+/// 分析赋值语句
 pub fn parse_var(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
     debug!("{:?}", &line);
 
@@ -188,12 +191,13 @@ pub fn parse_var(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> 
     };
 }
 
+/// 分析条件语句
 pub fn parse_if(
     lines: &[Box<[Token]>],
     start_line: usize,
 ) -> Result<(usize, Box<dyn Expression>), failure::Error> {
     let (mut endline, if_cmd) = parse_sequence(&lines, start_line + 1)?;
-    let mut else_cmd = box VecDeque::new();
+    let mut else_cmd = VecDeque::new();
     if lines[endline].len() == 3 && lines[endline][1] == Token::Keyword(Keyword::ELSE) {
         let (new_endline, cmd) = parse_sequence(&lines, endline + 1)?;
         endline = new_endline;
@@ -207,6 +211,7 @@ pub fn parse_if(
     return Ok((endline, box loop_expr));
 }
 
+/// 分析循环语句
 pub fn parse_for(
     lines: &[Box<[Token]>],
     start_line: usize,

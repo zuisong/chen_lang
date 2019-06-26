@@ -5,19 +5,27 @@ use std::result::Result::Err;
 
 use failure::err_msg;
 
-use crate::token::Operator;
 use crate::Context;
+use crate::token::Operator;
 
 /// 表达式  核心对象
 /// 一切语法都是表达式
 pub trait Expression: Debug {
+    ///
+    /// 表达式执行的方法
+    ///
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error>;
 }
 
+///
+/// 二元操作符
 #[derive(Debug)]
 pub struct BinaryOperator {
+    /// 操作符左边的表达式
     pub left: Box<dyn Expression>,
+    /// 操作符右边的表达式
     pub right: Box<dyn Expression>,
+    /// 操作符
     pub operator: Operator,
 }
 
@@ -87,9 +95,10 @@ impl Expression for BinaryOperator {
     }
 }
 
-/// 小于
+/// 取反
 #[derive(Debug)]
 pub struct Not {
+    /// 要取反的表达式
     pub expr: Box<dyn Expression>,
 }
 
@@ -103,8 +112,11 @@ impl Expression for Not {
     }
 }
 
+///
+/// 打印换行
 #[derive(Debug)]
 pub struct Println {
+    /// 要打印换行的表达式对象
     pub expression: Box<dyn Expression>,
 }
 
@@ -116,8 +128,10 @@ impl Expression for Println {
     }
 }
 
+/// 打印不换行
 #[derive(Debug)]
 pub struct Print {
+    /// 要打印的表达式对象
     pub expression: Box<dyn Expression>,
 }
 
@@ -129,10 +143,12 @@ impl Expression for Print {
     }
 }
 
-// 赋值语句
+/// 赋值语句
 #[derive(Debug)]
 pub struct Var {
+    /// 变量名
     pub left: String,
+    /// 赋值语句右边的表达式
     pub right: Box<dyn Expression>,
 }
 
@@ -146,7 +162,8 @@ impl Expression for Var {
     }
 }
 
-pub type Command = Box<VecDeque<Box<dyn Expression>>>;
+/// 一串表达式的集合
+pub type Command = VecDeque<Box<dyn Expression>>;
 
 impl Expression for Command {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
@@ -158,9 +175,12 @@ impl Expression for Command {
     }
 }
 
+/// 循环语句
 #[derive(Debug)]
 pub struct Loop {
+    /// 循环终止判断条件
     pub predict: Box<dyn Expression>,
+    /// 循环语句里面要执行的语句块
     pub cmd: Command,
 }
 
@@ -185,10 +205,14 @@ impl Expression for Loop {
     }
 }
 
+/// 条件语句
 #[derive(Debug)]
 pub struct If {
+    /// 条件语句 判断条件
     pub predict: Box<dyn Expression>,
+    /// 条件语句为真时执行的语句块
     pub if_cmd: Command,
+    /// 条件语句为假时执行的语句块
     pub else_cmd: Command,
 }
 
@@ -211,6 +235,7 @@ impl Expression for If {
     }
 }
 
+/// 变量和常量的总称
 pub enum Element {
     /// 变量
     Variable(Variable),
@@ -236,8 +261,10 @@ impl Expression for Element {
     }
 }
 
+/// 变量
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Variable {
+    /// 变量名
     pub name: String,
 }
 
@@ -257,10 +284,13 @@ impl Expression for Variable {
 /// 常数类型
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Value {
-    // 仅支持 int  bool类型
+    /// int 常量
     Int(i32),
+    /// bool 常量
     Bool(bool),
+    /// void 常量
     Void,
+    /// string 常量
     String(String),
 }
 
@@ -285,11 +315,11 @@ impl ToString for Value {
 
 #[cfg(test)]
 mod tests {
+    use crate::Context;
+    use crate::expression::{BinaryOperator, Expression};
     use crate::expression::Element::Value;
     use crate::expression::Value::{Bool, Int};
-    use crate::expression::{BinaryOperator, Expression};
     use crate::token::Operator;
-    use crate::Context;
 
     #[test]
     fn test_sub_int_int() {

@@ -1,5 +1,6 @@
 #![feature(box_syntax)]
-
+#![deny(missing_docs)]
+//! A simple key/value store.
 #[deny(unused_imports)]
 #[deny(unused_parens)]
 #[deny(dead_code)]
@@ -23,10 +24,14 @@ use wasm_bindgen::prelude::*;
 use crate::expression::*;
 use crate::token::*;
 
+/// 表达式模块
 pub mod expression;
+/// 语法分析模块
 pub mod parse;
+/// 词法分析模块
 pub mod token;
 
+/// 运行代码
 #[wasm_bindgen]
 pub fn run(code: String) -> Result<(), failure::Error> {
     let tokens = token::tokenlizer(code)?;
@@ -72,9 +77,13 @@ fn evaluate(ast: Command) -> Result<Value, failure::Error> {
     Ok(Value::Void)
 }
 
+/// 程序上下文
+/// 保存变量和输出的值
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Context {
+    /// 输出
     output: Vec<String>,
+    /// 变量池
     variables: HashMap<String, Value>,
 }
 
