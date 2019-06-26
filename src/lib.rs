@@ -1,18 +1,18 @@
 #![feature(box_syntax)]
 
-#[allow(unused_imports)]
-#[allow(unused_parens)]
-#[allow(dead_code)]
-#[allow(unused_mut)]
-#[allow(unreachable_code)]
+#[deny(unused_imports)]
+#[deny(unused_parens)]
+#[deny(dead_code)]
+#[deny(unused_mut)]
+#[deny(unreachable_code)]
 ///
-/// 关键字   if for int
-/// 函数库   print
+/// 关键字   if for
+/// 函数库   print println
 /// 操作符  = +-*/  ==
 /// 逻辑运算符  && || ！
 /// 标识符   纯字母
 ///
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
 use crate::expression::*;
 use crate::token::*;
@@ -35,7 +35,6 @@ pub fn run(code: String) -> Result<(), failure::Error> {
 
 fn parser(tokens: Vec<Token>) -> Result<Command, failure::Error> {
     let mut lines: Vec<Box<[Token]>> = vec![];
-
     let mut temp = vec![];
     for x in tokens {
         if let Token::NewLine = x {

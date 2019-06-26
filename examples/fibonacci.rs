@@ -10,7 +10,8 @@ for n <= 30 {
    j = tmp + j
    n = n + 1
 }
-"#.to_string();
+"#
+    .to_string();
 
     chen_lang::run(cpde).unwrap();
 }

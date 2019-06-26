@@ -4,6 +4,8 @@ use std::clone::Clone;
 use std::collections::VecDeque;
 use std::fmt::{Debug, Formatter};
 
+/// 表达式  核心对象
+/// 一切语法都是表达式
 pub trait Expression: Debug {
     fn evaluate(&self, ctx: &mut Context) -> Option<Value>;
 }
@@ -83,12 +85,11 @@ impl Expression for Not {
     fn evaluate(&self, ctx: &mut Context) -> Option<Value> {
         let res = self.expr.evaluate(ctx).unwrap();
         match res {
-            Value::Bool(b) => { Some(Value::Bool(!b)) }
-            _ => panic!("逻辑运算符只能用在 bool 类型上")
+            Value::Bool(b) => Some(Value::Bool(!b)),
+            _ => panic!("逻辑运算符只能用在 bool 类型上"),
         }
     }
 }
-
 
 /// 小于
 #[derive(Debug)]
@@ -431,10 +432,31 @@ impl ToString for Value {
 
 #[cfg(test)]
 mod tests {
-    use crate::expression::{Add, Expression};
     use crate::expression::Element::Value;
     use crate::expression::Value::{Bool, Int};
+    use crate::expression::{Add, Expression, Subtract};
     use crate::Context;
+
+    #[test]
+    fn test_sub_int_int() {
+        let mut ctx = Context::default();
+        let add = Subtract {
+            left: box Value(Int(1)),
+            right: box Value(Int(1)),
+        };
+        assert_eq!(add.evaluate(&mut ctx), Some(Int(0)));
+    }
+
+    #[should_panic]
+    #[test]
+    fn test_sub_bool_int() {
+        let mut ctx = Context::default();
+        let add: Box<dyn Expression> = box Add {
+            left: box Value(Bool(false)),
+            right: box Value(Int(1)),
+        };
+        add.evaluate(&mut ctx);
+    }
 
     #[test]
     fn test_add_int_int() {
@@ -446,8 +468,8 @@ mod tests {
         assert_eq!(add.evaluate(&mut ctx), Some(Int(2)));
     }
 
-    #[test]
     #[should_panic]
+    #[test]
     fn test_add_bool_int() {
         let mut ctx = Context::default();
         let add = Add {

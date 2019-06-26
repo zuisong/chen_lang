@@ -37,7 +37,7 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
         return Err(failure::err_msg("不是一个表达式"));
     }
 
-// 中缀表达式变后缀表达式
+    // 中缀表达式变后缀表达式
     let mut result = VecDeque::new();
     let mut stack = vec![];
     for token in line {
@@ -168,11 +168,9 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
                         right: o1,
                     }
                 }
-                Operator::NOT => {
-                    box Not {
-                        expr: tmp.pop_back().unwrap()
-                    }
-                }
+                Operator::NOT => box Not {
+                    expr: tmp.pop_back().unwrap(),
+                },
                 Operator::GT => {
                     let o1 = tmp.pop_back().unwrap();
                     let o2 = tmp.pop_back().unwrap();
@@ -215,7 +213,7 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
                 Token::String(i) => Element::Value(Value::String(i)),
                 _ => panic!("错误"),
             };
-            tmp.push_back(Box::new(ele));
+            tmp.push_back(box ele);
         }
     }
 
@@ -264,7 +262,7 @@ pub fn parse_sequence(
             }
         }
     }
-    return Ok((start_line, Box::new(v)));
+    return Ok((start_line, box v));
 }
 
 pub fn parse_var(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
@@ -276,7 +274,7 @@ pub fn parse_var(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> 
                 left: name.clone(),
                 right: parse_expression(&line[2..])?,
             };
-            return Ok(Box::new(var));
+            return Ok(box var);
         }
         _ => {
             return Err(err_msg(format!("赋值语句语法不对，{:?}", line)));
@@ -293,7 +291,7 @@ pub fn parse_if(
         predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
         cmd: cmd.1,
     };
-    return Ok((cmd.0, Box::new(loop_expr)));
+    return Ok((cmd.0, box loop_expr));
 }
 
 pub fn parse_for(
@@ -305,17 +303,17 @@ pub fn parse_for(
         predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
         cmd: cmd.1,
     };
-    return Ok((cmd.0, Box::new(loop_expr)));
+    return Ok((cmd.0, box loop_expr));
 }
 
 fn parse_println(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
-    Ok(Box::new(Println {
+    Ok(box Println {
         expression: parse_expression(&line[2..(line.len() - 1)])?,
-    }))
+    })
 }
 
 fn parse_print(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
-    Ok(Box::new(Print {
+    Ok(box Print {
         expression: parse_expression(&line[2..(line.len() - 1)])?,
-    }))
+    })
 }
