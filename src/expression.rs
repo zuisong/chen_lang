@@ -5,8 +5,8 @@ use std::result::Result::Err;
 
 use failure::err_msg;
 
-use crate::Context;
 use crate::token::Operator;
+use crate::Context;
 
 /// 表达式  核心对象
 /// 一切语法都是表达式
@@ -315,11 +315,11 @@ impl ToString for Value {
 
 #[cfg(test)]
 mod tests {
-    use crate::Context;
-    use crate::expression::{BinaryOperator, Expression};
     use crate::expression::Element::Value;
     use crate::expression::Value::{Bool, Int};
+    use crate::expression::{BinaryOperator, Expression};
     use crate::token::Operator;
+    use crate::Context;
 
     #[test]
     fn test_sub_int_int() {
