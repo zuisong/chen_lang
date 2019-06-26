@@ -1,7 +1,7 @@
-use crate::expression::*;
+use std::collections::VecDeque;
 
 use crate::*;
-use std::collections::VecDeque;
+
 
 const H: i32 = 3;
 const M: i32 = 2;
@@ -93,114 +93,21 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
     while let Some(t) = result.pop_front() {
         if let Token::Operator(opt) = t {
             let new_exp: Box<dyn Expression> = match opt {
-                Operator::ADD => {
-                    let o1 = tmp.pop_back().unwrap();
-                    let o2 = tmp.pop_back().unwrap();
-                    box Add {
-                        left: o2,
-                        right: o1,
-                    }
-                }
-                Operator::Subtract => {
-                    let o1 = tmp.pop_back().unwrap();
-                    let o2 = tmp.pop_back().unwrap();
-                    box Subtract {
-                        left: o2,
-                        right: o1,
-                    }
-                }
-                Operator::Multiply => {
-                    let o1 = tmp.pop_back().unwrap();
-                    let o2 = tmp.pop_back().unwrap();
-                    box Multiply {
-                        left: o2,
-                        right: o1,
-                    }
-                }
-                Operator::Divide => {
-                    let o1 = tmp.pop_back().unwrap();
-                    let o2 = tmp.pop_back().unwrap();
-                    box Divide {
-                        left: o2,
-                        right: o1,
-                    }
-                }
-                Operator::Mod => {
-                    let o1 = tmp.pop_back().unwrap();
-                    let o2 = tmp.pop_back().unwrap();
-                    box Mod {
-                        left: o2,
-                        right: o1,
-                    }
-                }
                 Operator::Assign => {
                     unreachable!();
                 }
-                Operator::And => {
-                    let o1 = tmp.pop_back().unwrap();
-                    let o2 = tmp.pop_back().unwrap();
-                    box And {
-                        left: o2,
-                        right: o1,
-                    }
-                }
-                Operator::Equals => {
-                    let o1 = tmp.pop_back().unwrap();
-                    let o2 = tmp.pop_back().unwrap();
-                    box Equals {
-                        left: o2,
-                        right: o1,
-                    }
-                }
-                Operator::NotEquals => {
-                    let o1 = tmp.pop_back().unwrap();
-                    let o2 = tmp.pop_back().unwrap();
-                    box NotEquals {
-                        left: o2,
-                        right: o1,
-                    }
-                }
-                Operator::Or => {
-                    let o1 = tmp.pop_back().unwrap();
-                    let o2 = tmp.pop_back().unwrap();
-                    box Or {
-                        left: o2,
-                        right: o1,
-                    }
-                }
+
                 Operator::NOT => box Not {
                     expr: tmp.pop_back().unwrap(),
                 },
-                Operator::GT => {
+
+                _ => {
                     let o1 = tmp.pop_back().unwrap();
                     let o2 = tmp.pop_back().unwrap();
-                    box GT {
+                    box BinaryOperator {
                         left: o2,
                         right: o1,
-                    }
-                }
-                Operator::LT => {
-                    let o1 = tmp.pop_back().unwrap();
-                    let o2 = tmp.pop_back().unwrap();
-                    box LT {
-                        left: o2,
-                        right: o1,
-                    }
-                }
-                Operator::GTE => {
-                    let o1 = tmp.pop_back().unwrap();
-                    let o2 = tmp.pop_back().unwrap();
-                    box GTE {
-                        left: o2,
-                        right: o1,
-                    }
-                }
-                Operator::LTE => {
-                    let o1 = tmp.pop_back().unwrap();
-                    let o2 = tmp.pop_back().unwrap();
-                    box LTE {
-                        left: o2,
-                        right: o1,
+                        operator: opt,
                     }
                 }
             };

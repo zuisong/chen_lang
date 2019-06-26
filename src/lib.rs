@@ -16,11 +16,12 @@ extern crate wasm_bindgen;
 ///
 use std::collections::HashMap;
 
-use crate::expression::*;
-use crate::token::*;
 use failure::*;
 use log::*;
 use wasm_bindgen::prelude::*;
+
+use crate::expression::*;
+use crate::token::*;
 
 pub mod expression;
 pub mod parse;
@@ -33,7 +34,7 @@ pub fn run(code: String) -> Result<(), failure::Error> {
     let ast: Command = parser(tokens)?;
     debug!("ast => {:?}", &ast);
 
-    evaluate(ast);
+    evaluate(ast)?;
     Ok(())
 }
 
@@ -55,19 +56,20 @@ fn parser(tokens: Vec<Token>) -> Result<Command, failure::Error> {
     return Ok(ast);
 }
 
-fn evaluate(ast: Command) {
+fn evaluate(ast: Command) -> Result<Value, failure::Error> {
     let mut ctx = Context {
         output: vec![],
         variables: Default::default(),
     };
     debug!("{:?}", &ast);
     for cmd in ast.iter() {
-        cmd.evaluate(&mut ctx);
+        cmd.evaluate(&mut ctx)?;
     }
 
     for x in ctx.output {
         print!("{}", x);
     }
+    Ok(Value::Void)
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]

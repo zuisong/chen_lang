@@ -1,4 +1,5 @@
 fn main() {
+    simple_logger::init().unwrap();
     let cpde: String = r#"
 n = 1
 i = 1
