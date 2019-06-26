@@ -6,6 +6,7 @@ pub enum Keyword {
     INT,
     IF,
     FOR,
+    ELSE,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
@@ -283,6 +284,9 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
                 }
                 "if" => {
                     tokens.push(Token::Keyword(Keyword::IF));
+                }
+                "else" => {
+                    tokens.push(Token::Keyword(Keyword::ELSE));
                 }
                 "for" => {
                     tokens.push(Token::Keyword(Keyword::FOR));

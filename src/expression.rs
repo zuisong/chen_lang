@@ -6,6 +6,7 @@ use std::result::Result::Err;
 use failure::err_msg;
 
 use crate::token::Operator;
+
 use crate::Context;
 
 /// 表达式  核心对象
@@ -26,86 +27,57 @@ impl Expression for BinaryOperator {
         let l = self.left.evaluate(ctx)?;
         let r = self.right.evaluate(ctx)?;
         match self.operator {
-            Operator::ADD => {
-                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                    Ok(Value::Int(l_int + r_int))
-                } else {
-                    Err(err_msg("不是 int 类型不能做加法"))
+            Operator::ADD => match (l, r) {
+                (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Int(l_int + r_int)),
+                (Value::String(_), _) | (_, Value::String(_)) => {
+                    //                    Ok(Value::String(format!("{}{}", l.to_string(), r.to_string())))
+                    unimplemented!("字符串加法还在做")
                 }
-            }
-            Operator::Subtract => {
-                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                    Ok(Value::Int(l_int - r_int))
-                } else {
-                    Err(err_msg("不是 int 类型不能做减法"))
-                }
-            }
-            Operator::Multiply => {
-                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                    Ok(Value::Int(l_int * r_int))
-                } else {
-                    Err(err_msg("不是 int 类型不能做乘法"))
-                }
-            }
-            Operator::Divide => {
-                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                    Ok(Value::Int(l_int / r_int))
-                } else {
-                    Err(err_msg("不是 int 类型不能做除法"))
-                }
-            }
-            Operator::Mod => {
-                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                    Ok(Value::Int(l_int % r_int))
-                } else {
-                    Err(err_msg("不是 int 类型不能做余数运算"))
-                }
-            }
+                _ => Err(err_msg("不是 int string 类型不能做加法")),
+            },
+            Operator::Subtract => match (l, r) {
+                (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Int(l_int - r_int)),
+                _ => Err(err_msg("不是 int 类型不能做减法")),
+            },
+            Operator::Multiply => match (l, r) {
+                (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Int(l_int * r_int)),
+                _ => Err(err_msg("不是 int 类型不能做乘法")),
+            },
+            Operator::Divide => match (l, r) {
+                (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Int(l_int / r_int)),
+                _ => Err(err_msg("不是 int 类型不能做除法")),
+            },
+            Operator::Mod => match (l, r) {
+                (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Int(l_int % r_int)),
+                _ => Err(err_msg("不是 int 类型不能做余数运算")),
+            },
 
-            Operator::And => {
-                if let (Value::Bool(l_b), Value::Bool(r_b)) = (l, r) {
-                    Ok(Value::Bool(l_b && r_b))
-                } else {
-                    Err(err_msg("不是 bool 类型不能做逻辑运算"))
-                }
-            }
+            Operator::And => match (l, r) {
+                (Value::Bool(l_b), Value::Bool(r_b)) => Ok(Value::Bool(l_b && r_b)),
+                _ => Err(err_msg("不是 bool 类型不能做逻辑运算")),
+            },
 
-            Operator::Or => {
-                if let (Value::Bool(l_b), Value::Bool(r_b)) = (l, r) {
-                    Ok(Value::Bool(l_b || r_b))
-                } else {
-                    Err(err_msg("不是 bool 类型不能做逻辑运算"))
-                }
-            }
+            Operator::Or => match (l, r) {
+                (Value::Bool(l_b), Value::Bool(r_b)) => Ok(Value::Bool(l_b || r_b)),
+                _ => Err(err_msg("不是 bool 类型不能做逻辑运算")),
+            },
 
-            Operator::GT => {
-                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                    Ok(Value::Bool(l_int > r_int))
-                } else {
-                    Err(err_msg("不是 int 类型不能做比较运算"))
-                }
-            }
-            Operator::LT => {
-                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                    Ok(Value::Bool(l_int < r_int))
-                } else {
-                    Err(err_msg("不是 int 类型不能做比较运算"))
-                }
-            }
-            Operator::GTE => {
-                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                    Ok(Value::Bool(l_int >= r_int))
-                } else {
-                    Err(err_msg("不是 int 类型不能做比较运算"))
-                }
-            }
-            Operator::LTE => {
-                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                    Ok(Value::Bool(l_int <= r_int))
-                } else {
-                    Err(err_msg("不是 int 类型不能做比较运算"))
-                }
-            }
+            Operator::GT => match (l, r) {
+                (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Bool(l_int > r_int)),
+                _ => Err(err_msg("不是 int 类型不能做比较运算")),
+            },
+            Operator::LT => match (l, r) {
+                (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Bool(l_int < r_int)),
+                _ => Err(err_msg("不是 int 类型不能做比较运算")),
+            },
+            Operator::GTE => match (l, r) {
+                (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Bool(l_int >= r_int)),
+                _ => Err(err_msg("不是 int 类型不能做比较运算")),
+            },
+            Operator::LTE => match (l, r) {
+                (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Bool(l_int <= r_int)),
+                _ => Err(err_msg("不是 int 类型不能做比较运算")),
+            },
             Operator::Equals => Ok(Value::Bool(l == r)),
             Operator::NotEquals => Ok(Value::Bool(l != r)),
             Operator::NOT => unreachable!("到了这里就错了"),
@@ -215,15 +187,18 @@ impl Expression for Loop {
 #[derive(Debug)]
 pub struct If {
     pub predict: Box<dyn Expression>,
-    pub cmd: Command,
+    pub if_cmd: Command,
+    pub else_cmd: Command,
 }
 
 impl Expression for If {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
         match self.predict.evaluate(ctx)? {
-            Value::Bool(false) => {}
+            Value::Bool(false) => {
+                self.else_cmd.evaluate(ctx)?;
+            }
             Value::Bool(true) => {
-                self.cmd.evaluate(ctx)?;
+                self.if_cmd.evaluate(ctx)?;
             }
             _ => {
                 return Err(err_msg(
