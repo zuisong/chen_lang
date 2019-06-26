@@ -258,7 +258,7 @@ pub fn parse_sequence(
                 start_line += 1;
             }
             _ => {
-                unimplemented!("", );
+                unimplemented!("");
             }
         }
     }

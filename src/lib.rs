@@ -5,6 +5,8 @@
 #[deny(dead_code)]
 #[deny(unused_mut)]
 #[deny(unreachable_code)]
+extern crate wasm_bindgen;
+
 ///
 /// 关键字   if for
 /// 函数库   print println
@@ -18,11 +20,13 @@ use crate::expression::*;
 use crate::token::*;
 use failure::*;
 use log::*;
+use wasm_bindgen::prelude::*;
 
 pub mod expression;
 pub mod parse;
 pub mod token;
 
+#[wasm_bindgen]
 pub fn run(code: String) -> Result<(), failure::Error> {
     let tokens = token::tokenlizer(code)?;
     debug!("tokens => {:?}", &tokens);

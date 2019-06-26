@@ -22,7 +22,7 @@ for i<=9 {
 
 
 "#
-        .to_string();
+    .to_string();
 
     chen_lang::run(code).unwrap();
 }
