@@ -5,8 +5,8 @@ use std::result::Result::Err;
 
 use failure::err_msg;
 
-use crate::Context;
 use crate::token::Operator;
+use crate::Context;
 
 /// 表达式  核心对象
 /// 一切语法都是表达式
@@ -25,100 +25,94 @@ impl Expression for BinaryOperator {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
         let l = self.left.evaluate(ctx)?;
         let r = self.right.evaluate(ctx)?;
-        return
-            match self.operator {
-                Operator::ADD => {
-                    if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                        Ok(Value::Int(l_int + r_int))
-                    } else {
-                        Err(err_msg("不是 int 类型不能做加法"))
-                    }
+        match self.operator {
+            Operator::ADD => {
+                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
+                    Ok(Value::Int(l_int + r_int))
+                } else {
+                    Err(err_msg("不是 int 类型不能做加法"))
                 }
-                Operator::Subtract => {
-                    if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                        Ok(Value::Int(l_int - r_int))
-                    } else {
-                        Err(err_msg("不是 int 类型不能做减法"))
-                    }
+            }
+            Operator::Subtract => {
+                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
+                    Ok(Value::Int(l_int - r_int))
+                } else {
+                    Err(err_msg("不是 int 类型不能做减法"))
                 }
-                Operator::Multiply => {
-                    if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                        Ok(Value::Int(l_int * r_int))
-                    } else {
-                        Err(err_msg("不是 int 类型不能做乘法"))
-                    }
+            }
+            Operator::Multiply => {
+                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
+                    Ok(Value::Int(l_int * r_int))
+                } else {
+                    Err(err_msg("不是 int 类型不能做乘法"))
                 }
-                Operator::Divide => {
-                    if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                        Ok(Value::Int(l_int / r_int))
-                    } else {
-                        Err(err_msg("不是 int 类型不能做除法"))
-                    }
+            }
+            Operator::Divide => {
+                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
+                    Ok(Value::Int(l_int / r_int))
+                } else {
+                    Err(err_msg("不是 int 类型不能做除法"))
                 }
-                Operator::Mod => {
-                    if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                        Ok(Value::Int(l_int % r_int))
-                    } else {
-                        Err(err_msg("不是 int 类型不能做余数运算"))
-                    }
+            }
+            Operator::Mod => {
+                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
+                    Ok(Value::Int(l_int % r_int))
+                } else {
+                    Err(err_msg("不是 int 类型不能做余数运算"))
                 }
+            }
 
-                Operator::And => {
-                    if let (Value::Bool(l_b), Value::Bool(r_b)) = (l, r) {
-                        Ok(Value::Bool(l_b && r_b))
-                    } else {
-                        Err(err_msg("不是 bool 类型不能做逻辑运算"))
-                    }
+            Operator::And => {
+                if let (Value::Bool(l_b), Value::Bool(r_b)) = (l, r) {
+                    Ok(Value::Bool(l_b && r_b))
+                } else {
+                    Err(err_msg("不是 bool 类型不能做逻辑运算"))
                 }
+            }
 
-                Operator::Or => {
-                    if let (Value::Bool(l_b), Value::Bool(r_b)) = (l, r) {
-                        Ok(Value::Bool(l_b || r_b))
-                    } else {
-                        Err(err_msg("不是 bool 类型不能做逻辑运算"))
-                    }
+            Operator::Or => {
+                if let (Value::Bool(l_b), Value::Bool(r_b)) = (l, r) {
+                    Ok(Value::Bool(l_b || r_b))
+                } else {
+                    Err(err_msg("不是 bool 类型不能做逻辑运算"))
                 }
+            }
 
-                Operator::GT => {
-                    if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                        Ok(Value::Bool(l_int > r_int))
-                    } else {
-                        Err(err_msg("不是 int 类型不能做比较运算"))
-                    }
+            Operator::GT => {
+                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
+                    Ok(Value::Bool(l_int > r_int))
+                } else {
+                    Err(err_msg("不是 int 类型不能做比较运算"))
                 }
-                Operator::LT => {
-                    if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                        Ok(Value::Bool(l_int < r_int))
-                    } else {
-                        Err(err_msg("不是 int 类型不能做比较运算"))
-                    }
+            }
+            Operator::LT => {
+                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
+                    Ok(Value::Bool(l_int < r_int))
+                } else {
+                    Err(err_msg("不是 int 类型不能做比较运算"))
                 }
-                Operator::GTE => {
-                    if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                        Ok(Value::Bool(l_int >= r_int))
-                    } else {
-                        Err(err_msg("不是 int 类型不能做比较运算"))
-                    }
+            }
+            Operator::GTE => {
+                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
+                    Ok(Value::Bool(l_int >= r_int))
+                } else {
+                    Err(err_msg("不是 int 类型不能做比较运算"))
                 }
-                Operator::LTE => {
-                    if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
-                        Ok(Value::Bool(l_int <= r_int))
-                    } else {
-                        Err(err_msg("不是 int 类型不能做比较运算"))
-                    }
+            }
+            Operator::LTE => {
+                if let (Value::Int(l_int), Value::Int(r_int)) = (l, r) {
+                    Ok(Value::Bool(l_int <= r_int))
+                } else {
+                    Err(err_msg("不是 int 类型不能做比较运算"))
                 }
-                Operator::Equals => Ok(Value::Bool(l == r)),
-                Operator::NotEquals => Ok(Value::Bool(l != r)),
-                Operator::NOT => {
-                    unreachable!("到了这里就错了")
-                }
-                Operator::Assign => {
-                    unreachable!("到了这里就错了")
-                }
-            };
+            }
+            Operator::Equals => Ok(Value::Bool(l == r)),
+            Operator::NotEquals => Ok(Value::Bool(l != r)),
+            Operator::NOT => unreachable!("到了这里就错了"),
+            Operator::Assign => unreachable!("到了这里就错了"),
+        }
     }
 }
-
 
 /// 小于
 #[derive(Debug)]
@@ -135,7 +129,6 @@ impl Expression for Not {
         }
     }
 }
-
 
 #[derive(Debug)]
 pub struct Println {
@@ -209,7 +202,9 @@ impl Expression for Loop {
                     self.cmd.evaluate(ctx)?;
                 }
                 _ => {
-                    return Err(err_msg("循环判断条件 返回值 只能是 bool 类型"));
+                    return Err(err_msg(
+                        "for循环语句 判断语句块的返回值只能是 bool 类型",
+                    ));
                 }
             }
         }
@@ -231,7 +226,9 @@ impl Expression for If {
                 self.cmd.evaluate(ctx)?;
             }
             _ => {
-                return Err(err_msg("if 语句条件只能是 bool 类型"));
+                return Err(err_msg(
+                    "for条件语句 判断语句块的返回值只能是 bool 类型",
+                ));
             }
         }
         Ok(Value::Void)
@@ -312,55 +309,55 @@ impl ToString for Value {
 
 #[cfg(test)]
 mod tests {
-    use crate::Context;
-    use crate::expression::{BinaryOperator, Expression};
     use crate::expression::Element::Value;
     use crate::expression::Value::{Bool, Int};
+    use crate::expression::{BinaryOperator, Expression};
     use crate::token::Operator;
+    use crate::Context;
 
     #[test]
     fn test_sub_int_int() {
         let mut ctx = Context::default();
-        let add = box BinaryOperator {
+        let opt = box BinaryOperator {
             operator: Operator::Subtract,
             left: box Value(Int(1)),
             right: box Value(Int(1)),
         };
-        assert_eq!(add.evaluate(&mut ctx).unwrap(), Int(0));
+        assert_eq!(opt.evaluate(&mut ctx).unwrap(), Int(0));
     }
 
     #[should_panic]
     #[test]
     fn test_sub_bool_int() {
         let mut ctx = Context::default();
-        let add: Box<dyn Expression> = box BinaryOperator {
+        let opt: Box<dyn Expression> = box BinaryOperator {
             operator: Operator::ADD,
             left: box Value(Bool(false)),
             right: box Value(Int(1)),
         };
-        add.evaluate(&mut ctx).unwrap();
+        opt.evaluate(&mut ctx).unwrap();
     }
 
     #[test]
     fn test_add_int_int() {
         let mut ctx = Context::default();
-        let add = BinaryOperator {
+        let opt = BinaryOperator {
             operator: Operator::ADD,
             left: box Value(Int(1)),
             right: box Value(Int(1)),
         };
-        assert_eq!(add.evaluate(&mut ctx).unwrap(), Int(2));
+        assert_eq!(opt.evaluate(&mut ctx).unwrap(), Int(2));
     }
 
     #[should_panic]
     #[test]
     fn test_add_bool_int() {
         let mut ctx = Context::default();
-        let add = BinaryOperator {
+        let opt = BinaryOperator {
             operator: Operator::ADD,
             left: box Value(Bool(false)),
             right: box Value(Int(1)),
         };
-        add.evaluate(&mut ctx).unwrap();
+        opt.evaluate(&mut ctx).unwrap();
     }
 }
