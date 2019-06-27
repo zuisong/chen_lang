@@ -112,33 +112,22 @@ impl Expression for Not {
     }
 }
 
-///
-/// 打印换行
-#[derive(Debug)]
-pub struct Println {
-    /// 要打印换行的表达式对象
-    pub expression: Box<dyn Expression>,
-}
-
-impl Expression for Println {
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
-        let res = self.expression.evaluate(ctx).unwrap();
-        ctx.output.push(format!("{}\n", res.to_string()));
-        Ok(Value::Void)
-    }
-}
-
-/// 打印不换行
+/// 打印
 #[derive(Debug)]
 pub struct Print {
     /// 要打印的表达式对象
     pub expression: Box<dyn Expression>,
+    /// 是否换行
+    pub is_newline: bool,
 }
 
 impl Expression for Print {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
         let res = self.expression.evaluate(ctx).unwrap();
         ctx.output.push(res.to_string());
+        if self.is_newline {
+            ctx.output.push(String::from("\n"));
+        }
         Ok(Value::Void)
     }
 }

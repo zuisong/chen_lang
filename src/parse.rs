@@ -1,3 +1,5 @@
+#![deny(missing_docs)]
+
 use std::collections::VecDeque;
 
 use crate::*;
@@ -150,13 +152,8 @@ pub fn parse_sequence(
                 v.push_back(var.1);
                 start_line = var.0 + 1;
             }
-            Token::StdFunction(StdFunction::Println) => {
-                let var = parse_println(&lines[start_line])?;
-                v.push_back(var);
-                start_line += 1;
-            }
-            Token::StdFunction(StdFunction::Print) => {
-                let var = parse_print(&lines[start_line])?;
+            Token::StdFunction(StdFunction::Print(is_newline)) => {
+                let var = parse_print(&lines[start_line], *is_newline)?;
                 v.push_back(var);
                 start_line += 1;
             }
@@ -224,18 +221,11 @@ pub fn parse_for(
     return Ok((cmd.0, box loop_expr));
 }
 
-fn parse_println(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
-    debug!("{:?}", line);
-    let expression = parse_expression(&line[2..(line.len() - 1)])?;
-    Ok(box Println {
-        expression: expression,
-    })
-}
-
-fn parse_print(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
+fn parse_print(line: &[Token], is_newline: bool) -> Result<Box<dyn Expression>, failure::Error> {
     debug!("{:?}", line);
     let expression = parse_expression(&line[2..(line.len() - 1)])?;
     Ok(box Print {
-        expression: expression,
+        expression,
+        is_newline,
     })
 }

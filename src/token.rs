@@ -52,10 +52,8 @@ pub enum Operator {
 /// 标准库函数
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum StdFunction {
-    /// println
-    Println,
-    /// print
-    Print,
+    /// print  bool表示是否换行
+    Print(bool),
 }
 
 /// token 类型
@@ -113,7 +111,6 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
                 continue;
             }
             '\r' | '\n' => (Token::NewLine, 1),
-
             '{' => (Token::LBig, 1),
             '}' => (Token::RBig, 1),
             '[' => (Token::LSquare, 1),
@@ -174,8 +171,8 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
                 }
                 let s: String = chars.as_slice()[i..j].iter().collect();
                 let token = match s.as_str() {
-                    "println" => Token::StdFunction(StdFunction::Println),
-                    "print" => Token::StdFunction(StdFunction::Print),
+                    "println" => Token::StdFunction(StdFunction::Print(true)),
+                    "print" => Token::StdFunction(StdFunction::Print(false)),
                     "int" => Token::Keyword(Keyword::INT),
                     "if" => Token::Keyword(Keyword::IF),
                     "else" => Token::Keyword(Keyword::ELSE),
