@@ -1,11 +1,11 @@
 #![feature(box_syntax)]
-#[deny(missing_docs)]
-/// 一个小的玩具语言
-#[deny(unused_imports)]
-#[deny(unused_parens)]
-#[deny(dead_code)]
-#[deny(unused_mut)]
-#[deny(unreachable_code)]
+#![deny(missing_docs)]
+#![deny(unused_imports)]
+#![deny(unused_parens)]
+#![deny(dead_code)]
+#![deny(unused_mut)]
+#![deny(unreachable_code)]
+//! 一个小的玩具语言
 extern crate wasm_bindgen;
 
 ///
@@ -46,6 +46,7 @@ pub fn run(code: String) -> Result<(), failure::Error> {
     Ok(())
 }
 
+/// 词法
 fn parser(tokens: Vec<Token>) -> Result<Command, failure::Error> {
     let mut lines: Vec<Box<[Token]>> = vec![];
     let mut temp = vec![];
@@ -64,6 +65,7 @@ fn parser(tokens: Vec<Token>) -> Result<Command, failure::Error> {
     return Ok(ast);
 }
 
+/// 运行
 fn evaluate(ast: Command) -> Result<Value, failure::Error> {
     let mut ctx = Context {
         output: vec![],

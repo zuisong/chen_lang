@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 
 use crate::*;
 
-const H: i32 = 3;
+//const H: i32 = 3;
 const M: i32 = 2;
 const S: i32 = 1;
 
