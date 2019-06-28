@@ -23,7 +23,7 @@ fn main() -> Result<(), failure::Error> {
                 .short("v")
                 .required(false)
                 .multiple(true)
-                .help("v越多日志级别越低"),
+                .help("v越多日志级别越低 (-vv is Info, -vvv is Debug)"),
         )
         .get_matches();
     let log_level = match matches.occurrences_of("v") {
