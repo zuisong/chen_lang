@@ -36,11 +36,11 @@ impl Expression for BinaryOperator {
         match self.operator {
             Operator::ADD => match (l, r) {
                 (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Int(l_int + r_int)),
-                (Value::String(a), b) => {
-                    Ok(Value::String(format!("{}{}", a.to_string(), b.to_string())))
+                (Value::Str(a), b) => {
+                    Ok(Value::Str(format!("{}{}", a.to_string(), b.to_string())))
                 }
-                (a, Value::String(b)) => {
-                    Ok(Value::String(format!("{}{}", a.to_string(), b.to_string())))
+                (a, Value::Str(b)) => {
+                    Ok(Value::Str(format!("{}{}", a.to_string(), b.to_string())))
                 }
                 _ => Err(err_msg("不是 int string 类型不能做加法")),
             },
@@ -280,7 +280,7 @@ pub enum Value {
     /// void 常量
     Void,
     /// string 常量
-    String(String),
+    Str(String),
 }
 
 impl Expression for Value {
@@ -295,64 +295,11 @@ impl ToString for Value {
             Value::Int(int) => (*int).to_string(),
             Value::Bool(b) => (*b).to_string(),
             Value::Void => String::new(),
-            Value::String(s) => s.clone(),
+            Value::Str(s) => s.clone(),
             //            Value::Float(f) => f.to_string(),
         }
     }
 }
 //-----------------------------------------
 
-#[cfg(test)]
-mod tests {
-    use crate::expression::Element::Value;
-    use crate::expression::Value::{Bool, Int};
-    use crate::expression::{BinaryOperator, Expression};
-    use crate::token::Operator;
-    use crate::Context;
 
-    #[test]
-    fn test_sub_int_int() {
-        let mut ctx = Context::default();
-        let opt = box BinaryOperator {
-            operator: Operator::Subtract,
-            left: box Value(Int(1)),
-            right: box Value(Int(1)),
-        };
-        assert_eq!(opt.evaluate(&mut ctx).unwrap(), Int(0));
-    }
-
-    #[should_panic]
-    #[test]
-    fn test_sub_bool_int() {
-        let mut ctx = Context::default();
-        let opt: Box<dyn Expression> = box BinaryOperator {
-            operator: Operator::ADD,
-            left: box Value(Bool(false)),
-            right: box Value(Int(1)),
-        };
-        opt.evaluate(&mut ctx).unwrap();
-    }
-
-    #[test]
-    fn test_add_int_int() {
-        let mut ctx = Context::default();
-        let opt = BinaryOperator {
-            operator: Operator::ADD,
-            left: box Value(Int(1)),
-            right: box Value(Int(1)),
-        };
-        assert_eq!(opt.evaluate(&mut ctx).unwrap(), Int(2));
-    }
-
-    #[should_panic]
-    #[test]
-    fn test_add_bool_int() {
-        let mut ctx = Context::default();
-        let opt = BinaryOperator {
-            operator: Operator::ADD,
-            left: box Value(Bool(false)),
-            right: box Value(Int(1)),
-        };
-        opt.evaluate(&mut ctx).unwrap();
-    }
-}

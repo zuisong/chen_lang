@@ -30,6 +30,9 @@ pub mod expression;
 pub mod parse;
 /// 词法分析模块
 pub mod token;
+/// 测试模块
+#[cfg(test)]
+mod tests;
 
 /// 运行代码
 #[wasm_bindgen]

@@ -119,7 +119,7 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
                 Token::Identifier(name) => Element::Variable(Variable { name }),
                 Token::Int(i) => Element::Value(Value::Int(i)),
                 Token::Bool(i) => Element::Value(Value::Bool(i)),
-                Token::String(i) => Element::Value(Value::String(i)),
+                Token::String(i) => Element::Value(Value::Str(i)),
                 _ => panic!("错误"),
             };
             tmp.push_back(box ele);
