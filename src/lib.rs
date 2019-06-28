@@ -1,6 +1,6 @@
 #![feature(box_syntax)]
-#![deny(missing_docs)]
-//! A simple key/value store.
+#[deny(missing_docs)]
+/// 一个小的玩具语言
 #[deny(unused_imports)]
 #[deny(unused_parens)]
 #[deny(dead_code)]
