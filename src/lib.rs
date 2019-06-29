@@ -19,7 +19,6 @@ use std::collections::HashMap;
 
 use failure::*;
 use log::*;
-use wasm_bindgen::prelude::*;
 
 use crate::expression::*;
 use crate::token::*;
@@ -28,14 +27,14 @@ use crate::token::*;
 pub mod expression;
 /// 语法分析模块
 pub mod parse;
-/// 词法分析模块
-pub mod token;
 /// 测试模块
 #[cfg(test)]
 mod tests;
+/// 词法分析模块
+pub mod token;
 
 /// 运行代码
-#[wasm_bindgen]
+#[no_mangle]
 pub fn run(code: String) -> Result<(), failure::Error> {
     let tokens = token::tokenlizer(code)?;
     debug!("tokens => {:?}", &tokens);
@@ -62,7 +61,7 @@ fn parser(tokens: Vec<Token>) -> Result<Command, failure::Error> {
     }
     let (_, ast) = parse::parse_sequence(lines.as_slice(), 0)?;
 
-    return Ok(ast);
+    Ok(ast)
 }
 
 /// 运行

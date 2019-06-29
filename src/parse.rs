@@ -35,7 +35,7 @@ fn get_priority(token: &Token) -> i32 {
 
 /// 简单表达式分析 (只有运算的 一行)
 pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
-    if line.len() == 0 {
+    if line.is_empty() {
         return Err(failure::err_msg("不是一个表达式"));
     }
 
@@ -126,7 +126,7 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
         }
     }
 
-    return Ok(box tmp);
+    Ok(box tmp)
 }
 
 /// 分析很多行的方法
@@ -167,7 +167,7 @@ pub fn parse_sequence(
             }
         }
     }
-    return Ok((start_line, v));
+    Ok((start_line, v))
 }
 
 /// 分析赋值语句
@@ -180,12 +180,10 @@ pub fn parse_var(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> 
                 left: name.clone(),
                 right: parse_expression(&line[2..])?,
             };
-            return Ok(box var);
+            Ok(box var)
         }
-        _ => {
-            return Err(err_msg(format!("赋值语句语法不对，{:?}", line)));
-        }
-    };
+        _ => Err(err_msg(format!("赋值语句语法不对，{:?}", line))),
+    }
 }
 
 /// 分析条件语句
@@ -205,7 +203,7 @@ pub fn parse_if(
         if_cmd,
         else_cmd,
     };
-    return Ok((endline, box loop_expr));
+    Ok((endline, box loop_expr))
 }
 
 /// 分析循环语句
@@ -218,7 +216,7 @@ pub fn parse_for(
         predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
         cmd: cmd.1,
     };
-    return Ok((cmd.0, box loop_expr));
+    Ok((cmd.0, box loop_expr))
 }
 
 fn parse_print(line: &[Token], is_newline: bool) -> Result<Box<dyn Expression>, failure::Error> {

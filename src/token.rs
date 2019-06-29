@@ -107,7 +107,7 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
                 while chars[i] != '\r' && chars[i] != '\n' {
                     i += 1;
                 }
-                i = i + 1;
+                i += 1;
                 continue;
             }
             '\r' | '\n' => (Token::NewLine, 1),
@@ -155,11 +155,11 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
                 }
 
                 let s: String = chars.iter().skip(i).take(j - i).collect();
-                if is_float {
-                    //         (Token::Float(s.parse()?));
-                } else {
-                    //                    (Token::Int(s.parse()?));
-                }
+                //                if is_float {
+                //                             (Token::Float(s.parse()?));
+                //                } else {
+                //                                        (Token::Int(s.parse()?));
+                //                }
                 (Token::Int(s.parse()?), j - i)
             }
 
@@ -195,7 +195,7 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
             }
         };
         tokens.push(token);
-        i = i + size;
+        i += size;
     }
 
     Ok(tokens)

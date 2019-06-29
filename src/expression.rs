@@ -36,12 +36,8 @@ impl Expression for BinaryOperator {
         match self.operator {
             Operator::ADD => match (l, r) {
                 (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Int(l_int + r_int)),
-                (Value::Str(a), b) => {
-                    Ok(Value::Str(format!("{}{}", a.to_string(), b.to_string())))
-                }
-                (a, Value::Str(b)) => {
-                    Ok(Value::Str(format!("{}{}", a.to_string(), b.to_string())))
-                }
+                (Value::Str(a), b) => Ok(Value::Str(format!("{}{}", a.to_string(), b.to_string()))),
+                (a, Value::Str(b)) => Ok(Value::Str(format!("{}{}", a.to_string(), b.to_string()))),
                 _ => Err(err_msg("不是 int string 类型不能做加法")),
             },
             Operator::Subtract => match (l, r) {
@@ -265,7 +261,7 @@ impl Expression for Variable {
             "不能获取一个未定义的变量 {}",
             self.name
         );
-        return Ok(val.unwrap().clone());
+        Ok(val.unwrap().clone())
     }
 }
 
@@ -301,5 +297,3 @@ impl ToString for Value {
     }
 }
 //-----------------------------------------
-
-

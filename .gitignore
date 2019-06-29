@@ -2,3 +2,9 @@
 **/*.rs.bk
 .idea/
 *.iml
+
+# Project exclude paths
+/node_modules/
+.cache
+dist
+*.exe
