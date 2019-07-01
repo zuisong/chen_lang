@@ -6,6 +6,7 @@ fn main() {
 # 这里是注释,
 # 注释以# 开始, 直到行末
 {
+
     let i = 0
     let sum = 0
     for !(i >=1000) {
@@ -14,8 +15,8 @@ fn main() {
         }
         i = i+1
     }
+    print(sum)
 }
-print(sum)
 
 "#
     .to_string();

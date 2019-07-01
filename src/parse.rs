@@ -164,8 +164,13 @@ pub fn parse_block(
                 v.push_back(var);
                 start_line += 1;
             }
+            Token::LBig => {
+                let var = parse_block(&lines[..], start_line + 1)?;
+                v.push_back(box var.1);
+                start_line += var.0 + 1;
+            }
             _ => {
-                unimplemented!("");
+                unimplemented!("{:?}", lines[start_line]);
             }
         }
     }
@@ -218,12 +223,14 @@ pub fn parse_if(
     start_line: usize,
 ) -> Result<(usize, Box<dyn Expression>), failure::Error> {
     let (mut endline, if_cmd) = parse_block(&lines, start_line + 1)?;
-    let mut else_cmd = VecDeque::new();
-    if lines[endline].len() == 3 && lines[endline][1] == Token::Keyword(Keyword::ELSE) {
-        let (new_endline, cmd) = parse_block(&lines, endline + 1)?;
-        endline = new_endline;
-        else_cmd = cmd;
-    }
+    let else_cmd =
+        if lines[endline].len() == 3 && lines[endline][1] == Token::Keyword(Keyword::ELSE) {
+            let (new_endline, cmd) = parse_block(&lines, endline + 1)?;
+            endline = new_endline;
+            cmd
+        } else {
+            VecDeque::new()
+        };
     let loop_expr = IfStatement {
         predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
         if_block: if_cmd,
