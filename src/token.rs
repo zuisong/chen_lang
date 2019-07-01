@@ -146,11 +146,11 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
             }
             _ if chars[i] == '-' || chars[i].is_numeric() => {
                 let mut j = i + 1;
-                let mut is_float = false;
+                let mut _is_float = false;
                 while chars[j].is_numeric() || chars[j] == '.' {
                     j += 1;
                     if chars[j] == '.' {
-                        is_float = true;
+                        _is_float = true;
                     }
                 }
 

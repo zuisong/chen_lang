@@ -5,13 +5,15 @@ fn main() {
     let code = r#"
 # 这里是注释,
 # 注释以# 开始, 直到行末
-i = 0
-sum = 0
-for !(i >=1000) {
-    if (i%2!=0) && (i%3==0){
-       sum = sum + i
+{
+    let i = 0
+    let sum = 0
+    for !(i >=1000) {
+        if (i%2!=0) && (i%3==0){
+           sum = sum + i
+        }
+        i = i+1
     }
-    i = i+1
 }
 print(sum)
 

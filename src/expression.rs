@@ -5,8 +5,8 @@ use std::result::Result::Err;
 
 use failure::{err_msg, Error};
 
+use crate::context::*;
 use crate::token::Operator;
-use crate::{Context, VarType};
 
 /// 表达式  核心对象
 /// 一切语法都是表达式
@@ -143,9 +143,10 @@ impl Expression for DeclareStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, Error> {
         let res = self.right.evaluate(ctx)?;
         let is_ok = ctx.insert_var(self.left.as_str(), res, (&self.var_type).clone());
-        match is_ok {
-            true => Ok(Value::Void),
-            false => Err(err_msg(format!("重复定义变量, {}", self.left))),
+        if is_ok {
+            Ok(Value::Void)
+        } else {
+            Err(err_msg(format!("重复定义变量, {}", self.left)))
         }
     }
 }
@@ -178,7 +179,7 @@ pub type BlockStatement = VecDeque<Box<dyn Expression>>;
 
 impl Expression for BlockStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
-        let mut new_ctx: Context = Context::init_with_parent_context(ctx.clone());
+        let mut new_ctx: Context = Context::init_with_parent_context(ctx);
         let mut res = Value::Void;
         for expr in self.iter() {
             res = expr.evaluate(&mut new_ctx)?;
@@ -198,7 +199,7 @@ pub struct LoopStatement {
 
 impl Expression for LoopStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
-        let mut new_ctx: Context = Context::init_with_parent_context(ctx.clone());
+        let mut new_ctx: Context = Context::init_with_parent_context(ctx);
 
         loop {
             match self.predict.evaluate(&mut new_ctx)? {
@@ -232,7 +233,7 @@ pub struct IfStatement {
 
 impl Expression for IfStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
-        let mut new_ctx: Context = Context::init_with_parent_context(ctx.clone());
+        let mut new_ctx: Context = Context::init_with_parent_context(ctx);
         match self.predict.evaluate(&mut new_ctx)? {
             Value::Bool(false) => {
                 self.else_block.evaluate(&mut new_ctx)?;

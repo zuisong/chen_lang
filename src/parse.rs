@@ -2,7 +2,9 @@
 
 use std::collections::VecDeque;
 
+use crate::context::VarType;
 use crate::*;
+use failure::err_msg;
 
 //const H: i32 = 3;
 const M: i32 = 2;
@@ -130,7 +132,7 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
 }
 
 /// 分析很多行的方法
-pub fn parse_sequence(
+pub fn parse_block(
     lines: &[Box<[Token]>],
     mut start_line: usize,
 ) -> Result<(usize, BlockStatement), failure::Error> {
@@ -215,10 +217,10 @@ pub fn parse_if(
     lines: &[Box<[Token]>],
     start_line: usize,
 ) -> Result<(usize, Box<dyn Expression>), failure::Error> {
-    let (mut endline, if_cmd) = parse_sequence(&lines, start_line + 1)?;
+    let (mut endline, if_cmd) = parse_block(&lines, start_line + 1)?;
     let mut else_cmd = VecDeque::new();
     if lines[endline].len() == 3 && lines[endline][1] == Token::Keyword(Keyword::ELSE) {
-        let (new_endline, cmd) = parse_sequence(&lines, endline + 1)?;
+        let (new_endline, cmd) = parse_block(&lines, endline + 1)?;
         endline = new_endline;
         else_cmd = cmd;
     }
@@ -235,7 +237,7 @@ pub fn parse_for(
     lines: &[Box<[Token]>],
     start_line: usize,
 ) -> Result<(usize, Box<dyn Expression>), failure::Error> {
-    let cmd = parse_sequence(&lines, start_line + 1)?;
+    let cmd = parse_block(&lines, start_line + 1)?;
     let loop_expr = LoopStatement {
         predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
         loop_block: cmd.1,

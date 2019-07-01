@@ -4,8 +4,8 @@ fn main() {
 let n = 1
 let i = 1
 let j = 2
-   let tmp = i
-for n <= 300 {
+let tmp = i
+for n <= 10 {
    println(i)
    tmp = i
    i = j

@@ -15,17 +15,15 @@ extern crate wasm_bindgen;
 /// 逻辑运算符  && || ！
 /// 标识符   纯字母
 ///
-use std::collections::HashMap;
-
-use failure::*;
 use log::*;
 
 use crate::expression::*;
 use crate::token::*;
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use crate::context::Context;
 
+/// context模块
+pub mod context;
 /// 表达式模块
 pub mod expression;
 /// 语法分析模块
@@ -62,7 +60,7 @@ fn parser(tokens: Vec<Token>) -> Result<BlockStatement, failure::Error> {
             temp.push(x)
         }
     }
-    let (_, ast) = parse::parse_sequence(lines.as_slice(), 0)?;
+    let (_, ast) = parse::parse_block(lines.as_slice(), 0)?;
 
     Ok(ast)
 }
@@ -76,114 +74,4 @@ fn evaluate(ast: BlockStatement) -> Result<Value, failure::Error> {
     }
 
     Ok(Value::Void)
-}
-
-trait Var {
-    fn get(&self) -> Value;
-    fn set(&self, val: Value) -> bool;
-}
-
-#[derive(Clone, Debug)]
-pub enum VarType {
-    Const,
-    Let,
-}
-
-#[derive(Clone, Debug)]
-pub struct ValueVar {
-    var_type: VarType,
-    value: Option<Rc<RefCell<Value>>>,
-}
-
-impl ValueVar {
-    pub fn new(var_type: VarType, value: Value) -> Self {
-        ValueVar {
-            var_type,
-            value: Some(Rc::new(RefCell::new(value))),
-        }
-    }
-}
-
-impl Var for ValueVar {
-    fn get(&self) -> Value {
-        assert!(self.value.is_some(), "get a undefined value");
-        (&self.value).as_ref().unwrap().clone().borrow().clone()
-    }
-
-    fn set(&self, val: Value) -> bool {
-        match self.var_type {
-            VarType::Const => false,
-            VarType::Let => {
-                (&self.value).as_ref().unwrap().clone().replace(val);
-                true
-            }
-        }
-    }
-}
-
-impl Default for Context {
-    fn default() -> Self {
-        let ctx = Ctx {
-            parent: None,
-            variables: Default::default(),
-        };
-        Context(Rc::new(RefCell::new(ctx)))
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Context(Rc<RefCell<Ctx>>);
-
-impl Context {
-    #[inline]
-    fn init_with_parent_context(parent_ctx: Context) -> Context {
-        let ctx = Context::default();
-        ctx.0.borrow_mut().parent = Some(parent_ctx);
-        ctx
-    }
-}
-
-/// 程序上下文
-#[derive(Debug)]
-pub struct Ctx {
-    /// 父级上下文
-    parent: Option<Context>,
-
-    /// 变量池
-    variables: HashMap<String, ValueVar>,
-}
-
-impl Context {
-    fn get_var(&self, name: &str) -> Option<Value> {
-        match self.0.borrow().variables.get(name) {
-            Some(val) => Some(val.get()),
-            None => match &self.0.borrow().parent {
-                Some(scoop) => scoop.get_var(name),
-                None => None,
-            },
-        }
-    }
-
-    fn insert_var(&mut self, name: &str, val: Value, var_type: VarType) -> bool {
-        match self.get_var(name) {
-            Some(_) => false,
-            None => {
-                self.0
-                    .borrow_mut()
-                    .variables
-                    .insert(name.to_string(), ValueVar::new(var_type, val));
-                true
-            }
-        }
-    }
-
-    fn update_var(&self, name: &str, value: Value) -> bool {
-        match self.0.borrow().variables.get(name) {
-            Some(val) => val.set(value),
-            None => match &self.0.borrow().parent {
-                Some(ctx) => (*ctx).update_var(name, value),
-                None => false,
-            },
-        }
-    }
 }

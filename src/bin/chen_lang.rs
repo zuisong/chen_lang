@@ -1,4 +1,3 @@
-use log::Level;
 use log::*;
 use std::fs::OpenOptions;
 use std::io::Read;
