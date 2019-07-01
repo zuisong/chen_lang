@@ -53,6 +53,7 @@ impl Default for Context<'_> {
         Context {
             parent: None,
             variables: Default::default(),
+            functions: Default::default(),
         }
     }
 }
@@ -74,9 +75,31 @@ pub struct Context<'a> {
 
     /// 变量池
     variables: HashMap<String, ValueVar>,
+
+    /// 变量池
+    functions: HashMap<String, FunctionStatement>,
 }
 
 impl Context<'_> {
+    pub fn get_function(&self, name: &str) -> Option<&FunctionStatement> {
+        match self.functions.get(name) {
+            Some(val) => Some(val),
+            None => match &self.parent {
+                Some(scoop) => scoop.get_function(name),
+                None => None,
+            },
+        }
+    }
+
+    pub fn insert_function(&mut self, name: &str, func: FunctionStatement) -> bool {
+        match self.get_var(name) {
+            Some(_) => false,
+            None => {
+                self.functions.insert(name.to_string(), func);
+                true
+            }
+        }
+    }
     pub(crate) fn get_var(&self, name: &str) -> Option<Value> {
         match self.variables.get(name) {
             Some(val) => Some(val.get()),

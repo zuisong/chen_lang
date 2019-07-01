@@ -12,6 +12,8 @@ pub enum Keyword {
     ELSE,
     /// for
     FOR,
+    /// def
+    DEF,
 }
 
 /// 操作符

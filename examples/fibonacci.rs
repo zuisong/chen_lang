@@ -4,10 +4,9 @@ fn main() {
 let n = 1
 let i = 1
 let j = 2
-let tmp = i
 for n <= 10 {
    println(i)
-   tmp = i
+   let tmp  = i
    i = j
    j = tmp + j
    n = n + 1

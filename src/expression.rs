@@ -7,6 +7,7 @@ use failure::{err_msg, Error};
 
 use crate::context::*;
 use crate::token::Operator;
+use std::rc::Rc;
 
 /// 表达式  核心对象
 /// 一切语法都是表达式
@@ -15,6 +16,42 @@ pub trait Expression: Debug {
     /// 表达式执行的方法
     ///
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error>;
+}
+
+#[derive(Debug)]
+pub struct CallFunctionStatement {
+    pub function_name: String,
+    pub params: Vec<Element>,
+}
+
+impl Expression for CallFunctionStatement {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value, Error> {
+        let params: Vec<_> = self
+            .params
+            .iter()
+            .map(|it| it.evaluate(ctx).unwrap())
+            .collect();
+        let func = ctx.get_function(self.function_name.as_str()).unwrap();
+        let mut new_ctx = Context::init_with_parent_context(ctx);
+        for idx in 0..func.params.len() {
+            new_ctx.insert_var(func.params[idx].as_str(), params[idx].clone(), VarType::Let);
+        }
+        func.body.evaluate(&mut new_ctx)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FunctionStatement {
+    pub name: String,
+    pub params: Vec<String>,
+    pub body: Rc<BlockStatement>,
+}
+
+impl Expression for FunctionStatement {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value, Error> {
+        ctx.insert_function(self.name.as_str(), self.clone());
+        Ok(Value::Void)
+    }
 }
 
 ///

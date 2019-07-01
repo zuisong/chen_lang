@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use crate::context::VarType;
 use crate::*;
 use failure::err_msg;
+use std::rc::Rc;
 
 //const H: i32 = 3;
 const M: i32 = 2;
@@ -149,6 +150,11 @@ pub fn parse_block(
                 v.push_back(var.1);
                 start_line = var.0 + 1;
             }
+            Token::Keyword(Keyword::DEF) => {
+                let var = parse_define_function(&lines[..], start_line)?;
+                v.push_back(var.1);
+                start_line = var.0 + 1;
+            }
             Token::Keyword(Keyword::IF) => {
                 let var = parse_if(&lines[..], start_line)?;
                 v.push_back(var.1);
@@ -159,8 +165,15 @@ pub fn parse_block(
                 v.push_back(var);
                 start_line += 1;
             }
-            Token::Identifier(_) => {
+            // 赋值
+            Token::Identifier(_) if lines[start_line][1] == Token::Operator(Operator::Assign) => {
                 let var = parse_assign(&lines[start_line])?;
+                v.push_back(var);
+                start_line += 1;
+            }
+            // 函数调用
+            Token::Identifier(_) if lines[start_line][1] == Token::LParen => {
+                let var = parse_func_call(&lines[start_line])?;
                 v.push_back(var);
                 start_line += 1;
             }
@@ -175,6 +188,10 @@ pub fn parse_block(
         }
     }
     Ok((start_line, v))
+}
+
+fn parse_func_call(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
+    unimplemented!()
 }
 
 /// 分析赋值语句
@@ -201,6 +218,36 @@ pub fn parse_declare(line: &[Token]) -> Result<Box<dyn Expression>, failure::Err
 }
 
 ///
+/// ```java
+/// def f1(){
+///
+/// }
+///  def f2(a,b,c){
+///
+/// }
+/// ```
+///
+fn parse_define_function(
+    lines: &[Box<[Token]>],
+    start_line: usize,
+) -> Result<(usize, Box<dyn Expression>), failure::Error> {
+    let func_name = if let Token::Identifier(name) = &lines[start_line][1] {
+        name.to_string()
+    } else {
+        return Err(err_msg(""));
+    };
+
+    let (endline, body) = parse_block(&lines, start_line + 1)?;
+    let func = FunctionStatement {
+        name: func_name,
+        // todo params parse
+        params: vec![],
+        body: Rc::new(body),
+    };
+    Ok((endline, box func))
+}
+
+///
 /// 赋值语句分析
 pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
     debug!("{:?}", &line);
@@ -223,14 +270,15 @@ pub fn parse_if(
     start_line: usize,
 ) -> Result<(usize, Box<dyn Expression>), failure::Error> {
     let (mut endline, if_cmd) = parse_block(&lines, start_line + 1)?;
-    let else_cmd =
-        if lines[endline].len() == 3 && lines[endline][1] == Token::Keyword(Keyword::ELSE) {
-            let (new_endline, cmd) = parse_block(&lines, endline + 1)?;
-            endline = new_endline;
-            cmd
-        } else {
-            VecDeque::new()
-        };
+    let else_cmd = if let Some(Token::Keyword(Keyword::ELSE)) = lines[endline].get(1) {
+        assert_eq!(lines[endline][0], Token::RBig);
+        assert_eq!(lines[endline][2], Token::LBig);
+        let (new_endline, cmd) = parse_block(&lines, endline + 1)?;
+        endline = new_endline;
+        cmd
+    } else {
+        VecDeque::new()
+    };
     let loop_expr = IfStatement {
         predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
         if_block: if_cmd,
