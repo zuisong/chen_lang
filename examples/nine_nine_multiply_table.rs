@@ -3,9 +3,8 @@ fn main() {
 
     let code = r#"
 let i=1
-let j = 1
 for i<=9 {
-    j = 1
+    let j = 1
     for j<=i {
         print(j + "x" + i + "=" + i*j + " ")
         j = j + 1

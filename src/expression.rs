@@ -6,7 +6,7 @@ use std::result::Result::Err;
 use failure::{err_msg, Error};
 
 use crate::token::Operator;
-use crate::{init_with_parent_context, Context, VarType};
+use crate::{Context, VarType};
 
 /// 表达式  核心对象
 /// 一切语法都是表达式
@@ -178,9 +178,10 @@ pub type BlockStatement = VecDeque<Box<dyn Expression>>;
 
 impl Expression for BlockStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
+        let mut new_ctx: Context = Context::init_with_parent_context(ctx.clone());
         let mut res = Value::Void;
         for expr in self.iter() {
-            res = expr.evaluate(ctx)?;
+            res = expr.evaluate(&mut new_ctx)?;
         }
         Ok(res)
     }
@@ -197,13 +198,15 @@ pub struct LoopStatement {
 
 impl Expression for LoopStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
+        let mut new_ctx: Context = Context::init_with_parent_context(ctx.clone());
+
         loop {
-            match self.predict.evaluate(ctx)? {
+            match self.predict.evaluate(&mut new_ctx)? {
                 Value::Bool(false) => {
                     break;
                 }
                 Value::Bool(true) => {
-                    self.loop_block.evaluate(ctx)?;
+                    self.loop_block.evaluate(&mut new_ctx)?;
                 }
                 _ => {
                     return Err(err_msg(
@@ -228,16 +231,14 @@ pub struct IfStatement {
 }
 
 impl Expression for IfStatement {
-    fn evaluate<'a>(&self, ctx: &'a mut Context) -> Result<Value, failure::Error> {
-        let ctx = ctx;
-
-        let mut new_ctx: Context<'a> = init_with_parent_context(ctx);
-        match self.predict.evaluate(ctx)? {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
+        let mut new_ctx: Context = Context::init_with_parent_context(ctx.clone());
+        match self.predict.evaluate(&mut new_ctx)? {
             Value::Bool(false) => {
-                self.else_block.evaluate(ctx)?;
+                self.else_block.evaluate(&mut new_ctx)?;
             }
             Value::Bool(true) => {
-                self.if_block.evaluate(ctx)?;
+                self.if_block.evaluate(&mut new_ctx)?;
             }
             _ => {
                 return Err(err_msg(

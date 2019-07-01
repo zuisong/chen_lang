@@ -78,17 +78,6 @@ fn evaluate(ast: BlockStatement) -> Result<Value, failure::Error> {
     Ok(Value::Void)
 }
 
-/// 程序上下文
-/// 保存变量和输出的值
-#[derive(Debug)]
-pub struct Context<'a> {
-    /// 父级上下文
-    parent: Option<&'a mut Context<'a>>,
-
-    /// 变量池
-    variables: HashMap<String, ValueVar>,
-}
-
 trait Var {
     fn get(&self) -> Value;
     fn set(&self, val: Value) -> bool;
@@ -132,28 +121,43 @@ impl Var for ValueVar {
     }
 }
 
-impl Default for Context<'_> {
+impl Default for Context {
     fn default() -> Self {
-        Context {
+        let ctx = Ctx {
             parent: None,
             variables: Default::default(),
-        }
+        };
+        Context(Rc::new(RefCell::new(ctx)))
     }
 }
 
-#[inline]
-fn init_with_parent_context<'a>(ctx: &'a mut Context<'a>) -> Context<'a> {
-    Context {
-        parent: Some(ctx),
-        variables: Default::default(),
+#[derive(Debug, Clone)]
+pub struct Context(Rc<RefCell<Ctx>>);
+
+impl Context {
+    #[inline]
+    fn init_with_parent_context(parent_ctx: Context) -> Context {
+        let ctx = Context::default();
+        ctx.0.borrow_mut().parent = Some(parent_ctx);
+        ctx
     }
 }
 
-impl Context<'_> {
+/// 程序上下文
+#[derive(Debug)]
+pub struct Ctx {
+    /// 父级上下文
+    parent: Option<Context>,
+
+    /// 变量池
+    variables: HashMap<String, ValueVar>,
+}
+
+impl Context {
     fn get_var(&self, name: &str) -> Option<Value> {
-        match self.variables.get(name) {
+        match self.0.borrow().variables.get(name) {
             Some(val) => Some(val.get()),
-            None => match &self.parent {
+            None => match &self.0.borrow().parent {
                 Some(scoop) => scoop.get_var(name),
                 None => None,
             },
@@ -164,17 +168,19 @@ impl Context<'_> {
         match self.get_var(name) {
             Some(_) => false,
             None => {
-                self.variables
+                self.0
+                    .borrow_mut()
+                    .variables
                     .insert(name.to_string(), ValueVar::new(var_type, val));
                 true
             }
         }
     }
 
-    fn update_var(&mut self, name: &str, value: Value) -> bool {
-        match self.variables.get(name) {
+    fn update_var(&self, name: &str, value: Value) -> bool {
+        match self.0.borrow().variables.get(name) {
             Some(val) => val.set(value),
-            None => match &self.parent {
+            None => match &self.0.borrow().parent {
                 Some(ctx) => (*ctx).update_var(name, value),
                 None => false,
             },
