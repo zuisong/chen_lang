@@ -2,7 +2,8 @@ fn main() {
     simple_logger::init().unwrap();
 
     let code = r#"
-i=1
+let i=1
+let j = 1
 for i<=9 {
     j = 1
     for j<=i {

@@ -1,10 +1,10 @@
 #![feature(box_syntax)]
-#![deny(missing_docs)]
-#![deny(unused_imports)]
-#![deny(unused_parens)]
-#![deny(dead_code)]
-#![deny(unused_mut)]
-#![deny(unreachable_code)]
+//#![deny(missing_docs)]
+//#![deny(unused_imports)]
+//#![deny(unused_parens)]
+//#![deny(dead_code)]
+//#![deny(unused_mut)]
+//#![deny(unreachable_code)]
 //! 一个小的玩具语言
 extern crate wasm_bindgen;
 
@@ -23,6 +23,9 @@ use log::*;
 use crate::expression::*;
 use crate::token::*;
 
+use std::cell::RefCell;
+use std::rc::Rc;
+
 /// 表达式模块
 pub mod expression;
 /// 语法分析模块
@@ -38,7 +41,7 @@ pub mod token;
 pub fn run(code: String) -> Result<(), failure::Error> {
     let tokens = token::tokenlizer(code)?;
     debug!("tokens => {:?}", &tokens);
-    let ast: Command = parser(tokens)?;
+    let ast: BlockStatement = parser(tokens)?;
     debug!("ast => {:?}", &ast);
 
     evaluate(ast)?;
@@ -46,7 +49,7 @@ pub fn run(code: String) -> Result<(), failure::Error> {
 }
 
 /// 词法
-fn parser(tokens: Vec<Token>) -> Result<Command, failure::Error> {
+fn parser(tokens: Vec<Token>) -> Result<BlockStatement, failure::Error> {
     let mut lines: Vec<Box<[Token]>> = vec![];
     let mut temp = vec![];
     for x in tokens {
@@ -65,37 +68,116 @@ fn parser(tokens: Vec<Token>) -> Result<Command, failure::Error> {
 }
 
 /// 运行
-fn evaluate(ast: Command) -> Result<Value, failure::Error> {
-    let mut ctx = Context {
-        output: vec![],
-        variables: Default::default(),
-    };
+fn evaluate(ast: BlockStatement) -> Result<Value, failure::Error> {
+    let mut ctx = Context::default();
     debug!("{:?}", &ast);
     for cmd in ast.iter() {
         cmd.evaluate(&mut ctx)?;
     }
 
-    for x in ctx.output {
-        print!("{}", x);
-    }
     Ok(Value::Void)
 }
 
 /// 程序上下文
 /// 保存变量和输出的值
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub struct Context {
-    /// 输出
-    output: Vec<String>,
+#[derive(Debug)]
+pub struct Context<'a> {
+    /// 父级上下文
+    parent: Option<&'a mut Context<'a>>,
+
     /// 变量池
-    variables: HashMap<String, Value>,
+    variables: HashMap<String, ValueVar>,
 }
 
-impl Default for Context {
+trait Var {
+    fn get(&self) -> Value;
+    fn set(&self, val: Value) -> bool;
+}
+
+#[derive(Clone, Debug)]
+pub enum VarType {
+    Const,
+    Let,
+}
+
+#[derive(Clone, Debug)]
+pub struct ValueVar {
+    var_type: VarType,
+    value: Option<Rc<RefCell<Value>>>,
+}
+
+impl ValueVar {
+    pub fn new(var_type: VarType, value: Value) -> Self {
+        ValueVar {
+            var_type,
+            value: Some(Rc::new(RefCell::new(value))),
+        }
+    }
+}
+
+impl Var for ValueVar {
+    fn get(&self) -> Value {
+        assert!(self.value.is_some(), "get a undefined value");
+        (&self.value).as_ref().unwrap().clone().borrow().clone()
+    }
+
+    fn set(&self, val: Value) -> bool {
+        match self.var_type {
+            VarType::Const => false,
+            VarType::Let => {
+                (&self.value).as_ref().unwrap().clone().replace(val);
+                true
+            }
+        }
+    }
+}
+
+impl Default for Context<'_> {
     fn default() -> Self {
         Context {
-            output: vec![],
+            parent: None,
             variables: Default::default(),
+        }
+    }
+}
+
+#[inline]
+fn init_with_parent_context<'a>(ctx: &'a mut Context<'a>) -> Context<'a> {
+    Context {
+        parent: Some(ctx),
+        variables: Default::default(),
+    }
+}
+
+impl Context<'_> {
+    fn get_var(&self, name: &str) -> Option<Value> {
+        match self.variables.get(name) {
+            Some(val) => Some(val.get()),
+            None => match &self.parent {
+                Some(scoop) => scoop.get_var(name),
+                None => None,
+            },
+        }
+    }
+
+    fn insert_var(&mut self, name: &str, val: Value, var_type: VarType) -> bool {
+        match self.get_var(name) {
+            Some(_) => false,
+            None => {
+                self.variables
+                    .insert(name.to_string(), ValueVar::new(var_type, val));
+                true
+            }
+        }
+    }
+
+    fn update_var(&mut self, name: &str, value: Value) -> bool {
+        match self.variables.get(name) {
+            Some(val) => val.set(value),
+            None => match &self.parent {
+                Some(ctx) => (*ctx).update_var(name, value),
+                None => false,
+            },
         }
     }
 }

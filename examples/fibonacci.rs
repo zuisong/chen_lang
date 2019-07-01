@@ -1,10 +1,11 @@
 fn main() {
     simple_logger::init().unwrap();
     let cpde: String = r#"
-n = 1
-i = 1
-j = 2
-for n <= 30 {
+let n = 1
+let i = 1
+let j = 2
+   let tmp = i
+for n <= 300 {
    println(i)
    tmp = i
    i = j

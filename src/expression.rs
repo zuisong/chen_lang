@@ -3,10 +3,10 @@ use std::collections::VecDeque;
 use std::fmt::{Debug, Formatter};
 use std::result::Result::Err;
 
-use failure::err_msg;
+use failure::{err_msg, Error};
 
 use crate::token::Operator;
-use crate::Context;
+use crate::{init_with_parent_context, Context, VarType};
 
 /// 表达式  核心对象
 /// 一切语法都是表达式
@@ -20,7 +20,7 @@ pub trait Expression: Debug {
 ///
 /// 二元操作符
 #[derive(Debug)]
-pub struct BinaryOperator {
+pub struct BinaryStatement {
     /// 操作符左边的表达式
     pub left: Box<dyn Expression>,
     /// 操作符右边的表达式
@@ -29,7 +29,7 @@ pub struct BinaryOperator {
     pub operator: Operator,
 }
 
-impl Expression for BinaryOperator {
+impl Expression for BinaryStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
         let l = self.left.evaluate(ctx)?;
         let r = self.right.evaluate(ctx)?;
@@ -93,12 +93,12 @@ impl Expression for BinaryOperator {
 
 /// 取反
 #[derive(Debug)]
-pub struct Not {
+pub struct NotStatement {
     /// 要取反的表达式
     pub expr: Box<dyn Expression>,
 }
 
-impl Expression for Not {
+impl Expression for NotStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
         let res = self.expr.evaluate(ctx).unwrap();
         match res {
@@ -110,19 +110,19 @@ impl Expression for Not {
 
 /// 打印
 #[derive(Debug)]
-pub struct Print {
+pub struct PrintStatement {
     /// 要打印的表达式对象
     pub expression: Box<dyn Expression>,
     /// 是否换行
     pub is_newline: bool,
 }
 
-impl Expression for Print {
+impl Expression for PrintStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
         let res = self.expression.evaluate(ctx).unwrap();
-        ctx.output.push(res.to_string());
+        print!("{}", res.to_string());
         if self.is_newline {
-            ctx.output.push(String::from("\n"));
+            println!();
         }
         Ok(Value::Void)
     }
@@ -130,46 +130,72 @@ impl Expression for Print {
 
 /// 赋值语句
 #[derive(Debug)]
-pub struct Var {
+pub struct DeclareStatement {
+    /// 变量类型
+    pub var_type: VarType,
     /// 变量名
     pub left: String,
     /// 赋值语句右边的表达式
     pub right: Box<dyn Expression>,
 }
 
-impl Expression for Var {
+impl Expression for DeclareStatement {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value, Error> {
+        let res = self.right.evaluate(ctx)?;
+        let is_ok = ctx.insert_var(self.left.as_str(), res, (&self.var_type).clone());
+        match is_ok {
+            true => Ok(Value::Void),
+            false => Err(err_msg(format!("重复定义变量, {}", self.left))),
+        }
+    }
+}
+
+/// 赋值语句
+#[derive(Debug)]
+pub struct AssignStatement {
+    /// 变量名
+    pub left: String,
+    /// 赋值语句右边的表达式
+    pub right: Box<dyn Expression>,
+}
+
+impl Expression for AssignStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
         let e = &self.right;
         //        dbg!(&e);
         let res = e.evaluate(ctx)?.clone();
-        ctx.variables.insert((&self.left).clone(), res);
-        Ok(Value::Void)
+        let b = ctx.update_var((&self.left).as_str(), res);
+        if b {
+            Ok(Value::Void)
+        } else {
+            Err(err_msg(format!("赋值失败,{}", self.left)))
+        }
     }
 }
 
 /// 一串表达式的集合
-pub type Command = VecDeque<Box<dyn Expression>>;
+pub type BlockStatement = VecDeque<Box<dyn Expression>>;
 
-impl Expression for Command {
+impl Expression for BlockStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
-        let mut res = Ok(Value::Void);
+        let mut res = Value::Void;
         for expr in self.iter() {
-            res = expr.evaluate(ctx);
+            res = expr.evaluate(ctx)?;
         }
-        res
+        Ok(res)
     }
 }
 
 /// 循环语句
 #[derive(Debug)]
-pub struct Loop {
+pub struct LoopStatement {
     /// 循环终止判断条件
     pub predict: Box<dyn Expression>,
     /// 循环语句里面要执行的语句块
-    pub cmd: Command,
+    pub loop_block: BlockStatement,
 }
 
-impl Expression for Loop {
+impl Expression for LoopStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
         loop {
             match self.predict.evaluate(ctx)? {
@@ -177,7 +203,7 @@ impl Expression for Loop {
                     break;
                 }
                 Value::Bool(true) => {
-                    self.cmd.evaluate(ctx)?;
+                    self.loop_block.evaluate(ctx)?;
                 }
                 _ => {
                     return Err(err_msg(
@@ -192,23 +218,26 @@ impl Expression for Loop {
 
 /// 条件语句
 #[derive(Debug)]
-pub struct If {
+pub struct IfStatement {
     /// 条件语句 判断条件
     pub predict: Box<dyn Expression>,
     /// 条件语句为真时执行的语句块
-    pub if_cmd: Command,
+    pub if_block: BlockStatement,
     /// 条件语句为假时执行的语句块
-    pub else_cmd: Command,
+    pub else_block: BlockStatement,
 }
 
-impl Expression for If {
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, failure::Error> {
+impl Expression for IfStatement {
+    fn evaluate<'a>(&self, ctx: &'a mut Context) -> Result<Value, failure::Error> {
+        let ctx = ctx;
+
+        let mut new_ctx: Context<'a> = init_with_parent_context(ctx);
         match self.predict.evaluate(ctx)? {
             Value::Bool(false) => {
-                self.else_cmd.evaluate(ctx)?;
+                self.else_block.evaluate(ctx)?;
             }
             Value::Bool(true) => {
-                self.if_cmd.evaluate(ctx)?;
+                self.if_block.evaluate(ctx)?;
             }
             _ => {
                 return Err(err_msg(
@@ -223,7 +252,7 @@ impl Expression for If {
 /// 变量和常量的总称
 pub enum Element {
     /// 变量
-    Variable(Variable),
+    Variable(VariableStatement),
     /// 常量
     Value(Value),
 }
@@ -248,14 +277,14 @@ impl Expression for Element {
 
 /// 变量
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub struct Variable {
+pub struct VariableStatement {
     /// 变量名
     pub name: String,
 }
 
-impl Expression for Variable {
+impl Expression for VariableStatement {
     fn evaluate(&self, context: &mut Context) -> Result<Value, failure::Error> {
-        let val = context.variables.get(&self.name);
+        let val = context.get_var(&self.name);
         assert!(
             val.is_some(),
             "不能获取一个未定义的变量 {}",

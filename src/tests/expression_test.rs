@@ -1,15 +1,15 @@
 use crate::expression::Element::Value;
 use crate::expression::Value::Str;
 use crate::expression::Value::{Bool, Int};
-use crate::expression::{BinaryOperator, Element};
-use crate::expression::{Expression, Not};
+use crate::expression::{BinaryStatement, Element};
+use crate::expression::{Expression, NotStatement};
 use crate::token::Operator;
 
 use crate::Context;
 
 #[test]
 fn test_not_falle() {
-    let expr = Not {
+    let expr = NotStatement {
         expr: Box::new(Value(Bool(false))),
     };
 
@@ -20,7 +20,7 @@ fn test_not_falle() {
 #[should_panic]
 #[test]
 fn test_not_int() {
-    let expr = Not {
+    let expr = NotStatement {
         expr: Box::new(Value(Int(1))),
     };
 
@@ -31,7 +31,7 @@ fn test_not_int() {
 #[test]
 fn test_sub_int_int() {
     let mut ctx = Context::default();
-    let opt = box BinaryOperator {
+    let opt = box BinaryStatement {
         operator: Operator::Subtract,
         left: box Element::Value(Int(1)),
         right: box Element::Value(Int(1)),
@@ -43,7 +43,7 @@ fn test_sub_int_int() {
 #[test]
 fn test_sub_bool_int() {
     let mut ctx = Context::default();
-    let opt: Box<dyn Expression> = box BinaryOperator {
+    let opt: Box<dyn Expression> = box BinaryStatement {
         operator: Operator::ADD,
         left: box Element::Value(Bool(false)),
         right: box Element::Value(Int(1)),
@@ -54,7 +54,7 @@ fn test_sub_bool_int() {
 #[test]
 fn test_add_int_int() {
     let mut ctx = Context::default();
-    let opt = BinaryOperator {
+    let opt = BinaryStatement {
         operator: Operator::ADD,
         left: box Element::Value(Int(1)),
         right: box Element::Value(Int(1)),
@@ -65,7 +65,7 @@ fn test_add_int_int() {
 #[test]
 fn test_add_str_int() {
     let mut ctx = Context::default();
-    let opt = BinaryOperator {
+    let opt = BinaryStatement {
         operator: Operator::ADD,
         left: box Element::Value(Str("hello".to_string())),
         right: box Element::Value(Int(1)),
@@ -77,7 +77,7 @@ fn test_add_str_int() {
 #[test]
 fn test_add_bool_int() {
     let mut ctx = Context::default();
-    let opt = BinaryOperator {
+    let opt = BinaryStatement {
         operator: Operator::ADD,
         left: box Element::Value(Bool(false)),
         right: box Element::Value(Int(1)),

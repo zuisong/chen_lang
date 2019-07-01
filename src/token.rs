@@ -4,10 +4,10 @@ use log::*;
 /// 关键字
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Keyword {
-    /// int
-    INT,
     /// if
     IF,
+    LET,
+    CONST,
     /// else
     ELSE,
     /// for
@@ -173,7 +173,8 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
                 let token = match s.as_str() {
                     "println" => Token::StdFunction(StdFunction::Print(true)),
                     "print" => Token::StdFunction(StdFunction::Print(false)),
-                    "int" => Token::Keyword(Keyword::INT),
+                    "let" => Token::Keyword(Keyword::LET),
+                    "const" => Token::Keyword(Keyword::CONST),
                     "if" => Token::Keyword(Keyword::IF),
                     "else" => Token::Keyword(Keyword::ELSE),
                     "for" => Token::Keyword(Keyword::FOR),

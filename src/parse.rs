@@ -99,14 +99,14 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
                     unreachable!();
                 }
 
-                Operator::NOT => box Not {
+                Operator::NOT => box NotStatement {
                     expr: tmp.pop_back().unwrap(),
                 },
 
                 _ => {
                     let o1 = tmp.pop_back().unwrap();
                     let o2 = tmp.pop_back().unwrap();
-                    box BinaryOperator {
+                    box BinaryStatement {
                         left: o2,
                         right: o1,
                         operator: opt,
@@ -116,7 +116,7 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
             tmp.push_back(new_exp);
         } else {
             let ele: Element = match t {
-                Token::Identifier(name) => Element::Variable(Variable { name }),
+                Token::Identifier(name) => Element::Variable(VariableStatement { name }),
                 Token::Int(i) => Element::Value(Value::Int(i)),
                 Token::Bool(i) => Element::Value(Value::Bool(i)),
                 Token::String(i) => Element::Value(Value::Str(i)),
@@ -133,12 +133,12 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
 pub fn parse_sequence(
     lines: &[Box<[Token]>],
     mut start_line: usize,
-) -> Result<(usize, Command), failure::Error> {
+) -> Result<(usize, BlockStatement), failure::Error> {
     let mut v = VecDeque::new();
     while start_line < lines.len() && lines[start_line][0] != Token::RBig {
         match &lines[start_line][0] {
-            Token::Keyword(Keyword::INT) => {
-                let var = parse_var(&lines[start_line])?;
+            Token::Keyword(Keyword::LET) | Token::Keyword(Keyword::CONST) => {
+                let var = parse_declare(&lines[start_line])?;
                 v.push_back(var);
                 start_line += 1;
             }
@@ -158,7 +158,7 @@ pub fn parse_sequence(
                 start_line += 1;
             }
             Token::Identifier(_) => {
-                let var = parse_var(&lines[start_line])?;
+                let var = parse_assign(&lines[start_line])?;
                 v.push_back(var);
                 start_line += 1;
             }
@@ -171,12 +171,36 @@ pub fn parse_sequence(
 }
 
 /// 分析赋值语句
-pub fn parse_var(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
+pub fn parse_declare(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
+    debug!("{:?}", &line);
+
+    let var_type = match &line[0] {
+        Token::Keyword(Keyword::LET) => VarType::Let,
+        Token::Keyword(Keyword::CONST) => VarType::Const,
+        _ => unreachable!(),
+    };
+
+    let name = match &line[1] {
+        Token::Identifier(name) => name,
+        _ => unreachable!(),
+    };
+
+    let var = DeclareStatement {
+        var_type,
+        left: name.clone(),
+        right: parse_expression(&line[3..])?,
+    };
+    Ok(box var)
+}
+
+///
+/// 赋值语句分析
+pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
     debug!("{:?}", &line);
 
     match &line[0] {
         Token::Identifier(name) => {
-            let var = Var {
+            let var = AssignStatement {
                 left: name.clone(),
                 right: parse_expression(&line[2..])?,
             };
@@ -198,10 +222,10 @@ pub fn parse_if(
         endline = new_endline;
         else_cmd = cmd;
     }
-    let loop_expr = If {
+    let loop_expr = IfStatement {
         predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
-        if_cmd,
-        else_cmd,
+        if_block: if_cmd,
+        else_block: else_cmd,
     };
     Ok((endline, box loop_expr))
 }
@@ -212,9 +236,9 @@ pub fn parse_for(
     start_line: usize,
 ) -> Result<(usize, Box<dyn Expression>), failure::Error> {
     let cmd = parse_sequence(&lines, start_line + 1)?;
-    let loop_expr = Loop {
+    let loop_expr = LoopStatement {
         predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
-        cmd: cmd.1,
+        loop_block: cmd.1,
     };
     Ok((cmd.0, box loop_expr))
 }
@@ -222,7 +246,7 @@ pub fn parse_for(
 fn parse_print(line: &[Token], is_newline: bool) -> Result<Box<dyn Expression>, failure::Error> {
     debug!("{:?}", line);
     let expression = parse_expression(&line[2..(line.len() - 1)])?;
-    Ok(box Print {
+    Ok(box PrintStatement {
         expression,
         is_newline,
     })
