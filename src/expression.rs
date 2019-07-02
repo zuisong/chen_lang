@@ -21,7 +21,7 @@ pub trait Expression: Debug {
 #[derive(Debug)]
 pub struct CallFunctionStatement {
     pub function_name: String,
-    pub params: Vec<Element>,
+    pub params: Vec<Box<dyn Expression>>,
 }
 
 impl Expression for CallFunctionStatement {
@@ -34,7 +34,8 @@ impl Expression for CallFunctionStatement {
         let func = ctx.get_function(self.function_name.as_str()).unwrap();
         let mut new_ctx = Context::init_with_parent_context(ctx);
         for idx in 0..func.params.len() {
-            new_ctx.insert_var(func.params[idx].as_str(), params[idx].clone(), VarType::Let);
+            new_ctx.insert_var(func.params[idx].as_str(),
+                               params[idx].clone(), VarType::Let);
         }
         func.body.evaluate(&mut new_ctx)
     }
@@ -183,7 +184,7 @@ impl Expression for DeclareStatement {
         if is_ok {
             Ok(Value::Void)
         } else {
-            Err(err_msg(format!("重复定义变量, {}", self.left)))
+            Err(err_msg(format!("重复定义变量, {:?}", self)))
         }
     }
 }

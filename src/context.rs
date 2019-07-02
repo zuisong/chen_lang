@@ -1,7 +1,7 @@
 use crate::expression::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
-
+use log::*;
 use std::string::ToString;
 
 trait Var {
@@ -86,7 +86,10 @@ impl Context<'_> {
             Some(val) => Some(val),
             None => match &self.parent {
                 Some(scoop) => scoop.get_function(name),
-                None => None,
+                None => {
+                    warn!("获取一个不存在的函数,{}", name);
+                    None
+                },
             },
         }
     }
@@ -110,8 +113,8 @@ impl Context<'_> {
         }
     }
 
-    pub fn insert_var(&mut self, name: &str, val: Value, var_type: VarType) -> bool {
-        match self.get_var(name) {
+    pub(crate) fn insert_var(&mut self, name: &str, val: Value, var_type: VarType) -> bool {
+        match self.variables.get(name) {
             Some(_) => false,
             None => {
                 self.variables

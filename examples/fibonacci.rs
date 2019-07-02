@@ -1,16 +1,28 @@
 fn main() {
     simple_logger::init().unwrap();
     let cpde: String = r#"
-let n = 1
-let i = 1
-let j = 2
-for n <= 10 {
-   println(i)
-   let tmp  = i
-   i = j
-   j = tmp + j
-   n = n + 1
+
+let r = 0
+let d1 = 0
+let d2 = 0
+def fibo(n){
+    let res = 0
+    if n==1{
+        res = 1
+    }
+    if n==2{
+        res = 1
+    }
+    if n>2{
+        d1 = fibo(n- 2)
+        d2 = fibo(n- 1)
+        res = d1 + d2
+    }
+    res
 }
+r = fibo(6)
+println(r)
+
 "#
     .to_string();
 

@@ -39,7 +39,7 @@ fn get_priority(token: &Token) -> i32 {
 /// 简单表达式分析 (只有运算的 一行)
 pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
     if line.is_empty() {
-        return Err(failure::err_msg("不是一个表达式"));
+        return Ok(box Value::Void);
     }
 
     // 中缀表达式变后缀表达式
@@ -123,7 +123,7 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
                 Token::Int(i) => Element::Value(Value::Int(i)),
                 Token::Bool(i) => Element::Value(Value::Bool(i)),
                 Token::String(i) => Element::Value(Value::Str(i)),
-                _ => panic!("错误"),
+                _ => panic!("错误,{:?}", t),
             };
             tmp.push_back(box ele);
         }
@@ -166,13 +166,13 @@ pub fn parse_block(
                 start_line += 1;
             }
             // 赋值
-            Token::Identifier(_) if lines[start_line][1] == Token::Operator(Operator::Assign) => {
+            Token::Identifier(_) if lines[start_line].get(1) == Some(&Token::Operator(Operator::Assign)) => {
                 let var = parse_assign(&lines[start_line])?;
                 v.push_back(var);
                 start_line += 1;
             }
             // 函数调用
-            Token::Identifier(_) if lines[start_line][1] == Token::LParen => {
+            Token::Identifier(_) if lines[start_line].get(1) == Some(&Token::LParen) => {
                 let var = parse_func_call(&lines[start_line])?;
                 v.push_back(var);
                 start_line += 1;
@@ -181,6 +181,12 @@ pub fn parse_block(
                 let var = parse_block(&lines[..], start_line + 1)?;
                 v.push_back(box var.1);
                 start_line += var.0 + 1;
+            }
+            // 返回值
+            Token::Identifier(_) if lines[start_line].get(1) == None => {
+                let var = parse_expression(&lines[start_line])?;
+                v.push_back(var);
+                start_line += 1;
             }
             _ => {
                 unimplemented!("{:?}", lines[start_line]);
@@ -191,10 +197,44 @@ pub fn parse_block(
 }
 
 fn parse_func_call(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
-    unimplemented!()
+    let func_name = if let Token::Identifier(name) = &line[0] {
+        name.to_string()
+    } else {
+        return Err(err_msg("不是函数定义语句"))
+    };
+
+    assert_eq!(&line[1], &Token::LParen);
+    let param_idx: Vec<_> = line.iter().enumerate()
+        .skip(2)
+        .filter(|it| it.1 == &Token::COMMA)
+        .map(|it| it.0)
+        .collect();
+
+    let mut params = vec![];
+
+    match param_idx.len() {
+        0 => {
+            params.push(parse_expression(&line[2..(line.len() - 1)])?);
+        }
+        _ => {
+            params.push(parse_expression(&line[2..param_idx[0]])?);
+            for i in 0..(param_idx.len() - 1) {
+                params.push(parse_expression(&line[param_idx[i]..param_idx[i + 1]])?);
+            }
+            params.push(parse_expression(&line[(param_idx[param_idx.len() - 1] + 1)..(line.len() - 1)])?);
+        }
+    }
+
+
+    Ok(
+        box CallFunctionStatement {
+            function_name: func_name,
+            params,
+        }
+    )
 }
 
-/// 分析赋值语句
+/// 分析声明语句
 pub fn parse_declare(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
     debug!("{:?}", &line);
 
@@ -234,14 +274,22 @@ fn parse_define_function(
     let func_name = if let Token::Identifier(name) = &lines[start_line][1] {
         name.to_string()
     } else {
-        return Err(err_msg(""));
+        return Err(err_msg("不是函数定义语句"));
     };
 
     let (endline, body) = parse_block(&lines, start_line + 1)?;
+
+
+    let params = lines[start_line].iter().skip(3)
+        .filter_map(|it| match it {
+            Token::Identifier(s) => Some(s.clone()),
+            _ => None
+        }).collect();
+
     let func = FunctionStatement {
         name: func_name,
         // todo params parse
-        params: vec![],
+        params,
         body: Rc::new(body),
     };
     Ok((endline, box func))
@@ -254,9 +302,20 @@ pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>, failure::Erro
 
     match &line[0] {
         Token::Identifier(name) => {
+            assert_eq!(&line[1], &Token::Operator(Operator::Assign));
+
+            let expr = match &line[2] {
+                Token::Identifier(_)  if &line[3] == &Token::LParen => {
+                    parse_func_call(&line[2..])?
+                }
+                _ => {
+                    parse_expression(&line[2..])?
+                }
+            };
+
             let var = AssignStatement {
                 left: name.clone(),
-                right: parse_expression(&line[2..])?,
+                right: expr,
             };
             Ok(box var)
         }
