@@ -1,11 +1,12 @@
 #![deny(missing_docs)]
 
 use std::collections::VecDeque;
-
-use crate::context::VarType;
-use crate::*;
-use failure::err_msg;
 use std::rc::Rc;
+
+use failure::err_msg;
+
+use crate::*;
+use crate::context::VarType;
 
 //const H: i32 = 3;
 const M: i32 = 2;
@@ -200,7 +201,7 @@ fn parse_func_call(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error
     let func_name = if let Token::Identifier(name) = &line[0] {
         name.to_string()
     } else {
-        return Err(err_msg("不是函数定义语句"))
+        return Err(err_msg("不是函数定义语句"));
     };
 
     assert_eq!(&line[1], &Token::LParen);

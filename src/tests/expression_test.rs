@@ -1,27 +1,25 @@
-use crate::expression::Element::Value;
-use crate::expression::Value::Str;
-use crate::expression::Value::{Bool, Int};
+use crate::Context;
 use crate::expression::{BinaryStatement, Element};
 use crate::expression::{Expression, NotStatement};
+use crate::expression::Element::Value;
+use crate::expression::Value::{Bool, Int, Str};
 use crate::token::Operator;
-
-use crate::Context;
-
-#[test]
-fn test_not_falle() {
-    let expr = NotStatement {
-        expr: Box::new(Value(Bool(false))),
-    };
-
-    let res = expr.evaluate(&mut Context::default());
-    assert_eq!(res.unwrap(), Bool(true));
-}
 
 #[should_panic]
 #[test]
 fn test_not_int() {
     let expr = NotStatement {
         expr: Box::new(Value(Int(1))),
+    };
+
+    let res = expr.evaluate(&mut Context::default());
+    assert_eq!(res.unwrap(), Bool(true));
+}
+
+#[test]
+fn test_not_falle() {
+    let expr = NotStatement {
+        expr: Box::new(Value(Bool(false))),
     };
 
     let res = expr.evaluate(&mut Context::default());

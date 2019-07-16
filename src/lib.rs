@@ -1,3 +1,4 @@
+//! 一个小的玩具语言
 #![feature(box_syntax)]
 //#![deny(missing_docs)]
 //#![deny(unused_imports)]
@@ -5,8 +6,6 @@
 //#![deny(dead_code)]
 //#![deny(unused_mut)]
 //#![deny(unreachable_code)]
-//! 一个小的玩具语言
-extern crate wasm_bindgen;
 
 ///
 /// 关键字   if for
@@ -17,10 +16,9 @@ extern crate wasm_bindgen;
 ///
 use log::*;
 
+use crate::context::Context;
 use crate::expression::*;
 use crate::token::*;
-
-use crate::context::Context;
 
 /// context模块
 pub mod context;

@@ -32,7 +32,7 @@ impl Expression for CallFunctionStatement {
             .map(|it| it.evaluate(ctx).unwrap())
             .collect();
         let func = ctx.get_function(self.function_name.as_str()).unwrap();
-        let mut new_ctx = Context::init_with_parent_context(ctx);
+        let mut new_ctx = Context::default();
         for idx in 0..func.params.len() {
             new_ctx.insert_var(func.params[idx].as_str(),
                                params[idx].clone(), VarType::Let);

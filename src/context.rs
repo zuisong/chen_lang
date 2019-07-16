@@ -1,8 +1,10 @@
-use crate::expression::*;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use log::*;
 use std::string::ToString;
+
+use log::*;
+
+use crate::expression::*;
 
 trait Var {
     fn get(&self) -> Value;
@@ -80,6 +82,8 @@ pub struct Context<'a> {
     functions: HashMap<String, FunctionStatement>,
 }
 
+
+
 impl Context<'_> {
     pub fn get_function(&self, name: &str) -> Option<&FunctionStatement> {
         match self.functions.get(name) {
@@ -94,9 +98,13 @@ impl Context<'_> {
         }
     }
 
+
     pub fn insert_function(&mut self, name: &str, func: FunctionStatement) -> bool {
         match self.get_var(name) {
-            Some(_) => false,
+            Some(_) => {
+                warn!("添加一个已经存在的变量，{}", name);
+                false
+            }
             None => {
                 self.functions.insert(name.to_string(), func);
                 true
@@ -108,7 +116,10 @@ impl Context<'_> {
             Some(val) => Some(val.get()),
             None => match &self.parent {
                 Some(scoop) => scoop.get_var(name),
-                None => None,
+                None => {
+                    warn!("获取一个不存在的变量,{}", name);
+                    None
+                }
             },
         }
     }
