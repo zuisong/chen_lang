@@ -2,15 +2,18 @@ fn main() {
     simple_logger::init().unwrap();
     let cpde: String = r#"
 
-let r = 0
-let d1 = 0
-let d2 = 0
-def fibo(n){
-    println(n)
-    n
+# 用 chen_lang 打印斐波那契数列前三十个数
+let n = 1
+let i = 1
+let j = 2
+let tmp = 0
+for n <= 30 {
+   println(i)
+   tmp = i
+   i = j
+   j = tmp + j
+   n = n + 1
 }
-r = fibo(6)
-println(r)
 
 "#
     .to_string();

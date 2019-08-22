@@ -34,8 +34,7 @@ impl Expression for CallFunctionStatement {
         let func = ctx.get_function(self.function_name.as_str()).unwrap();
         let mut new_ctx = Context::default();
         for idx in 0..func.params.len() {
-            new_ctx.insert_var(func.params[idx].as_str(),
-                               params[idx].clone(), VarType::Let);
+            new_ctx.insert_var(func.params[idx].as_str(), params[idx].clone(), VarType::Let);
         }
         func.body.evaluate(&mut new_ctx)
     }
@@ -248,9 +247,7 @@ impl Expression for LoopStatement {
                     self.loop_block.evaluate(&mut new_ctx)?;
                 }
                 _ => {
-                    return Err(err_msg(
-                        "for循环语句 判断语句块的返回值只能是 bool 类型",
-                    ));
+                    return Err(err_msg("for循环语句 判断语句块的返回值只能是 bool 类型"));
                 }
             }
         }
@@ -280,9 +277,7 @@ impl Expression for IfStatement {
                 self.if_block.evaluate(&mut new_ctx)?;
             }
             _ => {
-                return Err(err_msg(
-                    "for条件语句 判断语句块的返回值只能是 bool 类型",
-                ));
+                return Err(err_msg("for条件语句 判断语句块的返回值只能是 bool 类型"));
             }
         }
         Ok(Value::Void)
@@ -325,11 +320,7 @@ pub struct VariableStatement {
 impl Expression for VariableStatement {
     fn evaluate(&self, context: &mut Context) -> Result<Value, failure::Error> {
         let val = context.get_var(&self.name);
-        assert!(
-            val.is_some(),
-            "不能获取一个未定义的变量 {}",
-            self.name
-        );
+        assert!(val.is_some(), "不能获取一个未定义的变量 {}", self.name);
         Ok(val.unwrap().clone())
     }
 }

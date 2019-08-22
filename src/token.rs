@@ -168,7 +168,7 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
             _ if chars[i].is_ascii_alphabetic() => {
                 let mut j = i + 1;
 
-                while chars[j].is_ascii_alphabetic()||chars[j].is_numeric() {
+                while chars[j].is_ascii_alphabetic() || chars[j].is_numeric() {
                     j += 1;
                 }
                 let s: String = chars.as_slice()[i..j].iter().collect();

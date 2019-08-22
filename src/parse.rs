@@ -5,8 +5,8 @@ use std::rc::Rc;
 
 use failure::err_msg;
 
-use crate::*;
 use crate::context::VarType;
+use crate::*;
 
 //const H: i32 = 3;
 const M: i32 = 2;
@@ -167,7 +167,9 @@ pub fn parse_block(
                 start_line += 1;
             }
             // 赋值
-            Token::Identifier(_) if lines[start_line].get(1) == Some(&Token::Operator(Operator::Assign)) => {
+            Token::Identifier(_)
+                if lines[start_line].get(1) == Some(&Token::Operator(Operator::Assign)) =>
+            {
                 let var = parse_assign(&lines[start_line])?;
                 v.push_back(var);
                 start_line += 1;
@@ -205,7 +207,9 @@ fn parse_func_call(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error
     };
 
     assert_eq!(&line[1], &Token::LParen);
-    let param_idx: Vec<_> = line.iter().enumerate()
+    let param_idx: Vec<_> = line
+        .iter()
+        .enumerate()
         .skip(2)
         .filter(|it| it.1 == &Token::COMMA)
         .map(|it| it.0)
@@ -222,17 +226,16 @@ fn parse_func_call(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error
             for i in 0..(param_idx.len() - 1) {
                 params.push(parse_expression(&line[param_idx[i]..param_idx[i + 1]])?);
             }
-            params.push(parse_expression(&line[(param_idx[param_idx.len() - 1] + 1)..(line.len() - 1)])?);
+            params.push(parse_expression(
+                &line[(param_idx[param_idx.len() - 1] + 1)..(line.len() - 1)],
+            )?);
         }
     }
 
-
-    Ok(
-        box CallFunctionStatement {
-            function_name: func_name,
-            params,
-        }
-    )
+    Ok(box CallFunctionStatement {
+        function_name: func_name,
+        params,
+    })
 }
 
 /// 分析声明语句
@@ -280,12 +283,14 @@ fn parse_define_function(
 
     let (endline, body) = parse_block(&lines, start_line + 1)?;
 
-
-    let params = lines[start_line].iter().skip(3)
+    let params = lines[start_line]
+        .iter()
+        .skip(3)
         .filter_map(|it| match it {
             Token::Identifier(s) => Some(s.clone()),
-            _ => None
-        }).collect();
+            _ => None,
+        })
+        .collect();
 
     let func = FunctionStatement {
         name: func_name,
@@ -306,12 +311,10 @@ pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>, failure::Erro
             assert_eq!(&line[1], &Token::Operator(Operator::Assign));
 
             let expr = match &line[2] {
-                Token::Identifier(_)  if &line[3] == &Token::LParen => {
+                Token::Identifier(_) if line.get(3) == Some(&Token::LParen) => {
                     parse_func_call(&line[2..])?
                 }
-                _ => {
-                    parse_expression(&line[2..])?
-                }
+                _ => parse_expression(&line[2..])?,
             };
 
             let var = AssignStatement {

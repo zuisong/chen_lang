@@ -1,9 +1,9 @@
-use crate::Context;
-use crate::expression::{BinaryStatement, Element};
-use crate::expression::{Expression, NotStatement};
 use crate::expression::Element::Value;
 use crate::expression::Value::{Bool, Int, Str};
+use crate::expression::{BinaryStatement, Element};
+use crate::expression::{Expression, NotStatement};
 use crate::token::Operator;
+use crate::Context;
 
 #[should_panic]
 #[test]

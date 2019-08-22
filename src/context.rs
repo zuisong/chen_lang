@@ -10,10 +10,12 @@ trait Var {
     fn get(&self) -> Value;
     fn set(&self, val: Value) -> bool;
 }
-
+/// 变量类型
 #[derive(Clone, Debug)]
 pub enum VarType {
+    /// const
     Const,
+    /// let
     Let,
 }
 
@@ -82,8 +84,6 @@ pub struct Context<'a> {
     functions: HashMap<String, FunctionStatement>,
 }
 
-
-
 impl Context<'_> {
     pub fn get_function(&self, name: &str) -> Option<&FunctionStatement> {
         match self.functions.get(name) {
@@ -93,11 +93,10 @@ impl Context<'_> {
                 None => {
                     warn!("获取一个不存在的函数,{}", name);
                     None
-                },
+                }
             },
         }
     }
-
 
     pub fn insert_function(&mut self, name: &str, func: FunctionStatement) -> bool {
         match self.get_var(name) {
