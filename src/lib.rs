@@ -1,12 +1,15 @@
 //! 一个小的玩具语言
 #![feature(box_syntax)]
 //#![deny(missing_docs)]
-#![deny(unused_imports)]
-#![deny(unused_parens)]
-#![deny(dead_code)]
-#![deny(unused_mut)]
-#![deny(unreachable_code)]
+//#![deny(unused_imports)]
+//#![deny(unused_parens)]
+//#![deny(dead_code)]
+//#![deny(unused_mut)]
+//#![deny(unreachable_code)]
 
+#[cfg(test)]
+#[macro_use]
+extern crate quickcheck;
 ///
 /// 关键字   if for
 /// 函数库   print println
