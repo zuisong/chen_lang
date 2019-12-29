@@ -1,0 +1,86 @@
+root = true
+# 所有文件
+[*]
+# 代码统一编码为 utf-8
+charset                                             = utf-8
+# 换行符为crlf
+end_of_line                                         = crlf
+# 默认缩进 4
+indent_size                                         = 4
+# 默认缩进方式使用空格
+indent_style                                        = space
+# 文件末尾插入一个新行
+insert_final_newline                                = true
+# 最长行长度为 120 字符
+max_line_length                                     = 120
+# tab宽度 4 空格
+tab_width                                           = 4
+# 删除行尾空格
+trim_trailing_whitespace                            = true
+
+
+# idea 特有配置
+ij_smart_tabs                                       = true
+ij_formatter_off_tag                                = @formatter:off
+ij_formatter_on_tag                                 = @formatter:on
+ij_formatter_tags_enabled                           = true
+ij_any_wrap_long_lines                              = false
+
+# if for do-while while 强制使用大括号
+ij_any_if_brace_force                               = always
+ij_any_for_brace_force                              = always
+ij_any_do_while_brace_force                         = always
+ij_any_while_brace_force                            = always
+ij_any_blank_lines_around_method_in_interface       = 1
+ij_any_space_within_empty_array_initializer_braces  = true
+
+# 简单的代码可以不换行
+ij_any_keep_simple_classes_in_one_line              = true
+ij_any_keep_simple_blocks_in_one_line               = true
+ij_any_keep_simple_lambdas_in_one_line              = true
+ij_any_keep_simple_methods_in_one_line              = true
+
+ij_any_align_throws_keyword                         = false
+ij_any_align_multiline_for                          = true
+ij_any_align_multiline_binary_operation             = true
+ij_any_align_multiline_parameters                   = true
+ij_any_align_multiline_chained_methods              = false
+ij_any_align_multiline_assignment                   = false
+ij_any_align_multiline_extends_list                 = true
+ij_any_align_multiline_method_parentheses           = false
+ij_any_align_multiline_parameters_in_calls          = false
+ij_any_align_multiline_parenthesized_expression     = false
+ij_any_align_multiline_array_initializer_expression = true
+
+ij_any_align_consecutive_assignments                = true
+ij_any_align_consecutive_variable_declarations      = true
+ij_any_align_group_field_declarations               = true
+
+# yml 文件
+[*.yml]
+# 缩进为 2 空格
+indent_size = 2
+# tab宽度 2 空格
+tab_width   = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.java]
+ij_java_doc_enable_formatting               = true
+ij_java_layout_static_imports_separately    = true
+ij_java_blank_lines_after_imports           = 1
+ij_java_blank_lines_before_imports          = 1
+ij_java_blank_lines_around_class            = 1
+# 同一个包内导入类超过三个就用 * 导入
+ij_java_class_count_to_use_import_on_demand = 3
+# 同一个包内静态导入超过三个就用 * 导入
+ij_java_names_count_to_use_import_on_demand = 3
+ij_java_use_single_class_imports            = true
+
+[*.kt]
+ij_kotlin_name_count_to_use_star_import_for_members = 2
+ij_kotlin_name_count_to_use_star_import             = 2
+ij_kotlin_import_nested_classes                     = true
+ij_kotlin_spaces_around_function_type_arrow         = true
+

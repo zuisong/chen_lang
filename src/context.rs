@@ -10,6 +10,7 @@ trait Var {
     fn get(&self) -> Value;
     fn set(&self, val: Value) -> bool;
 }
+
 /// 变量类型
 #[derive(Clone, Debug)]
 pub enum VarType {

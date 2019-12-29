@@ -309,6 +309,7 @@ pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>, failure::Erro
     match &line[0] {
         Token::Identifier(name) => {
             assert_eq!(&line[1], &Token::Operator(Operator::Assign));
+            dbg!(&line);
 
             let expr = match &line[2] {
                 Token::Identifier(_) if line.get(3) == Some(&Token::LParen) => {

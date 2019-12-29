@@ -10,6 +10,7 @@
 #[cfg(test)]
 #[macro_use]
 extern crate quickcheck;
+
 ///
 /// 关键字   if for
 /// 函数库   print println
@@ -42,7 +43,7 @@ pub fn run(code: String) -> Result<(), failure::Error> {
     debug!("tokens => {:?}", &tokens);
     let ast: BlockStatement = parser(tokens)?;
     debug!("ast => {:?}", &ast);
-
+    dbg!(&ast);
     evaluate(ast)?;
     Ok(())
 }

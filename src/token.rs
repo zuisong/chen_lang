@@ -14,6 +14,8 @@ pub enum Keyword {
     FOR,
     /// def
     DEF,
+    /// return
+    RETURN,
 }
 
 /// 操作符
@@ -176,6 +178,7 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
                     "println" => Token::StdFunction(StdFunction::Print(true)),
                     "print" => Token::StdFunction(StdFunction::Print(false)),
                     "let" => Token::Keyword(Keyword::LET),
+                    "return" => Token::Keyword(Keyword::RETURN),
                     "const" => Token::Keyword(Keyword::CONST),
                     "if" => Token::Keyword(Keyword::IF),
                     "def" => Token::Keyword(Keyword::DEF),
