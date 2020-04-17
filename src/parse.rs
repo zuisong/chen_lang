@@ -3,8 +3,6 @@
 use std::collections::VecDeque;
 use std::rc::Rc;
 
-use failure::err_msg;
-
 use crate::context::VarType;
 use crate::*;
 
@@ -38,7 +36,7 @@ fn get_priority(token: &Token) -> i32 {
 }
 
 /// 简单表达式分析 (只有运算的 一行)
-pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
+pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::Error> {
     if line.is_empty() {
         return Ok(box Value::Void);
     }
@@ -137,7 +135,7 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, failure::
 pub fn parse_block(
     lines: &[Box<[Token]>],
     mut start_line: usize,
-) -> Result<(usize, BlockStatement), failure::Error> {
+) -> Result<(usize, BlockStatement), anyhow::Error> {
     let mut v = VecDeque::new();
     while start_line < lines.len() && lines[start_line][0] != Token::RBig {
         match &lines[start_line][0] {
@@ -199,7 +197,7 @@ pub fn parse_block(
     Ok((start_line, v))
 }
 
-fn parse_func_call(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
+fn parse_func_call(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::Error> {
     let func_name = if let Token::Identifier(name) = &line[0] {
         name.to_string()
     } else {
@@ -239,7 +237,7 @@ fn parse_func_call(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error
 }
 
 /// 分析声明语句
-pub fn parse_declare(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
+pub fn parse_declare(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::Error> {
     debug!("{:?}", &line);
 
     let var_type = match &line[0] {
@@ -274,7 +272,7 @@ pub fn parse_declare(line: &[Token]) -> Result<Box<dyn Expression>, failure::Err
 fn parse_define_function(
     lines: &[Box<[Token]>],
     start_line: usize,
-) -> Result<(usize, Box<dyn Expression>), failure::Error> {
+) -> Result<(usize, Box<dyn Expression>), anyhow::Error> {
     let func_name = if let Token::Identifier(name) = &lines[start_line][1] {
         name.to_string()
     } else {
@@ -303,7 +301,7 @@ fn parse_define_function(
 
 ///
 /// 赋值语句分析
-pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>, failure::Error> {
+pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::Error> {
     debug!("{:?}", &line);
 
     match &line[0] {
@@ -332,7 +330,7 @@ pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>, failure::Erro
 pub fn parse_if(
     lines: &[Box<[Token]>],
     start_line: usize,
-) -> Result<(usize, Box<dyn Expression>), failure::Error> {
+) -> Result<(usize, Box<dyn Expression>), anyhow::Error> {
     let (mut endline, if_cmd) = parse_block(&lines, start_line + 1)?;
     let else_cmd = if let Some(Token::Keyword(Keyword::ELSE)) = lines[endline].get(1) {
         assert_eq!(lines[endline][0], Token::RBig);
@@ -355,7 +353,7 @@ pub fn parse_if(
 pub fn parse_for(
     lines: &[Box<[Token]>],
     start_line: usize,
-) -> Result<(usize, Box<dyn Expression>), failure::Error> {
+) -> Result<(usize, Box<dyn Expression>), anyhow::Error> {
     let cmd = parse_block(&lines, start_line + 1)?;
     let loop_expr = LoopStatement {
         predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
@@ -364,7 +362,7 @@ pub fn parse_for(
     Ok((cmd.0, box loop_expr))
 }
 
-fn parse_print(line: &[Token], is_newline: bool) -> Result<Box<dyn Expression>, failure::Error> {
+fn parse_print(line: &[Token], is_newline: bool) -> Result<Box<dyn Expression>, anyhow::Error> {
     debug!("{:?}", line);
     let expression = parse_expression(&line[2..(line.len() - 1)])?;
     Ok(box PrintStatement {

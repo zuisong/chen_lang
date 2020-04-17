@@ -6,7 +6,7 @@ extern crate clap;
 
 use clap::{App, Arg};
 
-fn main() -> Result<(), failure::Error> {
+fn main() -> Result<(), anyhow::Error> {
     let matches = App::new("chen_lang")
         .version("0.0.1")
         .author("zuisong <com.me@foxmail.com>")

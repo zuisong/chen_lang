@@ -99,7 +99,7 @@ pub enum Token {
 }
 
 /// 代码转成token串
-pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
+pub fn tokenlizer(code: String) -> Result<Vec<Token>, anyhow::Error> {
     let chars: Vec<_> = code.chars().collect();
 
     let mut tokens = vec![];
@@ -195,7 +195,7 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, failure::Error> {
                 continue;
             }
             _ => {
-                return Err(failure::err_msg(format!(
+                return Err(anyhow::Error::msg(format!(
                     "token 解析错误  请检查语法, {}",
                     chars[i]
                 )));

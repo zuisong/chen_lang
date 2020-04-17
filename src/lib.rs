@@ -24,6 +24,8 @@ use crate::context::Context;
 use crate::expression::*;
 use crate::token::*;
 
+use std::fmt::{Debug, Display};
+
 /// context模块
 pub mod context;
 /// 表达式模块
@@ -36,9 +38,17 @@ mod tests;
 /// 词法分析模块
 pub mod token;
 
+#[inline]
+pub(crate) fn err_msg<M>(msg: M) -> anyhow::Error
+where
+    M: Display + Debug + Send + Sync + 'static,
+{
+    anyhow::Error::msg(msg)
+}
+
 /// 运行代码
 #[no_mangle]
-pub fn run(code: String) -> Result<(), failure::Error> {
+pub fn run(code: String) -> Result<(), anyhow::Error> {
     let tokens = token::tokenlizer(code)?;
     debug!("tokens => {:?}", &tokens);
     let ast: BlockStatement = parser(tokens)?;
@@ -49,7 +59,7 @@ pub fn run(code: String) -> Result<(), failure::Error> {
 }
 
 /// 词法
-fn parser(tokens: Vec<Token>) -> Result<BlockStatement, failure::Error> {
+fn parser(tokens: Vec<Token>) -> Result<BlockStatement, anyhow::Error> {
     let mut lines: Vec<Box<[Token]>> = vec![];
     let mut temp = vec![];
     for x in tokens {
@@ -68,7 +78,7 @@ fn parser(tokens: Vec<Token>) -> Result<BlockStatement, failure::Error> {
 }
 
 /// 运行
-fn evaluate(ast: BlockStatement) -> Result<Value, failure::Error> {
+fn evaluate(ast: BlockStatement) -> Result<Value, anyhow::Error> {
     let mut ctx = Context::default();
     debug!("{:?}", &ast);
     for cmd in ast.iter() {

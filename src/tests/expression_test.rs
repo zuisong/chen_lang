@@ -4,11 +4,8 @@ use crate::expression::{BinaryStatement, Element};
 use crate::expression::{Expression, NotStatement};
 use crate::token::Operator;
 use crate::Context;
-use log::*;
 
 quickcheck! {
-
-
     #[should_panic]
     fn test_not_int2(i:i32) -> bool {
         test_not_int(i);
