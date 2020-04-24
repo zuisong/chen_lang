@@ -1,6 +1,6 @@
 fn main() {
     simple_logger::init().unwrap();
-    let cpde: String = r#"
+    let code: String = r#"
 
 # 用 chen_lang 打印斐波那契数列前三十个数
 let n = 1
@@ -18,5 +18,5 @@ for n <= 30 {
 "#
     .to_string();
 
-    chen_lang::run(cpde).unwrap();
+    chen_lang::run(code).unwrap();
 }

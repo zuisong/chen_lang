@@ -1,6 +1,6 @@
 fn main() {
     simple_logger::init().unwrap();
-    let cpde: String = r#"
+    let code: String = r#"
 let i = 0
 for i<100{
 
@@ -14,5 +14,5 @@ for i<100{
 "#
     .to_string();
 
-    chen_lang::run(cpde).unwrap();
+    chen_lang::run(code).unwrap();
 }

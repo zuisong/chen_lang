@@ -24,7 +24,7 @@ fn test_not_int(i: i32) {
 }
 
 #[test]
-fn test_not_falle() {
+fn test_not_false() {
     let expr = NotStatement {
         expr: Box::new(Value(Bool(false))),
     };
