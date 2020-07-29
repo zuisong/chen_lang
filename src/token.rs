@@ -130,7 +130,7 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, anyhow::Error> {
             '=' if chars[i + 1] == '=' => (Token::Operator(Operator::Equals), 2),
             '=' if chars[i + 1] != '=' => (Token::Operator(Operator::Assign), 1),
             '&' if chars[i + 1] == '&' => (Token::Operator(Operator::And), 2),
-            '|' if chars[i + 1] == '|' => (Token::Operator(Operator::Or), 1),
+            '|' if chars[i + 1] == '|' => (Token::Operator(Operator::Or), 2),
             '!' if chars[i + 1] == '=' => (Token::Operator(Operator::NotEquals), 2),
             '!' if chars[i + 1] != '=' => (Token::Operator(Operator::NOT), 1),
             '<' if chars[i + 1] == '=' => (Token::Operator(Operator::LTE), 2),
