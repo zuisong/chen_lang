@@ -1,7 +1,9 @@
 #![feature(box_syntax, box_patterns)]
 
+use simple_logger::SimpleLogger;
+
 fn main() {
-    simple_logger::init().unwrap();
+    SimpleLogger::new().init().unwrap();
 
     let code = r#"
 # 这里是注释,

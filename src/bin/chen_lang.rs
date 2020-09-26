@@ -5,6 +5,7 @@ use std::io::Read;
 extern crate clap;
 
 use clap::{App, Arg};
+use simple_logger::SimpleLogger;
 
 fn main() -> Result<(), anyhow::Error> {
     let matches = App::new("chen_lang")
@@ -26,14 +27,14 @@ fn main() -> Result<(), anyhow::Error> {
         )
         .get_matches();
     let log_level = match matches.occurrences_of("v") {
-        0 => Level::Error,
-        1 => Level::Warn,
-        2 => Level::Info,
-        3 => Level::Debug,
-        4 | _ => Level::Trace,
+        0 => LevelFilter::Error,
+        1 => LevelFilter::Warn,
+        2 => LevelFilter::Info,
+        3 => LevelFilter::Debug,
+        4 | _ => LevelFilter::Trace,
     };
 
-    simple_logger::init_with_level(log_level)?;
+    SimpleLogger::new().with_level(log_level).init().unwrap();
 
     let code_file = matches.value_of("INPUT_FILE").unwrap();
     let s = std::env::current_dir()?.join(code_file);
