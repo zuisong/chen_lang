@@ -81,7 +81,7 @@ pub struct Context<'a> {
     /// 变量池
     variables: HashMap<String, ValueVar>,
 
-    /// 变量池
+    /// 方法池
     functions: HashMap<String, FunctionStatement>,
 }
 
