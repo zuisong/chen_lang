@@ -32,8 +32,8 @@ impl Expression for CallFunctionStatement {
             .collect();
         let func = ctx.get_function(self.function_name.as_str()).unwrap();
         let mut new_ctx = Context::default();
-        for idx in 0..func.params.len() {
-            new_ctx.insert_var(func.params[idx].as_str(), params[idx].clone(), VarType::Let);
+        for (idx, param) in params.iter().enumerate() {
+            new_ctx.insert_var(func.params[idx].as_str(), param.clone(), VarType::Let);
         }
         func.body.evaluate(&mut new_ctx)
     }
@@ -72,8 +72,8 @@ impl Expression for BinaryStatement {
         match self.operator {
             Operator::ADD => match (l, r) {
                 (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Int(l_int + r_int)),
-                (Value::Str(a), b) => Ok(Value::Str(format!("{}{}", a.to_string(), b.to_string()))),
-                (a, Value::Str(b)) => Ok(Value::Str(format!("{}{}", a.to_string(), b.to_string()))),
+                (Value::Str(a), b) => Ok(Value::Str(format!("{}{}", a, b.to_string()))),
+                (a, Value::Str(b)) => Ok(Value::Str(format!("{}{}", a.to_string(), b))),
                 _ => Err(err_msg("不是 int string 类型不能做加法")),
             },
             Operator::Subtract => match (l, r) {
@@ -200,7 +200,7 @@ impl Expression for AssignStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
         let e = &self.right;
         //        dbg!(&e);
-        let res = e.evaluate(ctx)?.clone();
+        let res = e.evaluate(ctx)?;
         let b = ctx.update_var((&self.left).as_str(), res);
         if b {
             Ok(Value::Void)
@@ -320,7 +320,7 @@ impl Expression for VariableStatement {
     fn evaluate(&self, context: &mut Context) -> Result<Value, anyhow::Error> {
         let val = context.get_var(&self.name);
         assert!(val.is_some(), "不能获取一个未定义的变量 {}", self.name);
-        Ok(val.unwrap().clone())
+        Ok(val.unwrap())
     }
 }
 
