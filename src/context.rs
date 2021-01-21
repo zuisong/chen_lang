@@ -66,9 +66,10 @@ impl Default for Context<'_> {
 impl Context<'_> {
     #[inline]
     pub(crate) fn init_with_parent_context<'b>(parent_ctx: &'b Context<'b>) -> Context<'b> {
-        let mut ctx = Context::default();
-        ctx.parent = Some(parent_ctx);
-        ctx
+        Context {
+            parent: Some(parent_ctx),
+            ..Default::default()
+        }
     }
 }
 

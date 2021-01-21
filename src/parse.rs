@@ -299,7 +299,6 @@ fn parse_define_function(
     Ok((endline, box func))
 }
 
-///
 /// 赋值语句分析
 pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::Error> {
     debug!("{:?}", &line);

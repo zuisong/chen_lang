@@ -1,5 +1,18 @@
+use std::num::ParseIntError;
+
 #[allow(unused_imports)]
 use log::*;
+use thiserror::Error;
+
+#[derive(Error, Debug)]
+pub enum TokenError {
+    #[error("UnknownToken {token:?}")]
+    UnknownToken { token: char },
+    #[error("parse int error")]
+    Disconnect(#[from] ParseIntError),
+    #[error("unknown error")]
+    Unknown,
+}
 
 /// 关键字
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
@@ -69,7 +82,6 @@ pub enum Token {
     Operator(Operator),
     /// int
     Int(i32),
-    //    Float(f32),
     /// bool
     Bool(bool),
     /// string
@@ -99,7 +111,7 @@ pub enum Token {
 }
 
 /// 代码转成token串
-pub fn tokenlizer(code: String) -> Result<Vec<Token>, anyhow::Error> {
+pub fn tokenlizer(code: String) -> Result<Vec<Token>, TokenError> {
     let chars: Vec<_> = code.chars().collect();
 
     let mut tokens = vec![];
@@ -150,20 +162,11 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, anyhow::Error> {
             }
             _ if chars[i] == '-' || chars[i].is_numeric() => {
                 let mut j = i + 1;
-                let mut _is_float = false;
-                while chars[j].is_numeric() || chars[j] == '.' {
+                while chars[j].is_numeric() {
                     j += 1;
-                    if chars[j] == '.' {
-                        _is_float = true;
-                    }
                 }
 
                 let s: String = chars.iter().skip(i).take(j - i).collect();
-                //                if is_float {
-                //                             (Token::Float(s.parse()?));
-                //                } else {
-                //                                        (Token::Int(s.parse()?));
-                //                }
                 (Token::Int(s.parse()?), j - i)
             }
 
@@ -195,10 +198,7 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, anyhow::Error> {
                 continue;
             }
             _ => {
-                return Err(anyhow::Error::msg(format!(
-                    "token 解析错误  请检查语法, {}",
-                    chars[i]
-                )));
+                return Err(TokenError::UnknownToken { token: chars[i] });
             }
         };
         tokens.push(token);

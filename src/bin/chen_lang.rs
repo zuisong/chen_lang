@@ -1,10 +1,10 @@
-use log::*;
+extern crate clap;
+
 use std::fs::OpenOptions;
 use std::io::Read;
 
-extern crate clap;
-
 use clap::{App, Arg};
+use log::*;
 use simple_logger::SimpleLogger;
 
 fn main() -> Result<(), anyhow::Error> {
@@ -31,7 +31,8 @@ fn main() -> Result<(), anyhow::Error> {
         1 => LevelFilter::Warn,
         2 => LevelFilter::Info,
         3 => LevelFilter::Debug,
-        4 | _ => LevelFilter::Trace,
+        4 => LevelFilter::Trace,
+        _ => LevelFilter::Trace,
     };
 
     SimpleLogger::new().with_level(log_level).init().unwrap();

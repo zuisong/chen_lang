@@ -11,6 +11,8 @@
 #[macro_use]
 extern crate quickcheck;
 
+use std::fmt::{Debug, Display};
+
 ///
 /// 关键字   if for
 /// 函数库   print println
@@ -23,8 +25,6 @@ use log::*;
 use crate::context::Context;
 use crate::expression::*;
 use crate::token::*;
-
-use std::fmt::{Debug, Display};
 
 /// context模块
 pub mod context;
@@ -53,7 +53,6 @@ pub fn run(code: String) -> Result<(), anyhow::Error> {
     debug!("tokens => {:?}", &tokens);
     let ast: BlockStatement = parser(tokens)?;
     debug!("ast => {:?}", &ast);
-    dbg!(&ast);
     evaluate(ast)?;
     Ok(())
 }
