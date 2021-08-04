@@ -92,17 +92,14 @@ impl Expression for BinaryStatement {
                 (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Int(l_int % r_int)),
                 _ => Err(err_msg("不是 int 类型不能做余数运算")),
             },
-
             Operator::And => match (l, r) {
                 (Value::Bool(l_b), Value::Bool(r_b)) => Ok(Value::Bool(l_b && r_b)),
                 _ => Err(err_msg("不是 bool 类型不能做逻辑运算")),
             },
-
             Operator::Or => match (l, r) {
                 (Value::Bool(l_b), Value::Bool(r_b)) => Ok(Value::Bool(l_b || r_b)),
                 _ => Err(err_msg("不是 bool 类型不能做逻辑运算")),
             },
-
             Operator::GT => match (l, r) {
                 (Value::Int(l_int), Value::Int(r_int)) => Ok(Value::Bool(l_int > r_int)),
                 _ => Err(err_msg("不是 int 类型不能做比较运算")),

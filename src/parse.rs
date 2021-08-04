@@ -145,17 +145,17 @@ pub fn parse_block(
                 start_line += 1;
             }
             Token::Keyword(Keyword::FOR) => {
-                let var = parse_for(&lines[..], start_line)?;
+                let var = parse_for(lines, start_line)?;
                 v.push_back(var.1);
                 start_line = var.0 + 1;
             }
             Token::Keyword(Keyword::DEF) => {
-                let var = parse_define_function(&lines[..], start_line)?;
+                let var = parse_define_function(lines, start_line)?;
                 v.push_back(var.1);
                 start_line = var.0 + 1;
             }
             Token::Keyword(Keyword::IF) => {
-                let var = parse_if(&lines[..], start_line)?;
+                let var = parse_if(lines, start_line)?;
                 v.push_back(var.1);
                 start_line = var.0 + 1;
             }
@@ -179,7 +179,7 @@ pub fn parse_block(
                 start_line += 1;
             }
             Token::LBig => {
-                let var = parse_block(&lines[..], start_line + 1)?;
+                let var = parse_block(lines, start_line + 1)?;
                 v.push_back(box var.1);
                 start_line += var.0 + 1;
             }
@@ -279,7 +279,7 @@ fn parse_define_function(
         return Err(err_msg("不是函数定义语句"));
     };
 
-    let (endline, body) = parse_block(&lines, start_line + 1)?;
+    let (endline, body) = parse_block(lines, start_line + 1)?;
 
     let params = lines[start_line]
         .iter()
@@ -330,11 +330,11 @@ pub fn parse_if(
     lines: &[Box<[Token]>],
     start_line: usize,
 ) -> Result<(usize, Box<dyn Expression>), anyhow::Error> {
-    let (mut endline, if_cmd) = parse_block(&lines, start_line + 1)?;
+    let (mut endline, if_cmd) = parse_block(lines, start_line + 1)?;
     let else_cmd = if let Some(Token::Keyword(Keyword::ELSE)) = lines[endline].get(1) {
         assert_eq!(lines[endline][0], Token::RBig);
         assert_eq!(lines[endline][2], Token::LBig);
-        let (new_endline, cmd) = parse_block(&lines, endline + 1)?;
+        let (new_endline, cmd) = parse_block(lines, endline + 1)?;
         endline = new_endline;
         cmd
     } else {
@@ -353,7 +353,7 @@ pub fn parse_for(
     lines: &[Box<[Token]>],
     start_line: usize,
 ) -> Result<(usize, Box<dyn Expression>), anyhow::Error> {
-    let cmd = parse_block(&lines, start_line + 1)?;
+    let cmd = parse_block(lines, start_line + 1)?;
     let loop_expr = LoopStatement {
         predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
         loop_block: cmd.1,
