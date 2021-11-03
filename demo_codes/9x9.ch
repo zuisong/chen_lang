@@ -4,7 +4,7 @@
 let i=1
 for i<=9 {
     let j = 1
-    for j<=i {
+    for j <= i {
         print(j + "x" + i + "=" + i*j + " ")
         j = j + 1
     }
