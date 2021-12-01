@@ -2,7 +2,7 @@
 name = "chen_lang"
 version = "0.1.0"
 authors = ["zuisong <378818573@qq.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 log = "0.4.14"
