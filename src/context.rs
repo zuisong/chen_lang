@@ -100,6 +100,10 @@ impl Context<'_> {
         }
     }
 
+    pub fn get_all_function(&self) -> &HashMap<String, FunctionStatement> {
+        &self.functions
+    }
+
     pub fn insert_function(&mut self, name: &str, func: FunctionStatement) -> bool {
         match self.get_var(name) {
             Some(_) => {

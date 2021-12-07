@@ -189,6 +189,12 @@ pub fn parse_block(
                 v.push_back(var);
                 start_line += 1;
             }
+            // 返回值
+            Token::Int(_) | Token::Bool(_) if lines[start_line].get(1) == None => {
+                let var = parse_expression(&lines[start_line])?;
+                v.push_back(var);
+                start_line += 1;
+            }
             _ => {
                 unimplemented!("{:?}", lines[start_line]);
             }
@@ -292,7 +298,6 @@ fn parse_define_function(
 
     let func = FunctionStatement {
         name: func_name,
-        // todo params parse
         params,
         body: Rc::new(body),
     };

@@ -1,15 +1,15 @@
+use crate::context::*;
+use crate::err_msg;
+use crate::token::Operator;
 use std::clone::Clone;
 use std::collections::VecDeque;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 use std::result::Result::Err;
 
-use crate::context::*;
-use crate::err_msg;
-use crate::token::Operator;
-
 /// 表达式  核心对象
 /// 一切语法都是表达式
+
 pub trait Expression: Debug {
     ///
     /// 表达式执行的方法
@@ -35,7 +35,10 @@ impl Expression for CallFunctionStatement {
         for (idx, param) in params.iter().enumerate() {
             new_ctx.insert_var(func.params[idx].as_str(), param.clone(), VarType::Let);
         }
-        func.body.evaluate(&mut new_ctx)
+        for (name, func) in ctx.get_all_function() {
+            new_ctx.insert_function(name, func.clone());
+        }
+        return func.body.evaluate(&mut new_ctx);
     }
 }
 
@@ -265,18 +268,14 @@ pub struct IfStatement {
 impl Expression for IfStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
         let mut new_ctx: Context = Context::init_with_parent_context(ctx);
-        match self.predict.evaluate(&mut new_ctx)? {
-            Value::Bool(false) => {
-                self.else_block.evaluate(&mut new_ctx)?;
-            }
-            Value::Bool(true) => {
-                self.if_block.evaluate(&mut new_ctx)?;
-            }
+        let res = match self.predict.evaluate(&mut new_ctx)? {
+            Value::Bool(false) => self.else_block.evaluate(&mut new_ctx)?,
+            Value::Bool(true) => self.if_block.evaluate(&mut new_ctx)?,
             _ => {
                 return Err(err_msg("for条件语句 判断语句块的返回值只能是 bool 类型"));
             }
-        }
-        Ok(Value::Void)
+        };
+        Ok(res)
     }
 }
 
