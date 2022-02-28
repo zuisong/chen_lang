@@ -3,26 +3,26 @@ extern crate clap;
 use std::fs::OpenOptions;
 use std::io::Read;
 
-use clap::{App, Arg};
+use clap::{Arg, Command};
 use log::*;
 use simple_logger::SimpleLogger;
 
 fn main() -> Result<(), anyhow::Error> {
-    let matches = App::new("chen_lang")
+    let matches = Command::new("chen_lang")
         .version("0.0.1")
         .author("zuisong <com.me@foxmail.com>")
         .about("a super tiny and toy language write by rust")
         .arg(
-            Arg::with_name("INPUT_FILE")
+            Arg::new("INPUT_FILE")
                 .help("要执行的源代码文件")
                 .required(true)
                 .index(1),
         )
         .arg(
-            Arg::with_name("v")
-                .short("v")
+            Arg::new("v")
+                .short('v')
                 .required(false)
-                .multiple(true)
+                .multiple_occurrences(true)
                 .help("v越多日志级别越低 (-vv is Info, -vvv is Debug)"),
         )
         .get_matches();
