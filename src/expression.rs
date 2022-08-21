@@ -38,7 +38,7 @@ impl Expression for CallFunctionStatement {
         for (name, func) in ctx.get_all_function() {
             new_ctx.insert_function(name, func.clone());
         }
-        return func.body.evaluate(&mut new_ctx);
+        func.body.evaluate(&mut new_ctx)
     }
 }
 

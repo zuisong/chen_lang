@@ -49,7 +49,7 @@ where
 /// 运行代码
 #[no_mangle]
 pub fn run(code: String) -> Result<(), anyhow::Error> {
-    let tokens = token::tokenlizer(code)?;
+    let tokens = tokenlizer(code)?;
     debug!("tokens => {:?}", &tokens);
     let ast: BlockStatement = parser(tokens)?;
     debug!("ast => {:?}", &ast);

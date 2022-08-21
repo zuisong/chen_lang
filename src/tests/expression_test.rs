@@ -1,6 +1,6 @@
 use crate::expression::Element::Value;
 use crate::expression::Value::{Bool, Int, Str};
-use crate::expression::{BinaryStatement, Element};
+use crate::expression::{BinaryStatement};
 use crate::expression::{Expression, NotStatement};
 use crate::token::Operator;
 use crate::Context;
@@ -38,8 +38,8 @@ fn test_sub_int_int() {
     let mut ctx = Context::default();
     let opt = box BinaryStatement {
         operator: Operator::Subtract,
-        left: box Element::Value(Int(1)),
-        right: box Element::Value(Int(1)),
+        left: box Value(Int(1)),
+        right: box Value(Int(1)),
     };
     assert_eq!(opt.evaluate(&mut ctx).unwrap(), Int(0));
 }
@@ -50,8 +50,8 @@ fn test_sub_bool_int() {
     let mut ctx = Context::default();
     let opt: Box<dyn Expression> = box BinaryStatement {
         operator: Operator::ADD,
-        left: box Element::Value(Bool(false)),
-        right: box Element::Value(Int(1)),
+        left: box Value(Bool(false)),
+        right: box Value(Int(1)),
     };
     opt.evaluate(&mut ctx).unwrap();
 }
@@ -61,8 +61,8 @@ fn test_add_int_int() {
     let mut ctx = Context::default();
     let opt = BinaryStatement {
         operator: Operator::ADD,
-        left: box Element::Value(Int(1)),
-        right: box Element::Value(Int(1)),
+        left: box Value(Int(1)),
+        right: box Value(Int(1)),
     };
     assert_eq!(opt.evaluate(&mut ctx).unwrap(), Int(2));
 }
@@ -72,8 +72,8 @@ fn test_add_str_int() {
     let mut ctx = Context::default();
     let opt = BinaryStatement {
         operator: Operator::ADD,
-        left: box Element::Value(Str("hello".to_string())),
-        right: box Element::Value(Int(1)),
+        left: box Value(Str("hello".to_string())),
+        right: box Value(Int(1)),
     };
     assert_eq!(opt.evaluate(&mut ctx).unwrap(), Str("hello1".to_string()));
 }
@@ -84,8 +84,8 @@ fn test_add_bool_int() {
     let mut ctx = Context::default();
     let opt = BinaryStatement {
         operator: Operator::ADD,
-        left: box Element::Value(Bool(false)),
-        right: box Element::Value(Int(1)),
+        left: box Value(Bool(false)),
+        right: box Value(Int(1)),
     };
     opt.evaluate(&mut ctx).unwrap();
 }

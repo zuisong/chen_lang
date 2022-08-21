@@ -53,16 +53,6 @@ impl Var for ValueVar {
     }
 }
 
-impl Default for Context<'_> {
-    fn default() -> Self {
-        Context {
-            parent: None,
-            variables: Default::default(),
-            functions: Default::default(),
-        }
-    }
-}
-
 impl Context<'_> {
     #[inline]
     pub(crate) fn init_with_parent_context<'b>(parent_ctx: &'b Context<'b>) -> Context<'b> {
@@ -75,6 +65,7 @@ impl Context<'_> {
 
 /// 程序上下文
 #[derive(Debug)]
+#[derive(Default)]
 pub struct Context<'a> {
     /// 父级上下文
     parent: Option<&'a Context<'a>>,
