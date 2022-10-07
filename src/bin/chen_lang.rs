@@ -21,12 +21,12 @@ fn main() -> Result<(), anyhow::Error> {
         .arg(
             Arg::new("v")
                 .short('v')
+                .action(clap::ArgAction::Count)
                 .required(false)
-                .multiple_occurrences(true)
                 .help("v越多日志级别越低 (-vv is Info, -vvv is Debug)"),
         )
         .get_matches();
-    let log_level = match matches.occurrences_of("v") {
+    let log_level = match matches.get_count("v") {
         0 => LevelFilter::Error,
         1 => LevelFilter::Warn,
         2 => LevelFilter::Info,
@@ -37,7 +37,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     SimpleLogger::new().with_level(log_level).init().unwrap();
 
-    let code_file = matches.value_of("INPUT_FILE").unwrap();
+    let code_file = matches.get_one::<String>("INPUT_FILE").unwrap();
     let s = std::env::current_dir()?.join(code_file);
 
     debug!("{:?}", s);

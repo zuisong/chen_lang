@@ -7,8 +7,8 @@ resolver = "2"
 
 [dependencies]
 log = "0.4.17"
-simple_logger = "2.2.0"
-clap = "3.2.17"
+simple_logger = "2.3.0"
+clap = "4.0.10"
 quickcheck = "1.0.3"
-anyhow = "1.0.62"
-thiserror = "1.0.32"
+anyhow = "1.0.65"
+thiserror = "1.0.37"
