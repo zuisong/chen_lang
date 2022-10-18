@@ -26,6 +26,7 @@ fn main() -> Result<(), anyhow::Error> {
                 .help("v越多日志级别越低 (-vv is Info, -vvv is Debug)"),
         )
         .get_matches();
+
     let log_level = match matches.get_count("v") {
         0 => LevelFilter::Error,
         1 => LevelFilter::Warn,
