@@ -178,7 +178,7 @@ pub struct DeclareStatement {
 impl Expression for DeclareStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
         let res = self.right.evaluate(ctx)?;
-        let is_ok = ctx.insert_var(self.left.as_str(), res, (&self.var_type).clone());
+        let is_ok = ctx.insert_var(self.left.as_str(), res, self.var_type.clone());
         if is_ok {
             Ok(Value::Void)
         } else {
@@ -201,7 +201,7 @@ impl Expression for AssignStatement {
         let e = &self.right;
         //        dbg!(&e);
         let res = e.evaluate(ctx)?;
-        let b = ctx.update_var((&self.left).as_str(), res);
+        let b = ctx.update_var(self.left.as_str(), res);
         if b {
             Ok(Value::Void)
         } else {

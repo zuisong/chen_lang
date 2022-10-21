@@ -1,6 +1,6 @@
+use crate::expression::BinaryStatement;
 use crate::expression::Element::Value;
 use crate::expression::Value::{Bool, Int, Str};
-use crate::expression::{BinaryStatement};
 use crate::expression::{Expression, NotStatement};
 use crate::token::Operator;
 use crate::Context;

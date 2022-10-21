@@ -39,14 +39,14 @@ impl ValueVar {
 impl Var for ValueVar {
     fn get(&self) -> Value {
         assert!(self.value.is_some(), "get a undefined value");
-        (&self.value).as_ref().unwrap().borrow().clone()
+        self.value.as_ref().unwrap().borrow().clone()
     }
 
     fn set(&self, val: Value) -> bool {
         match self.var_type {
             VarType::Const => false,
             VarType::Let => {
-                (&self.value).as_ref().unwrap().replace(val);
+                self.value.as_ref().unwrap().replace(val);
                 true
             }
         }
@@ -64,8 +64,7 @@ impl Context<'_> {
 }
 
 /// 程序上下文
-#[derive(Debug)]
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct Context<'a> {
     /// 父级上下文
     parent: Option<&'a Context<'a>>,

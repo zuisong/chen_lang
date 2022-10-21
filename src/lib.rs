@@ -1,6 +1,7 @@
 //! 一个小的玩具语言
 #![feature(box_syntax)]
 #![feature(try_blocks)]
+#![feature(stmt_expr_attributes)]
 // #![deny(missing_docs)]
 #![deny(unused_imports)]
 #![deny(unused_parens)]

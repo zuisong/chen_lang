@@ -184,13 +184,13 @@ pub fn parse_block(
                 start_line += var.0 + 1;
             }
             // 返回值
-            Token::Identifier(_) if lines[start_line].get(1) == None => {
+            Token::Identifier(_) if lines[start_line].get(1).is_none() => {
                 let var = parse_expression(&lines[start_line])?;
                 v.push_back(var);
                 start_line += 1;
             }
             // 返回值
-            Token::Int(_) | Token::Bool(_) if lines[start_line].get(1) == None => {
+            Token::Int(_) | Token::Bool(_) if lines[start_line].get(1).is_none() => {
                 let var = parse_expression(&lines[start_line])?;
                 v.push_back(var);
                 start_line += 1;
