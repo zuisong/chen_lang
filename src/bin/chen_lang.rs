@@ -1,11 +1,11 @@
 extern crate clap;
 
+use clap_complete::{generate, Generator, Shell};
 use std::fs::OpenOptions;
 use std::io;
 use std::io::Read;
-use clap_complete::{generate, Generator, Shell};
 
-use clap::{Command, Arg, value_parser, ArgAction};
+use clap::{value_parser, Arg, ArgAction, Command};
 use log::*;
 use simple_logger::SimpleLogger;
 
@@ -19,7 +19,7 @@ fn main() -> Result<(), anyhow::Error> {
                 .action(ArgAction::Set)
                 .long("run")
                 .help("要执行的源代码文件")
-                .required(false)
+                .required(false),
         )
         .arg(
             Arg::new("v")
@@ -52,7 +52,6 @@ fn main() -> Result<(), anyhow::Error> {
         print_completions(generator, &mut cmd);
     }
 
-
     if let Some(code_file) = matches.get_one::<String>("run") {
         let s = std::env::current_dir()?.join(code_file);
 
@@ -68,7 +67,6 @@ fn main() -> Result<(), anyhow::Error> {
     }
     Ok(())
 }
-
 
 fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
     generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());

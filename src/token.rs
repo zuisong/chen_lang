@@ -1,6 +1,5 @@
 use std::num::ParseIntError;
 
-#[allow(unused_imports)]
 use log::*;
 use thiserror::Error;
 

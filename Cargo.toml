@@ -14,6 +14,8 @@ anyhow = "1.0.69"
 thiserror = "1.0.39"
 clap_complete = "4.1.4"
 
+[dev-dependencies]
+quickcheck = "1.0.3"
 
 [[bin]]
 name = "chen_lang"

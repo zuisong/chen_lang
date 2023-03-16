@@ -1,4 +1,4 @@
-root = true
+root                                                = true
 # 所有文件
 [*]
 # 代码统一编码为 utf-8
@@ -59,28 +59,27 @@ ij_any_align_group_field_declarations               = true
 # yml 文件
 [*.yml]
 # 缩进为 2 空格
-indent_size = 2
+indent_size                                         = 2
 # tab宽度 2 空格
-tab_width   = 2
+tab_width                                           = 2
 
 [*.md]
-trim_trailing_whitespace = false
+trim_trailing_whitespace                            = false
 
 [*.java]
-ij_java_doc_enable_formatting               = true
-ij_java_layout_static_imports_separately    = true
-ij_java_blank_lines_after_imports           = 1
-ij_java_blank_lines_before_imports          = 1
-ij_java_blank_lines_around_class            = 1
+ij_java_doc_enable_formatting                       = true
+ij_java_layout_static_imports_separately            = true
+ij_java_blank_lines_after_imports                   = 1
+ij_java_blank_lines_before_imports                  = 1
+ij_java_blank_lines_around_class                    = 1
 # 同一个包内导入类超过三个就用 * 导入
-ij_java_class_count_to_use_import_on_demand = 3
+ij_java_class_count_to_use_import_on_demand         = 3
 # 同一个包内静态导入超过三个就用 * 导入
-ij_java_names_count_to_use_import_on_demand = 3
-ij_java_use_single_class_imports            = true
+ij_java_names_count_to_use_import_on_demand         = 3
+ij_java_use_single_class_imports                    = true
 
 [*.kt]
 ij_kotlin_name_count_to_use_star_import_for_members = 2
 ij_kotlin_name_count_to_use_star_import             = 2
 ij_kotlin_import_nested_classes                     = true
 ij_kotlin_spaces_around_function_type_arrow         = true
-

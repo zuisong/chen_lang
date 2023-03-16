@@ -1,37 +1,56 @@
 #![deny(missing_docs)]
 
+use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::rc::Rc;
+use std::vec;
 
 use crate::context::VarType;
+use crate::parse::OperatorPriority::*;
 use crate::*;
 
-//const H: i32 = 3;
-const M: i32 = 2;
-const S: i32 = 1;
+#[derive(Debug, Eq, PartialEq, Clone)]
+enum OperatorPriority {
+    Middle,
+    Small,
+    Normal,
+    Minimal,
+}
 
-fn get_priority(token: &Token) -> i32 {
-    match token {
-        Token::LParen => 0,
-        Token::RParen => 0,
-        Token::Operator(opt) => match opt {
-            Operator::ADD => S,
-            Operator::Subtract => S,
-            Operator::Multiply => M,
-            Operator::Divide => M,
-            Operator::Mod => M,
-            Operator::Assign => S,
-            Operator::And => -1,
-            Operator::Equals => M,
-            Operator::NotEquals => M,
-            Operator::Or => -1,
-            Operator::NOT => 0,
-            Operator::GT => M,
-            Operator::LT => M,
-            Operator::GTE => M,
-            Operator::LTE => M,
-        },
-        _ => 100,
+impl OperatorPriority {
+    fn priority_value(&self) -> i32 {
+        match self {
+            Middle => 2,
+            Small => 1,
+            Normal => 0,
+            Minimal => -1,
+        }
+    }
+}
+
+impl PartialOrd for OperatorPriority {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        return self.priority_value().partial_cmp(&other.priority_value());
+    }
+}
+
+fn get_priority(opt: &Operator) -> OperatorPriority {
+    match opt {
+        Operator::ADD => Small,
+        Operator::Subtract => Small,
+        Operator::Multiply => Middle,
+        Operator::Divide => Middle,
+        Operator::Mod => Middle,
+        Operator::Assign => Small,
+        Operator::And => Minimal,
+        Operator::Equals => Middle,
+        Operator::NotEquals => Middle,
+        Operator::Or => Minimal,
+        Operator::NOT => Normal,
+        Operator::GT => Middle,
+        Operator::LT => Middle,
+        Operator::GTE => Middle,
+        Operator::LTE => Middle,
     }
 }
 
@@ -42,55 +61,47 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::E
     }
 
     // 中缀表达式变后缀表达式
-    let mut result = VecDeque::new();
-    let mut stack = vec![];
+    let mut result: Vec<&Token> = Vec::new();
+    let mut stack: Vec<&Token> = vec![];
     for token in line {
-        loop {
-            let o2 = get_priority(token);
-            if o2 == 100 {
-                result.push_back(token.clone());
-                break;
-            }
-            match stack.last() {
-                Some(o) => match token {
-                    Token::LParen => {
-                        stack.push(token.clone());
+        match *token {
+            Token::LParen => stack.push(token),
+            Token::RParen => {
+                while let Some(top) = stack.pop() {
+                    if *top == Token::LParen {
                         break;
+                    } else {
+                        result.push(top);
                     }
-                    Token::RParen => {
-                        if o == &Token::LParen {
-                            stack.pop().unwrap();
-                            break;
-                        } else {
-                            result.push_back(stack.pop().unwrap());
-                        }
-                    }
-                    _ => {
-                        let o1 = get_priority(o);
-                        if o1 < o2 {
-                            stack.push(token.clone());
-                            break;
-                        } else {
-                            result.push_back(stack.pop().unwrap());
-                        }
-                    }
-                },
-                None => {
-                    stack.push(token.clone());
-                    break;
                 }
             }
+            Token::Operator(opt) => {
+                while let Some(top) = stack.last() {
+                    if **top != Token::LParen {
+                        if let Token::Operator(opt2) = *top {
+                            if get_priority(opt2) >= get_priority(&opt) {
+                                result.push(stack.pop().unwrap());
+                                continue;
+                            }
+                        }
+                    }
+                    break;
+                }
+                stack.push(token);
+            }
+            _ => result.push(token),
         }
     }
     while let Some(t) = stack.pop() {
-        result.push_back(t);
+        result.push(t);
     }
     let mut result: VecDeque<_> = result
         .into_iter()
-        .filter(|it| it != &Token::LParen && it != &Token::RParen)
+        .filter(|&it| it != &Token::LParen && it != &Token::RParen)
+        .map(|it| it.clone())
         .collect();
 
-    //    dbg!(&result);
+    dbg!(&result);
 
     let mut tmp: VecDeque<Box<dyn Expression>> = VecDeque::new();
 
