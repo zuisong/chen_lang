@@ -8,11 +8,11 @@ resolver = "2"
 [dependencies]
 log = "0.4.17"
 simple_logger = "4.0.0"
-clap = "4.1.8"
+clap = "4.1.9"
 quickcheck = "1.0.3"
 anyhow = "1.0.69"
 thiserror = "1.0.39"
-clap_complete = "4.1.4"
+clap_complete = "4.1.5"
 
 [dev-dependencies]
 quickcheck = "1.0.3"

@@ -1,3 +1,4 @@
+#![rustfmt::skip]
 use crate::token;
 use crate::token::Keyword::{ELSE, FOR, IF, LET};
 use crate::token::Operator::{Assign, Equals, Mod, ADD, LT};
@@ -42,7 +43,6 @@ for i<100{
 
     assert_eq!(
         token::tokenlizer(code).unwrap(),
-        #[rustfmt::skip]
         vec![
             NewLine,
             Keyword(LET), Identifier("i".to_string()), Operator(Assign), Int(0), NewLine,
@@ -90,7 +90,6 @@ println(sum)
 
     assert_eq!(
         token::tokenlizer(code).unwrap(),
-        #[rustfmt::skip]
         vec![
             NewLine,
             Keyword(DEF), Identifier("aaa".to_string()), LParen, Identifier("n".to_string()), RParen, LBig, NewLine,
