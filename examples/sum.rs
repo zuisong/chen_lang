@@ -1,5 +1,3 @@
-#![feature(box_syntax, box_patterns)]
-
 use simple_logger::SimpleLogger;
 
 fn main() {

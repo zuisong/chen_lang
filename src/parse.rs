@@ -57,7 +57,7 @@ fn get_priority(opt: &Operator) -> OperatorPriority {
 /// 简单表达式分析 (只有运算的 一行)
 pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::Error> {
     if line.is_empty() {
-        return Ok(box Value::Void);
+        return Ok(Box::new(Value::Void));
     }
 
     // 中缀表达式变后缀表达式
@@ -112,18 +112,18 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::E
                     unreachable!();
                 }
 
-                Operator::NOT => box NotStatement {
+                Operator::NOT => Box::new(NotStatement {
                     expr: tmp.pop_back().unwrap(),
-                },
+                }),
 
                 _ => {
                     let o1 = tmp.pop_back().unwrap();
                     let o2 = tmp.pop_back().unwrap();
-                    box BinaryStatement {
+                    Box::new(BinaryStatement {
                         left: o2,
                         right: o1,
                         operator: opt,
-                    }
+                    })
                 }
             };
             tmp.push_back(new_exp);
@@ -135,11 +135,11 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::E
                 Token::String(i) => Element::Value(Value::Str(i)),
                 _ => panic!("错误,{:?}", t),
             };
-            tmp.push_back(box ele);
+            tmp.push_back(Box::new(ele));
         }
     }
 
-    Ok(box tmp)
+    Ok(Box::new(tmp))
 }
 
 /// 分析很多行的方法
@@ -191,7 +191,7 @@ pub fn parse_block(
             }
             Token::LBig => {
                 let var = parse_block(lines, start_line + 1)?;
-                v.push_back(box var.1);
+                v.push_back(Box::new(var.1));
                 start_line += var.0 + 1;
             }
             // 返回值
@@ -247,10 +247,10 @@ fn parse_func_call(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::Error>
         }
     }
 
-    Ok(box CallFunctionStatement {
+    Ok(Box::new(CallFunctionStatement {
         function_name: func_name,
         params,
-    })
+    }))
 }
 
 /// 分析声明语句
@@ -273,7 +273,7 @@ pub fn parse_declare(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::Erro
         left: name.clone(),
         right: parse_expression(&line[3..])?,
     };
-    Ok(box var)
+    Ok(Box::new(var))
 }
 
 ///
@@ -312,7 +312,7 @@ fn parse_define_function(
         params,
         body: Rc::new(body),
     };
-    Ok((endline, box func))
+    Ok((endline, Box::new(func)))
 }
 
 /// 赋值语句分析
@@ -335,7 +335,7 @@ pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::Error
                 left: name.clone(),
                 right: expr,
             };
-            Ok(box var)
+            Ok(Box::new(var))
         }
         _ => Err(err_msg(format!("赋值语句语法不对，{:?}", line))),
     }
@@ -361,7 +361,7 @@ pub fn parse_if(
         if_block: if_cmd,
         else_block: else_cmd,
     };
-    Ok((endline, box loop_expr))
+    Ok((endline, Box::new(loop_expr)))
 }
 
 /// 分析循环语句
@@ -374,14 +374,14 @@ pub fn parse_for(
         predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
         loop_block: cmd.1,
     };
-    Ok((cmd.0, box loop_expr))
+    Ok((cmd.0, Box::new(loop_expr)))
 }
 
 fn parse_print(line: &[Token], is_newline: bool) -> Result<Box<dyn Expression>, anyhow::Error> {
     debug!("{:?}", line);
     let expression = parse_expression(&line[2..(line.len() - 1)])?;
-    Ok(box PrintStatement {
+    Ok(Box::new(PrintStatement {
         expression,
         is_newline,
-    })
+    }))
 }

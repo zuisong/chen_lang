@@ -36,11 +36,11 @@ fn test_not_false() {
 #[test]
 fn test_sub_int_int() {
     let mut ctx = Context::default();
-    let opt = box BinaryStatement {
+    let opt = Box::new(BinaryStatement {
         operator: Operator::Subtract,
-        left: box Value(Int(1)),
-        right: box Value(Int(1)),
-    };
+        left: Box::new(Value(Int(1))),
+        right: Box::new(Value(Int(1))),
+    });
     assert_eq!(opt.evaluate(&mut ctx).unwrap(), Int(0));
 }
 
@@ -48,11 +48,11 @@ fn test_sub_int_int() {
 #[test]
 fn test_sub_bool_int() {
     let mut ctx = Context::default();
-    let opt: Box<dyn Expression> = box BinaryStatement {
+    let opt: Box<dyn Expression> = Box::new(BinaryStatement {
         operator: Operator::ADD,
-        left: box Value(Bool(false)),
-        right: box Value(Int(1)),
-    };
+        left: Box::new(Value(Bool(false))),
+        right: Box::new(Value(Int(1))),
+    });
     opt.evaluate(&mut ctx).unwrap();
 }
 
@@ -61,8 +61,8 @@ fn test_add_int_int() {
     let mut ctx = Context::default();
     let opt = BinaryStatement {
         operator: Operator::ADD,
-        left: box Value(Int(1)),
-        right: box Value(Int(1)),
+        left: Box::new(Value(Int(1))),
+        right: Box::new(Value(Int(1))),
     };
     assert_eq!(opt.evaluate(&mut ctx).unwrap(), Int(2));
 }
@@ -72,8 +72,8 @@ fn test_add_str_int() {
     let mut ctx = Context::default();
     let opt = BinaryStatement {
         operator: Operator::ADD,
-        left: box Value(Str("hello".to_string())),
-        right: box Value(Int(1)),
+        left: Box::new(Value(Str("hello".to_string()))),
+        right: Box::new(Value(Int(1))),
     };
     assert_eq!(opt.evaluate(&mut ctx).unwrap(), Str("hello1".to_string()));
 }
@@ -84,8 +84,8 @@ fn test_add_bool_int() {
     let mut ctx = Context::default();
     let opt = BinaryStatement {
         operator: Operator::ADD,
-        left: box Value(Bool(false)),
-        right: box Value(Int(1)),
+        left: Box::new(Value(Bool(false))),
+        right: Box::new(Value(Int(1))),
     };
     opt.evaluate(&mut ctx).unwrap();
 }
