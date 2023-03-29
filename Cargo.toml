@@ -3,16 +3,15 @@ name = "chen_lang"
 version = "0.1.0"
 authors = ["zuisong <378818573@qq.com>"]
 edition = "2021"
-resolver = "2"
 
 [dependencies]
 log = "0.4.17"
-simple_logger = "4.0.0"
-clap = "4.1.9"
+simple_logger = "4.1.0"
+clap = "4.2.0"
 quickcheck = "1.0.3"
-anyhow = "1.0.69"
-thiserror = "1.0.39"
-clap_complete = "4.1.5"
+anyhow = "1.0.70"
+thiserror = "1.0.40"
+clap_complete = "4.2.0"
 
 [dev-dependencies]
 quickcheck = "1.0.3"
