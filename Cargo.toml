@@ -7,7 +7,7 @@ edition = "2021"
 [dependencies]
 log = "0.4.17"
 simple_logger = "4.1.0"
-clap = "4.2.0"
+clap = "4.2.1"
 quickcheck = "1.0.3"
 anyhow = "1.0.70"
 thiserror = "1.0.40"

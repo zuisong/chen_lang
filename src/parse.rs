@@ -30,7 +30,7 @@ impl OperatorPriority {
 
 impl PartialOrd for OperatorPriority {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        return self.priority_value().partial_cmp(&other.priority_value());
+        self.priority_value().partial_cmp(&other.priority_value())
     }
 }
 
@@ -70,20 +70,15 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::E
                 while let Some(top) = stack.pop() {
                     if *top == Token::LParen {
                         break;
-                    } else {
-                        result.push(top);
                     }
+                    result.push(top);
                 }
             }
             Token::Operator(opt) => {
-                while let Some(top) = stack.last() {
-                    if **top != Token::LParen {
-                        if let Token::Operator(opt2) = *top {
-                            if get_priority(opt2) >= get_priority(&opt) {
-                                result.push(stack.pop().unwrap());
-                                continue;
-                            }
-                        }
+                while let Some(Token::Operator(opt2)) = stack.last() {
+                    if get_priority(opt2) >= get_priority(&opt) {
+                        result.push(stack.pop().unwrap());
+                        continue;
                     }
                     break;
                 }
@@ -95,10 +90,11 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::E
     while let Some(t) = stack.pop() {
         result.push(t);
     }
+
     let mut result: VecDeque<_> = result
         .into_iter()
         .filter(|&it| it != &Token::LParen && it != &Token::RParen)
-        .map(|it| it.clone())
+        .cloned()
         .collect();
 
     dbg!(&result);
