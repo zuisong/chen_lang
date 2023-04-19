@@ -8,3 +8,4 @@
 .cache
 dist
 *.exe
+.DS_Store

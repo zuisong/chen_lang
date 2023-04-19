@@ -1,7 +1,5 @@
-use simple_logger::SimpleLogger;
-
 fn main() {
-    SimpleLogger::new().init().unwrap();
+    env_logger::init();
     let code: String = r#"
 let i = 0
 for i<100{

@@ -1,7 +1,5 @@
-use simple_logger::SimpleLogger;
-
 fn main() {
-    SimpleLogger::new().init().unwrap();
+    env_logger::init();
 
     let code = r#"
 # 这里是注释,

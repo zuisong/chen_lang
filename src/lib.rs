@@ -7,10 +7,6 @@
 #![deny(unused_mut)]
 #![deny(unreachable_code)]
 
-#[cfg(test)]
-#[macro_use]
-extern crate quickcheck;
-
 use std::fmt::{Debug, Display};
 
 ///

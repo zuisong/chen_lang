@@ -1,7 +1,5 @@
-use simple_logger::SimpleLogger;
-
 fn main() {
-    SimpleLogger::new().init().unwrap();
+    env_logger::init();
     let code: String = r#"
 
 # 用 chen_lang 打印斐波那契数列前三十个数

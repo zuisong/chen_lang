@@ -1,7 +1,5 @@
-use simple_logger::SimpleLogger;
-
 fn main() {
-    SimpleLogger::new().init().unwrap();
+    env_logger::init();
 
     let code = r#"
 let i=1

@@ -4,14 +4,10 @@ use crate::expression::Value::{Bool, Int, Str};
 use crate::expression::{Expression, NotStatement};
 use crate::token::Operator;
 use crate::Context;
-
-quickcheck! {
-    #[should_panic]
-    fn test_not_int2(i:i32) -> bool {
-        test_not_int(i);
-        println!("{}",i);
-        false
-    }
+#[test]
+#[should_panic]
+fn test_not_int2() {
+    test_not_int(10);
 }
 
 fn test_not_int(i: i32) {

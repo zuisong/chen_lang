@@ -1,13 +1,12 @@
 extern crate clap;
 
 use clap_complete::{generate, Generator, Shell};
-use std::fs::OpenOptions;
 use std::io;
 use std::io::Read;
+use std::{env, fs::OpenOptions};
 
 use clap::{value_parser, Arg, ArgAction, Command};
 use log::*;
-use simple_logger::SimpleLogger;
 
 fn main() -> Result<(), anyhow::Error> {
     let mut cmd = Command::new("chen_lang")
@@ -45,7 +44,8 @@ fn main() -> Result<(), anyhow::Error> {
         4 => LevelFilter::Trace,
         _ => LevelFilter::Trace,
     };
-    SimpleLogger::new().with_level(log_level).init().unwrap();
+    env::set_var("RUST_LOG", log_level.as_str());
+    env_logger::init();
 
     if let Some(generator) = matches.get_one::<Shell>("generator").copied() {
         eprintln!("Generating completion file for {}...", generator);
