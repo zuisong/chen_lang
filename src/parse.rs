@@ -97,8 +97,6 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::E
         .cloned()
         .collect();
 
-    dbg!(&result);
-
     let mut tmp: VecDeque<Box<dyn Expression>> = VecDeque::new();
 
     while let Some(t) = result.pop_front() {
@@ -318,7 +316,8 @@ pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>, anyhow::Error
     match &line[0] {
         Token::Identifier(name) => {
             assert_eq!(&line[1], &Token::Operator(Operator::Assign));
-            dbg!(&line);
+
+            log::info!("{}:{} {:?}", file!(), line!(), &line);
 
             let expr = match &line[2] {
                 Token::Identifier(_) if line.get(3) == Some(&Token::LParen) => {

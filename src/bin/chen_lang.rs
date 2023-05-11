@@ -1,12 +1,12 @@
 extern crate clap;
 
+use clap::{value_parser, Arg, ArgAction, Command};
 use clap_complete::{generate, Generator, Shell};
+use log::*;
+use std::fs::OpenOptions;
 use std::io;
 use std::io::Read;
-use std::{env, fs::OpenOptions};
-
-use clap::{value_parser, Arg, ArgAction, Command};
-use log::*;
+use std::io::Write;
 
 fn main() -> Result<(), anyhow::Error> {
     let mut cmd = Command::new("chen_lang")
@@ -28,14 +28,13 @@ fn main() -> Result<(), anyhow::Error> {
                 .help("v越多日志级别越低 (-vv is Info, -vvv is Debug)"),
         )
         .arg(
-            Arg::new("generator")
+            Arg::new("completion")
                 .required(false)
-                .long("generate")
+                .long("completion")
                 .action(ArgAction::Set)
                 .value_parser(value_parser!(Shell)),
         );
     let matches = cmd.clone().get_matches();
-
     let log_level = match matches.get_count("v") {
         0 => LevelFilter::Error,
         1 => LevelFilter::Warn,
@@ -44,12 +43,26 @@ fn main() -> Result<(), anyhow::Error> {
         4 => LevelFilter::Trace,
         _ => LevelFilter::Trace,
     };
-    env::set_var("RUST_LOG", log_level.as_str());
-    env_logger::init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level.as_str()))
+        .default_format()
+        .format(|buf, record| -> Result<(), io::Error> {
+            let style = buf.style();
+            let timestamp = buf.timestamp();
+            writeln!(
+                buf,
+                "{} {} [{}:{}]: {}",
+                record.level(),
+                timestamp,
+                record.file().unwrap_or(""),
+                record.line().unwrap_or(0),
+                style.value(record.args())
+            )
+        })
+        .init();
 
-    if let Some(generator) = matches.get_one::<Shell>("generator").copied() {
-        eprintln!("Generating completion file for {}...", generator);
-        print_completions(generator, &mut cmd);
+    if let Some(shell) = matches.get_one::<Shell>("completion").copied() {
+        eprintln!("Generating completion file for {}...", shell);
+        print_completions(shell, &mut cmd);
     }
 
     if let Some(code_file) = matches.get_one::<String>("run") {

@@ -199,7 +199,6 @@ pub struct AssignStatement {
 impl Expression for AssignStatement {
     fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
         let e = &self.right;
-        //        dbg!(&e);
         let res = e.evaluate(ctx)?;
         let b = ctx.update_var(self.left.as_str(), res);
         if b {
