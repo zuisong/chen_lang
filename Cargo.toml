@@ -9,7 +9,7 @@ log = "0.4.17"
 clap = "4.2.7"
 anyhow = "1.0.71"
 thiserror = "1.0.40"
-clap_complete = "4.2.2"
+clap_complete = "4.2.3"
 env_logger = "0.10.0"
 
 [[bin]]
