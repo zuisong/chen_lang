@@ -1,16 +1,17 @@
 [package]
+authors = ["zuisong <378818573@qq.com>"]
+default-run = "chen_lang"
+edition = "2021"
 name = "chen_lang"
 version = "0.1.0"
-authors = ["zuisong <378818573@qq.com>"]
-edition = "2021"
 
 [dependencies]
-log = "0.4.17"
-clap = "4.2.7"
 anyhow = "1.0.71"
-thiserror = "1.0.40"
-clap_complete = "4.2.3"
+clap = "4.3.0"
+clap_complete = "4.3.0"
 env_logger = "0.10.0"
+log = "0.4.18"
+thiserror = "1.0.40"
 
 [[bin]]
 name = "chen_lang"

@@ -1,13 +1,15 @@
-name: Rust
+name: CI
 
-on: [ push ]
+on:
+  push:
+  workflow_dispatch:
 
 jobs:
   build:
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macOS-latest ]
-        rust_toolchain: [ stable, nightly, ]
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        rust_toolchain: [stable, nightly]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v1
