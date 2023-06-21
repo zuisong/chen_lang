@@ -3,14 +3,15 @@ authors = ["zuisong <378818573@qq.com>"]
 default-run = "chen_lang"
 edition = "2021"
 name = "chen_lang"
+resolver = "2"
 version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0.71"
-clap = "4.3.0"
-clap_complete = "4.3.0"
+clap = {version = "4.3.5", optional = true}
+clap_complete = {version = "4.3.1", optional = true}
 env_logger = "0.10.0"
-log = "0.4.18"
+log = "0.4.19"
 thiserror = "1.0.40"
 
 [[bin]]
@@ -24,7 +25,7 @@ path = "src/wasm/main.rs"
 required-features = ["wasm"]
 
 [features]
-binaries = []
+binaries = ["dep:clap", "dep:clap_complete"]
 wasm = []
 
 default = ["binaries"]
