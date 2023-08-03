@@ -3,13 +3,13 @@ extern crate clap;
 use clap::{value_parser, Arg, ArgAction, Command};
 use clap_complete::{generate, Generator, Shell};
 use log::*;
-use std::error::Error;
 use std::fs::OpenOptions;
 use std::io;
 use std::io::Read;
 use std::io::Write;
+use anyhow::Result;
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<()> {
     let mut cmd = Command::new("chen_lang")
         .version("0.0.1")
         .author("zuisong <com.me@foxmail.com>")

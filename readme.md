@@ -1,15 +1,18 @@
+
 # chen_lang
 
-## 用 [Rust](https://www.rust-lang.org) 写的 一个小编程语言
+## A tiny programming language written in [Rust](https://www.rust-lang.org)
+
+[🇨🇳 中文版](./readme_cn.md)
 
 ---
 
-### 示例代码
+### Sample Code
 
 ```
-# 这里是注释
-# 注释以# 开始, 到行尾结束
-# if 和 for 里面的表达式运算结果都是bool
+# This is a comment 
+# Comments start with #, and go to the end of the line
+# The expressions in if and for evaluate to bool
 let i=1
 for i<=9 {
     let j = 1
@@ -20,74 +23,72 @@ for i<=9 {
     println("")
     i=i+1
 }
-
-
 ```
 
-输出:
+Output:
 
 ```
-1x1=1 
-1x2=2 2x2=4 
-1x3=3 2x3=6 3x3=9 
-1x4=4 2x4=8 3x4=12 4x4=16 
-1x5=5 2x5=10 3x5=15 4x5=20 5x5=25 
-1x6=6 2x6=12 3x6=18 4x6=24 5x6=30 6x6=36 
-1x7=7 2x7=14 3x7=21 4x7=28 5x7=35 6x7=42 7x7=49 
-1x8=8 2x8=16 3x8=24 4x8=32 5x8=40 6x8=48 7x8=56 8x8=64 
-1x9=9 2x9=18 3x9=27 4x9=36 5x9=45 6x9=54 7x9=63 8x9=72 9x9=81 
+1x1=1  
+1x2=2 2x2=4
+1x3=3 2x3=6 3x3=9
+1x4=4 2x4=8 3x4=12 4x4=16
+1x5=5 2x5=10 3x5=15 4x5=20 5x5=25
+1x6=6 2x6=12 3x6=18 4x6=24 5x6=30 6x6=36
+1x7=7 2x7=14 3x7=21 4x7=28 5x7=35 6x7=42 7x7=49
+1x8=8 2x8=16 3x8=24 4x8=32 5x8=40 6x8=48 7x8=56 8x8=64  
+1x9=9 2x9=18 3x9=27 4x9=36 5x9=45 6x9=54 7x9=63 8x9=72 9x9=81
 ```
 
 ---
 
 ```
 let i = 100
-let sum = 0
+let sum = 0 
 for i!=0 {
     i = i - 1
-    # 这里有相对复杂的逻辑运算
-    if (i%2!=0) || (i%3==0)  {
+    # Here is relatively complex logical operation
+    if (i%2!=0) || (i%3==0) {
         # println(i)
-        # 取消注释上一行代码
-        # 打印出来的  都是奇数或者是能被三整除的偶数
+        # Uncomment the line above
+        # Print out all odd numbers or even numbers divisible by 3
         sum = sum + i
     }
 }
-println("100以内的 奇数 或者是能被三整除的偶数 之和是")
+println("The sum of odd numbers or even numbers divisible by 3 below 100 is")  
 println(sum)
 ```
 
-输出:
+Output:
 
 ```
-100以内的 奇数或者是能被三整除的偶数 之和是
+The sum of odd numbers or even numbers divisible by 3 below 100 is
 3316
 ```
 
 ---
 
 ```
-# 用 chen_lang 打印斐波那契数列前三十个数
+# Use chen_lang to print the first 30 Fibonacci numbers 
 let n = 1
 let i = 1
 let j = 2
-println("打印斐波那契数列前十个数")
+println("Print the first 10 Fibonacci numbers")
 for n <= 30 {
    println(i)
    let tmp = i
    i = j
    j = tmp + j
-   n = n + 1
+   n = n + 1 
 }
 ```
 
-输出:
+Output:
 
 ```
-打印斐波那契数列前十个数
+Print the first 10 Fibonacci numbers
 1
 2
-3
+3  
 5
 8
 13
@@ -99,24 +100,24 @@ for n <= 30 {
 
 ---
 
-#### TODO
+### TODO
 
-* [x] if 条件语句
-* [x] else 语句
-* [x] for 循环语句
-* [ ] break continue 关键字支持
-* [x] bool 类型
-* [x] int 类型
-* [x] 算术运算符 `+` `-` `*` `/` `%`
-* [x] 比较运算符 `>` `>=` `<` `<=` `==` `!=`
-* [x] 逻辑运算符 `&&` `||` `!`
-* [x] 运算符优先级
-* [x] 运算符可以通过括号动态调整优先级
-* [ ] 自定义方法
-* [ ] 增加代码注释量
-* [ ] 写博客, 记录这个项目
-* [ ] 更完善的单元测试
-* [ ] *面向对象特性*
+* [x] if condition statements
+* [x] else statements
+* [x] for loops
+* [ ] Support break and continue keywords
+* [x] bool type
+* [x] int type
+* [x] Arithmetic operators + - * / %
+* [x] Comparison operators > >= < <= == !=
+* [x] Logical operators && || !
+* [x] Operator precedence
+* [x] Operator precedence can be changed dynamically with parentheses
+* [ ] Custom methods
+* [ ] More code comments
+* [ ] Write blog to document this project
+* [ ] More comprehensive unit tests
+* [ ] Object oriented features
 
 ---
-后记： 终于实现了一直想要写的一个程序，感谢哈尔滨工业大学的编译原理课程。
+Afterword: I finally implemented a program I've always wanted to write, thanks to the compiler principles course at Harbin Institute of Technology.

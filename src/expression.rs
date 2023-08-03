@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 use std::fmt::{Debug, Formatter};
 use std::rc::Rc;
 use std::result::Result::Err;
+use anyhow::Result;
 
 /// 表达式  核心对象
 /// 一切语法都是表达式
@@ -14,7 +15,7 @@ pub trait Expression: Debug {
     ///
     /// 表达式执行的方法
     ///
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error>;
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value>;
 }
 
 #[derive(Debug)]
@@ -24,7 +25,7 @@ pub struct CallFunctionStatement {
 }
 
 impl Expression for CallFunctionStatement {
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value> {
         let params: Vec<_> = self
             .params
             .iter()
@@ -50,7 +51,7 @@ pub struct FunctionStatement {
 }
 
 impl Expression for FunctionStatement {
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value> {
         ctx.insert_function(self.name.as_str(), self.clone());
         Ok(Value::Void)
     }
@@ -69,7 +70,7 @@ pub struct BinaryStatement {
 }
 
 impl Expression for BinaryStatement {
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value> {
         let l = self.left.evaluate(ctx)?;
         let r = self.right.evaluate(ctx)?;
         match self.operator {
@@ -135,7 +136,7 @@ pub struct NotStatement {
 }
 
 impl Expression for NotStatement {
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value> {
         let res = self.expr.evaluate(ctx).unwrap();
         match res {
             Value::Bool(b) => Ok(Value::Bool(!b)),
@@ -154,7 +155,7 @@ pub struct PrintStatement {
 }
 
 impl Expression for PrintStatement {
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value> {
         let res = self.expression.evaluate(ctx).unwrap();
         print!("{}", res.to_string());
         if self.is_newline {
@@ -176,7 +177,7 @@ pub struct DeclareStatement {
 }
 
 impl Expression for DeclareStatement {
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value> {
         let res = self.right.evaluate(ctx)?;
         let is_ok = ctx.insert_var(self.left.as_str(), res, self.var_type.clone());
         if is_ok {
@@ -197,7 +198,7 @@ pub struct AssignStatement {
 }
 
 impl Expression for AssignStatement {
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value> {
         let e = &self.right;
         let res = e.evaluate(ctx)?;
         let b = ctx.update_var(self.left.as_str(), res);
@@ -213,7 +214,7 @@ impl Expression for AssignStatement {
 pub type BlockStatement = VecDeque<Box<dyn Expression>>;
 
 impl Expression for BlockStatement {
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value> {
         let mut new_ctx: Context = Context::init_with_parent_context(ctx);
         let mut res = Value::Void;
         for expr in self.iter() {
@@ -233,7 +234,7 @@ pub struct LoopStatement {
 }
 
 impl Expression for LoopStatement {
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value> {
         let mut new_ctx: Context = Context::init_with_parent_context(ctx);
 
         loop {
@@ -265,7 +266,7 @@ pub struct IfStatement {
 }
 
 impl Expression for IfStatement {
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value> {
         let mut new_ctx: Context = Context::init_with_parent_context(ctx);
         let res = match self.predict.evaluate(&mut new_ctx)? {
             Value::Bool(false) => self.else_block.evaluate(&mut new_ctx)?,
@@ -296,7 +297,7 @@ impl Debug for Element {
 }
 
 impl Expression for Element {
-    fn evaluate(&self, ctx: &mut Context) -> Result<Value, anyhow::Error> {
+    fn evaluate(&self, ctx: &mut Context) -> Result<Value> {
         match &self {
             Element::Value(v) => v.evaluate(ctx),
             Element::Variable(v) => v.evaluate(ctx),
@@ -312,7 +313,7 @@ pub struct VariableStatement {
 }
 
 impl Expression for VariableStatement {
-    fn evaluate(&self, context: &mut Context) -> Result<Value, anyhow::Error> {
+    fn evaluate(&self, context: &mut Context) -> Result<Value> {
         let val = context.get_var(&self.name);
         assert!(val.is_some(), "不能获取一个未定义的变量 {}", self.name);
         Ok(val.unwrap())
@@ -334,7 +335,7 @@ pub enum Value {
 }
 
 impl Expression for Value {
-    fn evaluate(&self, _: &mut Context) -> Result<Value, anyhow::Error> {
+    fn evaluate(&self, _: &mut Context) -> Result<Value> {
         Ok(self.clone())
     }
 }

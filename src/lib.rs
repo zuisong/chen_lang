@@ -21,6 +21,7 @@ use log::*;
 use crate::context::Context;
 use crate::expression::*;
 use crate::token::*;
+use anyhow::Result;
 
 /// context模块
 pub mod context;
@@ -44,7 +45,7 @@ where
 
 /// 运行代码
 #[no_mangle]
-pub fn run(code: String) -> Result<(), anyhow::Error> {
+pub fn run(code: String) -> Result<()> {
     let tokens = tokenlizer(code)?;
     debug!("tokens => {:?}", &tokens);
     let ast: BlockStatement = parser(tokens)?;
@@ -54,7 +55,7 @@ pub fn run(code: String) -> Result<(), anyhow::Error> {
 }
 
 /// 词法
-fn parser(tokens: Vec<Token>) -> Result<BlockStatement, anyhow::Error> {
+fn parser(tokens: Vec<Token>) -> Result<BlockStatement> {
     let mut lines: Vec<Box<[Token]>> = vec![];
     let mut temp = vec![];
     for x in tokens {
@@ -73,7 +74,7 @@ fn parser(tokens: Vec<Token>) -> Result<BlockStatement, anyhow::Error> {
 }
 
 /// 运行
-fn evaluate(ast: BlockStatement) -> Result<Value, anyhow::Error> {
+fn evaluate(ast: BlockStatement) -> Result<Value> {
     let mut ctx = Context::default();
     debug!("{:?}", &ast);
     for cmd in ast.iter() {
