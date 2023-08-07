@@ -1,3 +1,5 @@
+use pretty_assertions::assert_eq;
+
 use crate::expression::BinaryStatement;
 use crate::expression::Element::Value;
 use crate::expression::Value::{Bool, Int, Str};

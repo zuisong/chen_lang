@@ -1,13 +1,14 @@
 extern crate clap;
 
-use clap::{value_parser, Arg, ArgAction, Command};
-use clap_complete::{generate, Generator, Shell};
-use log::*;
 use std::fs::OpenOptions;
 use std::io;
 use std::io::Read;
 use std::io::Write;
+
 use anyhow::Result;
+use clap::{value_parser, Arg, ArgAction, Command};
+use clap_complete::{generate, Generator, Shell};
+use log::*;
 
 fn main() -> Result<()> {
     let mut cmd = Command::new("chen_lang")

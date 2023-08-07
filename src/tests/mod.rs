@@ -2,34 +2,31 @@ mod expression_test;
 mod parse_test;
 mod token_test;
 
-
-pub fn divide_non_zero_result(a: u32, b: u32) -> u32 {
-    if b == 0 {
-        panic!("Divide-by-zero error");
-    } else if a < b {
-        panic!("Divide result is zero");
-    }
-    a / b
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
-
-    #[test]
-    fn test_divide() {
-        assert_eq!(divide_non_zero_result(10, 2), 5);
-    }
+    use pretty_assertions::assert_eq;
 
     #[test]
     #[should_panic]
-    fn test_any_panic() {
-        divide_non_zero_result(1, 0);
-    }
+    fn test_diff() {
+        #[derive(Debug, PartialEq)]
+        struct Foo {
+            lorem: &'static str,
+            ipsum: u32,
+            dolor: Result<String, String>,
+        }
 
-    #[test]
-    #[should_panic(expected = "Divide result is zero")]
-    fn test_specific_panic() {
-        divide_non_zero_result(1, 10);
+        let x = Some(Foo {
+            lorem: "Hello World!",
+            ipsum: 42,
+            dolor: Ok("hey".to_string()),
+        });
+        let y = Some(Foo {
+            lorem: "Hello Wrold!",
+            ipsum: 42,
+            dolor: Ok("hey ho!".to_string()),
+        });
+
+        assert_eq!(x, y);
     }
 }

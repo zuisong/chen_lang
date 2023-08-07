@@ -4,7 +4,9 @@ use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::vec;
+
 use anyhow::Result;
+use pretty_assertions::assert_eq;
 
 use crate::context::VarType;
 use crate::parse::OperatorPriority::*;
@@ -338,10 +340,7 @@ pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>> {
 }
 
 /// 分析条件语句
-pub fn parse_if(
-    lines: &[Box<[Token]>],
-    start_line: usize,
-) -> Result<(usize, Box<dyn Expression>)> {
+pub fn parse_if(lines: &[Box<[Token]>], start_line: usize) -> Result<(usize, Box<dyn Expression>)> {
     let (mut endline, if_cmd) = parse_block(lines, start_line + 1)?;
     let else_cmd = if let Some(Token::Keyword(Keyword::ELSE)) = lines[endline].get(1) {
         assert_eq!(lines[endline][0], Token::RBig);

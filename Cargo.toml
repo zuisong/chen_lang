@@ -8,10 +8,11 @@ version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0.72"
-clap = {version = "4.3.19", optional = true}
-clap_complete = {version = "4.3.2", optional = true}
+clap = { version = "4.3.19", optional = true }
+clap_complete = { version = "4.3.2", optional = true }
 env_logger = "0.10.0"
 log = "0.4.19"
+pretty_assertions = "1.4.0"
 thiserror = "1.0.44"
 
 [[bin]]
