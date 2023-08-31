@@ -6,7 +6,6 @@ use std::rc::Rc;
 use std::vec;
 
 use anyhow::Result;
-use pretty_assertions::assert_eq;
 
 use crate::context::VarType;
 use crate::parse::OperatorPriority::*;
