@@ -5,19 +5,26 @@ use std::{
 };
 
 use anyhow::{Ok, Result};
-use clap::{Command, CommandFactory, Parser};
+use clap::{builder::PossibleValuesParser, Command, CommandFactory, Parser};
 use clap_complete::{generate, Generator, Shell};
-use log::*;
+use log::{LevelFilter, *};
 
+use crate::clap::builder::TypedValueParser;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about)]
 struct Args {
     #[command(subcommand)]
     command: Option<SubCommand>,
-    /// v越多日志级别越低 (-vv is Info, -vvv is Debug
-    #[arg(short, long, action = clap::ArgAction::Count)]
-    verbose: u8,
+    /// log level
+    #[arg(short, long)]
+    #[arg(default_value_t = LevelFilter::Info,)]
+    #[arg(value_parser=
+        PossibleValuesParser::new(["OFF", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"])
+        .map(|s| s.parse::<LevelFilter>().unwrap()),
+    )]
+    log_level: LevelFilter,
 }
+
 #[derive(Parser, Debug, Clone)]
 enum SubCommand {
     /// Generate tab-completion scripts for your shell
@@ -31,32 +38,27 @@ enum SubCommand {
         code_file: String,
     },
 }
+
 fn main() -> Result<()> {
     let matches = Args::parse();
-    let log_level = match matches.verbose {
-        0 => LevelFilter::Error,
-        1 => LevelFilter::Warn,
-        2 => LevelFilter::Info,
-        3 => LevelFilter::Debug,
-        4 => LevelFilter::Trace,
-        _ => LevelFilter::Trace,
-    };
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level.as_str()))
-        .default_format()
-        .format(|buf, record| -> Result<(), io::Error> {
-            let style = buf.style();
-            let timestamp = buf.timestamp();
-            writeln!(
-                buf,
-                "{} {} [{}:{}]: {}",
-                record.level(),
-                timestamp,
-                record.file().unwrap_or(""),
-                record.line().unwrap_or(0),
-                style.value(record.args())
-            )
-        })
-        .init();
+    env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or(matches.log_level.as_str()),
+    )
+    .default_format()
+    .format(|buf, record| -> Result<(), io::Error> {
+        let style = buf.style();
+        let timestamp = buf.timestamp();
+        writeln!(
+            buf,
+            "{} {} [{}:{}]: {}",
+            record.level(),
+            timestamp,
+            record.file().unwrap_or(""),
+            record.line().unwrap_or(0),
+            style.value(record.args())
+        )
+    })
+    .init();
 
     match matches.command {
         None => Args::command().print_help()?,

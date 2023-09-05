@@ -3,9 +3,8 @@ authors = ["zuisong <378818573@qq.com>"]
 default-run = "chen_lang"
 edition = "2021"
 name = "chen_lang"
-resolver = "2"
 version = "0.1.0"
-
+description = "A tiny programming language written in rust"
 [dependencies]
 anyhow = "1.0.75"
 clap = { version = "4.4.1", optional = true, features = ["derive"] }
