@@ -10,6 +10,9 @@
 use std::fmt::{Debug, Display};
 
 use anyhow::Result;
+use expression::Value;
+use tracing::debug;
+
 ///
 /// 关键字   if for
 /// 函数库   print println
@@ -17,8 +20,6 @@ use anyhow::Result;
 /// 逻辑运算符  && || ！
 /// 标识符   纯字母
 ///
-use log::*;
-
 use crate::context::Context;
 use crate::expression::*;
 use crate::token::*;

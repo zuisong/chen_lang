@@ -1,5 +1,5 @@
 fn main() {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
     let code: String = r#"
 
 # 用 chen_lang 打印斐波那契数列前三十个数

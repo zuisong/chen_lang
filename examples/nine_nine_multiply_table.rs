@@ -1,6 +1,5 @@
 fn main() {
-    env_logger::init();
-
+    tracing_subscriber::fmt::init();
     let code = r#"
 let i=1
 for i<=9 {

@@ -6,6 +6,7 @@ use std::rc::Rc;
 use std::vec;
 
 use anyhow::Result;
+use tracing::info;
 
 use crate::context::VarType;
 use crate::parse::OperatorPriority::*;
@@ -319,7 +320,7 @@ pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>> {
         Token::Identifier(name) => {
             assert_eq!(&line[1], &Token::Operator(Operator::Assign));
 
-            log::info!("{}:{} {:?}", file!(), line!(), &line);
+            info!("{}:{} {:?}", file!(), line!(), &line);
 
             let expr = match &line[2] {
                 Token::Identifier(_) if line.get(3) == Some(&Token::LParen) => {

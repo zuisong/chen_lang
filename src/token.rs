@@ -1,6 +1,5 @@
 use std::num::ParseIntError;
 
-use log::*;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

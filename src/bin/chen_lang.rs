@@ -1,13 +1,13 @@
 extern crate clap;
 use std::{
     fs::OpenOptions,
-    io::{self, Read, Write},
+    io::{self, Read},
 };
 
 use anyhow::{Ok, Result};
 use clap::{builder::PossibleValuesParser, Command, CommandFactory, Parser};
 use clap_complete::{generate, Generator, Shell};
-use log::{LevelFilter, *};
+use tracing::{debug, Level};
 
 use crate::clap::builder::TypedValueParser;
 #[derive(Parser, Debug)]
@@ -17,12 +17,13 @@ struct Args {
     command: Option<SubCommand>,
     /// log level
     #[arg(short, long)]
-    #[arg(default_value_t = LevelFilter::Info,)]
+    #[arg(default_value_t = Level::INFO)]
+    #[arg(ignore_case = true)]
     #[arg(value_parser=
-        PossibleValuesParser::new(["OFF", "ERROR", "WARN", "INFO", "DEBUG", "TRACE"])
-        .map(|s| s.parse::<LevelFilter>().unwrap()),
+        PossibleValuesParser::new([ "ERROR", "WARN", "INFO", "DEBUG", "TRACE"])
+        .map(|s| s.parse::<Level>().unwrap()),
     )]
-    log_level: LevelFilter,
+    log_level: Level,
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -41,25 +42,13 @@ enum SubCommand {
 
 fn main() -> Result<()> {
     let matches = Args::parse();
-    env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or(matches.log_level.as_str()),
-    )
-    .default_format()
-    .format(|buf, record| -> Result<(), io::Error> {
-        let style = buf.style();
-        let timestamp = buf.timestamp();
-        writeln!(
-            buf,
-            "{} {} [{}:{}]: {}",
-            record.level(),
-            timestamp,
-            record.file().unwrap_or(""),
-            record.line().unwrap_or(0),
-            style.value(record.args())
-        )
-    })
-    .init();
-
+    tracing_subscriber::fmt()
+        .with_max_level(matches.log_level)
+        .with_line_number(true)
+        .with_file(true)
+        .with_thread_names(true)
+        .with_thread_ids(true)
+        .init();
     match matches.command {
         None => Args::command().print_help()?,
         Some(command) => match command {

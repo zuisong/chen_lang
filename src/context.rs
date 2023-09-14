@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::string::ToString;
 
-use log::*;
+use tracing::warn;
 
 use crate::expression::*;
 

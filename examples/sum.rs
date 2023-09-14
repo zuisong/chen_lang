@@ -1,5 +1,5 @@
 fn main() {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let code = r#"
 # 这里是注释,
