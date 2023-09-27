@@ -1,4 +1,4 @@
-use std::num::ParseIntError;
+use std::{char, num::ParseIntError};
 
 use thiserror::Error;
 
@@ -106,6 +106,106 @@ pub enum Token {
     RParen,
     /// 换行符
     NewLine,
+    // 注释
+    Comment,
+    // 空格
+    Space,
+}
+
+fn parse_token(chars: &Vec<char>, loc: &Location) -> Result<(Token, Location), TokenError> {
+    let cur = *chars.get(loc.index).unwrap_or(&' ');
+    let next = *chars.get(loc.index + 1).unwrap_or(&' ');
+    let res = match cur {
+        '#' => {
+            let mut l = loc.incr();
+            while chars[l.index] != '\n' {
+                l = l.incr();
+            }
+            (Token::Comment, l.new_line())
+        }
+        '\n' | '\r' => (Token::NewLine, loc.new_line()),
+        _ if cur.is_whitespace() => (Token::Space, loc.incr()),
+        '{' => (Token::LBig, loc.incr()),
+        '}' => (Token::RBig, loc.incr()),
+        '[' => (Token::LSquare, loc.incr()),
+        ']' => (Token::RSquare, loc.incr()),
+        '(' => (Token::LParen, loc.incr()),
+        ')' => (Token::RParen, loc.incr()),
+        ':' => (Token::COLON, loc.incr()),
+        ',' => (Token::COMMA, loc.incr()),
+        '+' => (Token::Operator(Operator::ADD), loc.incr()),
+        '*' => (Token::Operator(Operator::Multiply), loc.incr()),
+        '/' => (Token::Operator(Operator::Divide), loc.incr()),
+        '%' => (Token::Operator(Operator::Mod), loc.incr()),
+        '=' if next == '=' => (Token::Operator(Operator::Equals), loc.incr2()),
+        '=' if next != '=' => (Token::Operator(Operator::Assign), loc.incr()),
+        '&' if next == '&' => (Token::Operator(Operator::And), loc.incr2()),
+        '|' if next == '|' => (Token::Operator(Operator::Or), loc.incr2()),
+        '!' if next == '=' => (Token::Operator(Operator::NotEquals), loc.incr2()),
+        '!' if next != '=' => (Token::Operator(Operator::NOT), loc.incr()),
+        '<' if next == '=' => (Token::Operator(Operator::LTE), loc.incr2()),
+        '<' if next != '=' => (Token::Operator(Operator::LT), loc.incr()),
+        '>' if next == '=' => (Token::Operator(Operator::GTE), loc.incr2()),
+        '>' if next != '=' => (Token::Operator(Operator::GT), loc.incr()),
+        '-' if !next.is_numeric() => (Token::Operator(Operator::Subtract), loc.incr()),
+        '"' | '\'' => {
+            let mut l = loc.incr();
+            while cur != chars[l.index] {
+                l = match chars[l.index] {
+                    '\n' => l.new_line(),
+                    _ => l.incr(),
+                };
+            }
+            let s: String = chars.as_slice()[(loc.index + 1)..(l.index)]
+                .iter()
+                .collect();
+            (Token::String(s), l.incr())
+        }
+        _ if cur == '-' || cur.is_numeric() => {
+            let mut l = loc.incr();
+            while chars[l.index].is_numeric() {
+                l = l.incr();
+            }
+
+            let s: String = chars
+                .iter()
+                .skip(loc.index)
+                .take(l.index - loc.index)
+                .collect();
+
+            (Token::Int(s.parse()?), l)
+        }
+
+        _ if cur.is_ascii_alphabetic() => {
+            let mut l = loc.incr();
+            while l.index < chars.len()
+                && matches!(chars[l.index], 'A'..='Z' | 'a'..='z' | '0'..='9')
+            {
+                l = l.incr();
+            }
+
+            let s: String = chars.as_slice()[loc.index..l.index].iter().collect();
+            let token = match s.as_str() {
+                "println" => Token::StdFunction(StdFunction::Print(true)),
+                "print" => Token::StdFunction(StdFunction::Print(false)),
+                "let" => Token::Keyword(Keyword::LET),
+                "return" => Token::Keyword(Keyword::RETURN),
+                "const" => Token::Keyword(Keyword::CONST),
+                "if" => Token::Keyword(Keyword::IF),
+                "def" => Token::Keyword(Keyword::DEF),
+                "else" => Token::Keyword(Keyword::ELSE),
+                "for" => Token::Keyword(Keyword::FOR),
+                "true" => Token::Bool(true),
+                "false" => Token::Bool(false),
+                _ => Token::Identifier(s),
+            };
+            (token, l)
+        }
+        _ => {
+            return Err(TokenError::UnknownToken { token: cur });
+        }
+    };
+    return Ok(res);
 }
 
 /// 代码转成token串
@@ -114,94 +214,82 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, TokenError> {
 
     let mut tokens = vec![];
 
-    let mut i = 0;
-    while i < chars.len() {
-        let (token, size) = match chars[i] {
-            '#' => {
-                while chars[i] != '\r' && chars[i] != '\n' {
-                    i += 1;
-                }
-                i += 1;
-                continue;
-            }
-            '\r' | '\n' => (Token::NewLine, 1),
-            '{' => (Token::LBig, 1),
-            '}' => (Token::RBig, 1),
-            '[' => (Token::LSquare, 1),
-            ']' => (Token::RSquare, 1),
-            '(' => (Token::LParen, 1),
-            ')' => (Token::RParen, 1),
-            ':' => (Token::COLON, 1),
-            ',' => (Token::COMMA, 1),
-            '+' => (Token::Operator(Operator::ADD), 1),
-            '*' => (Token::Operator(Operator::Multiply), 1),
-            '/' => (Token::Operator(Operator::Divide), 1),
-            '%' => (Token::Operator(Operator::Mod), 1),
-            '=' if chars[i + 1] == '=' => (Token::Operator(Operator::Equals), 2),
-            '=' if chars[i + 1] != '=' => (Token::Operator(Operator::Assign), 1),
-            '&' if chars[i + 1] == '&' => (Token::Operator(Operator::And), 2),
-            '|' if chars[i + 1] == '|' => (Token::Operator(Operator::Or), 2),
-            '!' if chars[i + 1] == '=' => (Token::Operator(Operator::NotEquals), 2),
-            '!' if chars[i + 1] != '=' => (Token::Operator(Operator::NOT), 1),
-            '<' if chars[i + 1] == '=' => (Token::Operator(Operator::LTE), 2),
-            '<' if chars[i + 1] != '=' => (Token::Operator(Operator::LT), 1),
-            '>' if chars[i + 1] == '=' => (Token::Operator(Operator::GTE), 2),
-            '>' if chars[i + 1] != '=' => (Token::Operator(Operator::GT), 1),
-            '-' if !chars[i + 1].is_numeric() => (Token::Operator(Operator::Subtract), 1),
-
-            '"' | '\'' => {
-                let mut j = i + 1;
-
-                while chars[i] != chars[j] {
-                    j += 1;
-                }
-                let s: String = chars.as_slice()[(i + 1)..j].iter().collect();
-                (Token::String(s), j + 1 - i)
-            }
-            _ if chars[i] == '-' || chars[i].is_numeric() => {
-                let mut j = i + 1;
-                while chars[j].is_numeric() {
-                    j += 1;
-                }
-
-                let s: String = chars.iter().skip(i).take(j - i).collect();
-                (Token::Int(s.parse()?), j - i)
-            }
-
-            _ if chars[i].is_ascii_alphabetic() => {
-                let mut j = i + 1;
-
-                while j < chars.len() && (chars[j].is_ascii_alphabetic() || chars[j].is_numeric()) {
-                    j += 1;
-                }
-                let s: String = chars.as_slice()[i..j].iter().collect();
-                let token = match s.as_str() {
-                    "println" => Token::StdFunction(StdFunction::Print(true)),
-                    "print" => Token::StdFunction(StdFunction::Print(false)),
-                    "let" => Token::Keyword(Keyword::LET),
-                    "return" => Token::Keyword(Keyword::RETURN),
-                    "const" => Token::Keyword(Keyword::CONST),
-                    "if" => Token::Keyword(Keyword::IF),
-                    "def" => Token::Keyword(Keyword::DEF),
-                    "else" => Token::Keyword(Keyword::ELSE),
-                    "for" => Token::Keyword(Keyword::FOR),
-                    "true" => Token::Bool(true),
-                    "false" => Token::Bool(false),
-                    _ => Token::Identifier(s),
-                };
-                (token, j - i)
-            }
-            _ if chars[i].is_whitespace() => {
-                i += 1;
-                continue;
-            }
-            _ => {
-                return Err(TokenError::UnknownToken { token: chars[i] });
-            }
-        };
-        tokens.push(token);
-        i += size;
+    let mut loc = Location::default();
+    while loc.index < chars.len() {
+        let (token, new_loc) = parse_token(&chars, &loc)?;
+        if !matches!(token, Token::Comment | Token::Space) {
+            tokens.push(token);
+        }
+        loc = new_loc;
     }
 
     Ok(tokens)
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Location {
+    col: usize,
+    line: usize,
+    index: usize,
+}
+
+impl Default for Location {
+    fn default() -> Self {
+        Location {
+            col: 1,
+            line: 1,
+            index: 0,
+        }
+    }
+}
+
+impl Location {
+    fn new_line(&self) -> Location {
+        Location {
+            index: self.index + 1,
+            col: 1,
+            line: self.line + 1,
+        }
+    }
+    #[inline]
+    fn incr(&self) -> Location {
+        self.incr_n(1)
+    }
+    #[inline]
+    fn incr2(&self) -> Location {
+        self.incr_n(2)
+    }
+    #[inline]
+    fn incr_n(&self, n: usize) -> Location {
+        Location {
+            index: self.index + n,
+            col: self.col + n,
+            line: self.line,
+        }
+    }
+
+    pub fn debug<S: Into<String>>(&self, raw: &[char], msg: S) -> String {
+        let mut line = 0;
+        let mut line_str = String::new();
+        // Find the whole line of original source
+        for c in raw {
+            if *c == '\n' {
+                line += 1;
+
+                // Done discovering line in question
+                if !line_str.is_empty() {
+                    break;
+                }
+
+                continue;
+            }
+
+            if self.line == line {
+                line_str.push_str(&c.to_string());
+            }
+        }
+
+        let space = " ".repeat(self.col as usize);
+        format!("{}\n\n{}\n{}^ Near here", msg.into(), line_str, space)
+    }
 }
