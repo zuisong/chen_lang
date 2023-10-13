@@ -1,11 +1,11 @@
 //! 一个小的玩具语言
-// #![deny(missing_docs)]
 #![allow(soft_unstable)]
-#![deny(unused_imports)]
-#![deny(unused_parens)]
-#![deny(dead_code)]
-#![deny(unused_mut)]
-#![deny(unreachable_code)]
+// #![deny(missing_docs)]
+// #![deny(unused_imports)]
+// #![deny(unused_parens)]
+// #![deny(dead_code)]
+// #![deny(unused_mut)]
+// #![deny(unreachable_code)]
 
 use std::fmt::{Debug, Display};
 
@@ -20,7 +20,7 @@ use tracing::debug;
 /// 逻辑运算符  && || ！
 /// 标识符   纯字母
 ///
-use crate::context::Context;
+// use crate::context::Context;
 use crate::expression::*;
 use crate::token::*;
 
@@ -36,6 +36,8 @@ mod tests;
 /// 词法分析模块
 pub mod token;
 
+pub mod vm;
+
 #[inline]
 pub(crate) fn err_msg<M>(msg: M) -> anyhow::Error
 where
@@ -49,14 +51,14 @@ where
 pub fn run(code: String) -> Result<()> {
     let tokens = tokenlizer(code)?;
     debug!("tokens => {:?}", &tokens);
-    let ast: BlockStatement = parser(tokens)?;
+    let ast: Ast = parser(tokens)?;
     debug!("ast => {:?}", &ast);
-    evaluate(ast)?;
+    // evaluate(ast)?;
     Ok(())
 }
 
 /// 词法
-fn parser(tokens: Vec<Token>) -> Result<BlockStatement> {
+fn parser(tokens: Vec<Token>) -> Result<Ast> {
     let mut lines: Vec<Box<[Token]>> = vec![];
     let mut temp = vec![];
     for x in tokens {
@@ -74,13 +76,13 @@ fn parser(tokens: Vec<Token>) -> Result<BlockStatement> {
     Ok(ast)
 }
 
-/// 运行
-fn evaluate(ast: BlockStatement) -> Result<Value> {
-    let mut ctx = Context::default();
-    debug!("{:?}", &ast);
-    for cmd in ast.iter() {
-        cmd.evaluate(&mut ctx)?;
-    }
-
-    Ok(Value::Void)
-}
+// 运行
+// fn evaluate(ast: Ast) -> Result<Value> {
+//     let mut ctx = Context::default();
+//     debug!("{:?}", &ast);
+//     for cmd in ast.iter() {
+//         cmd.evaluate(&mut ctx)?;
+//     }
+//
+//     Ok(Value::Void)
+// }

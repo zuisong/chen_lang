@@ -2,15 +2,13 @@
 
 use std::cmp::Ordering;
 use std::collections::VecDeque;
-use std::rc::Rc;
 use std::vec;
 
 use anyhow::Result;
 use tracing::info;
 
-use crate::context::VarType;
-use crate::parse::OperatorPriority::*;
 use crate::*;
+use crate::parse::OperatorPriority::*;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 enum OperatorPriority {
@@ -58,11 +56,7 @@ fn get_priority(opt: &Operator) -> OperatorPriority {
 }
 
 /// 简单表达式分析 (只有运算的 一行)
-pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>> {
-    if line.is_empty() {
-        return Ok(Box::new(Value::Void));
-    }
-
+pub fn parse_expression(line: &[Token]) -> anyhow::Result<Expression> {
     // 中缀表达式变后缀表达式
     let mut result: Vec<&Token> = Vec::new();
     let mut stack: Vec<&Token> = vec![];
@@ -100,76 +94,73 @@ pub fn parse_expression(line: &[Token]) -> Result<Box<dyn Expression>> {
         .cloned()
         .collect();
 
-    let mut tmp: VecDeque<Box<dyn Expression>> = VecDeque::new();
+    let mut tmp: Vec<Expression> = Vec::new();
 
     while let Some(t) = result.pop_front() {
         if let Token::Operator(opt) = t {
-            let new_exp: Box<dyn Expression> = match opt {
+            let new_exp: Expression = match opt {
                 Operator::Assign => {
                     unreachable!();
                 }
 
-                Operator::NOT => Box::new(NotStatement {
-                    expr: tmp.pop_back().unwrap(),
+                Operator::NOT => Expression::NotStatement(NotStatement {
+                    expr: Box::new(tmp.pop().unwrap()),
                 }),
 
                 _ => {
-                    let o1 = tmp.pop_back().unwrap();
-                    let o2 = tmp.pop_back().unwrap();
-                    Box::new(BinaryStatement {
-                        left: o2,
-                        right: o1,
+                    let o1 = tmp.pop().unwrap();
+                    let o2 = tmp.pop().unwrap();
+                    Expression::BinaryOperation(BinaryOperation {
+                        left: Box::new(o2),
+                        right: Box::new(o1),
                         operator: opt,
                     })
                 }
             };
-            tmp.push_back(new_exp);
+            tmp.push(new_exp);
         } else {
-            let ele: Element = match t {
-                Token::Identifier(name) => Element::Variable(VariableStatement { name }),
-                Token::Int(i) => Element::Value(Value::Int(i)),
-                Token::Bool(i) => Element::Value(Value::Bool(i)),
-                Token::String(i) => Element::Value(Value::Str(i)),
+            let ele: Literal = match t {
+                Token::Identifier(name) => Literal::Identifier(name),
+                Token::Int(i) => Literal::Value(Value::Int(i)),
+                Token::Bool(i) => Literal::Value(Value::Bool(i)),
+                Token::String(i) => Literal::Value(Value::Str(i)),
                 _ => panic!("错误,{:?}", t),
             };
-            tmp.push_back(Box::new(ele));
+            tmp.push(Expression::Literal(ele));
         }
     }
 
-    Ok(Box::new(tmp))
+    tmp.pop().ok_or(err_msg("parse error"))
 }
 
 /// 分析很多行的方法
-pub fn parse_block(
-    lines: &[Box<[Token]>],
-    mut start_line: usize,
-) -> Result<(usize, BlockStatement)> {
-    let mut v = VecDeque::new();
+pub fn parse_block(lines: &[Box<[Token]>], mut start_line: usize) -> Result<(usize, Ast)> {
+    let mut v = Vec::new();
     while start_line < lines.len() && lines[start_line][0] != Token::RBig {
         match &lines[start_line][0] {
             Token::Keyword(Keyword::LET) | Token::Keyword(Keyword::CONST) => {
                 let var = parse_declare(&lines[start_line])?;
-                v.push_back(var);
+                v.push(Statement::Local(var));
                 start_line += 1;
             }
             Token::Keyword(Keyword::FOR) => {
                 let var = parse_for(lines, start_line)?;
-                v.push_back(var.1);
+                v.push(Statement::Loop(var.1));
                 start_line = var.0 + 1;
             }
             Token::Keyword(Keyword::DEF) => {
                 let var = parse_define_function(lines, start_line)?;
-                v.push_back(var.1);
+                v.push(Statement::FunctionDeclaration(var.1));
                 start_line = var.0 + 1;
             }
             Token::Keyword(Keyword::IF) => {
                 let var = parse_if(lines, start_line)?;
-                v.push_back(var.1);
+                v.push(Statement::If(var.1));
                 start_line = var.0 + 1;
             }
-            Token::StdFunction(StdFunction::Print(is_newline)) => {
-                let var = parse_print(&lines[start_line], *is_newline)?;
-                v.push_back(var);
+            Token::Keyword(Keyword::RETURN) => {
+                let var = parse_return(&lines[start_line])?;
+                v.push(Statement::Return(var));
                 start_line += 1;
             }
             // 赋值
@@ -177,41 +168,36 @@ pub fn parse_block(
                 if lines[start_line].get(1) == Some(&Token::Operator(Operator::Assign)) =>
             {
                 let var = parse_assign(&lines[start_line])?;
-                v.push_back(var);
+                v.push(Statement::Assign(var));
                 start_line += 1;
             }
             // 函数调用
             Token::Identifier(_) if lines[start_line].get(1) == Some(&Token::LParen) => {
                 let var = parse_func_call(&lines[start_line])?;
-                v.push_back(var);
+                v.push(Statement::Expression(Expression::FunctionCall(var)));
                 start_line += 1;
-            }
-            Token::LBig => {
-                let var = parse_block(lines, start_line + 1)?;
-                v.push_back(Box::new(var.1));
-                start_line += var.0 + 1;
             }
             // 返回值
             Token::Identifier(_) if lines[start_line].get(1).is_none() => {
                 let var = parse_expression(&lines[start_line])?;
-                v.push_back(var);
+                v.push(Statement::Expression(var));
                 start_line += 1;
             }
             // 返回值
             Token::Int(_) | Token::Bool(_) if lines[start_line].get(1).is_none() => {
                 let var = parse_expression(&lines[start_line])?;
-                v.push_back(var);
+                v.push(Statement::Expression(var));
                 start_line += 1;
             }
             _ => {
-                unimplemented!("{:?}", lines[start_line]);
+                unimplemented!("语法错误 {:?}", lines[start_line]);
             }
         }
     }
-    Ok((start_line, v))
+    Ok((start_line, v.into_iter().collect()))
 }
 
-fn parse_func_call(line: &[Token]) -> Result<Box<dyn Expression>> {
+fn parse_func_call(line: &[Token]) -> Result<FunctionCall> {
     let func_name = if let Token::Identifier(name) = &line[0] {
         name.to_string()
     } else {
@@ -238,55 +224,62 @@ fn parse_func_call(line: &[Token]) -> Result<Box<dyn Expression>> {
             for i in 0..(param_idx.len() - 1) {
                 params.push(parse_expression(&line[param_idx[i]..param_idx[i + 1]])?);
             }
-            params.push(parse_expression(
-                &line[(param_idx[param_idx.len() - 1] + 1)..(line.len() - 1)],
-            )?);
+            params.push(
+                parse_expression(&line[(param_idx[param_idx.len() - 1] + 1)..(line.len() - 1)])
+                    ?,
+            );
         }
     }
 
-    Ok(Box::new(CallFunctionStatement {
-        function_name: func_name,
-        params,
-    }))
+    Ok(FunctionCall {
+        name: func_name,
+        arguments: params,
+    })
+}
+
+/// 分析返回语句
+pub fn parse_return(line: &[Token]) -> Result<Return> {
+    debug!("{:?}", &line);
+
+    // let var_type = match &line[0] {
+    //     Token::Keyword(Keyword::LET) => VarType::Let,
+    //     Token::Keyword(Keyword::CONST) => VarType::Const,
+    //     _ => unreachable!(),
+    // };
+
+    let var = Return {
+        expression: parse_expression(&line[1..])?,
+    };
+    Ok(var)
 }
 
 /// 分析声明语句
-pub fn parse_declare(line: &[Token]) -> Result<Box<dyn Expression>> {
+pub fn parse_declare(line: &[Token]) -> Result<Local> {
     debug!("{:?}", &line);
 
-    let var_type = match &line[0] {
-        Token::Keyword(Keyword::LET) => VarType::Let,
-        Token::Keyword(Keyword::CONST) => VarType::Const,
-        _ => unreachable!(),
-    };
+    // let var_type = match &line[0] {
+    //     Token::Keyword(Keyword::LET) => VarType::Let,
+    //     Token::Keyword(Keyword::CONST) => VarType::Const,
+    //     _ => unreachable!(),
+    // };
 
     let name = match &line[1] {
         Token::Identifier(name) => name,
         _ => unreachable!(),
     };
 
-    let var = DeclareStatement {
-        var_type,
-        left: name.clone(),
-        right: parse_expression(&line[3..])?,
+    let var = Local {
+        name: name.clone(),
+        expression: parse_expression(&line[3..])?,
     };
-    Ok(Box::new(var))
+    Ok(var)
 }
 
-///
-/// ```java
-/// def f1(){
-///
-/// }
-///  def f2(a,b,c){
-///
-/// }
-/// ```
-///
+
 fn parse_define_function(
     lines: &[Box<[Token]>],
     start_line: usize,
-) -> Result<(usize, Box<dyn Expression>)> {
+) -> Result<(usize, FunctionDeclaration)> {
     let func_name = if let Token::Identifier(name) = &lines[start_line][1] {
         name.to_string()
     } else {
@@ -304,16 +297,16 @@ fn parse_define_function(
         })
         .collect();
 
-    let func = FunctionStatement {
+    let func = FunctionDeclaration {
         name: func_name,
-        params,
-        body: Rc::new(body),
+        parameters: params,
+        body: body,
     };
-    Ok((endline, Box::new(func)))
+    Ok((endline, (func)))
 }
 
 /// 赋值语句分析
-pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>> {
+pub fn parse_assign(line: &[Token]) -> Result<Assign> {
     debug!("{:?}", &line);
 
     match &line[0] {
@@ -322,25 +315,25 @@ pub fn parse_assign(line: &[Token]) -> Result<Box<dyn Expression>> {
 
             info!("{}:{} {:?}", file!(), line!(), &line);
 
-            let expr = match &line[2] {
+            let expr: Expression = match &line[2] {
                 Token::Identifier(_) if line.get(3) == Some(&Token::LParen) => {
-                    parse_func_call(&line[2..])?
+                    Expression::FunctionCall(parse_func_call(&line[2..])?)
                 }
                 _ => parse_expression(&line[2..])?,
             };
 
-            let var = AssignStatement {
-                left: name.clone(),
-                right: expr,
+            let var = Assign {
+                name: name.clone(),
+                expr: Box::new(expr),
             };
-            Ok(Box::new(var))
+            Ok(var)
         }
         _ => Err(err_msg(format!("赋值语句语法不对，{:?}", line))),
     }
 }
 
 /// 分析条件语句
-pub fn parse_if(lines: &[Box<[Token]>], start_line: usize) -> Result<(usize, Box<dyn Expression>)> {
+pub fn parse_if(lines: &[Box<[Token]>], start_line: usize) -> Result<(usize, If)> {
     let (mut endline, if_cmd) = parse_block(lines, start_line + 1)?;
     let else_cmd = if let Some(Token::Keyword(Keyword::ELSE)) = lines[endline].get(1) {
         assert_eq!(lines[endline][0], Token::RBig);
@@ -349,34 +342,22 @@ pub fn parse_if(lines: &[Box<[Token]>], start_line: usize) -> Result<(usize, Box
         endline = new_endline;
         cmd
     } else {
-        VecDeque::new()
+        Vec::new()
     };
-    let loop_expr = IfStatement {
-        predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
-        if_block: if_cmd,
-        else_block: else_cmd,
+    let loop_expr = If {
+        test: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
+        body: if_cmd,
+        else_body: else_cmd,
     };
-    Ok((endline, Box::new(loop_expr)))
+    Ok((endline, loop_expr))
 }
 
 /// 分析循环语句
-pub fn parse_for(
-    lines: &[Box<[Token]>],
-    start_line: usize,
-) -> Result<(usize, Box<dyn Expression>)> {
+pub fn parse_for(lines: &[Box<[Token]>], start_line: usize) -> Result<(usize, Loop)> {
     let cmd = parse_block(lines, start_line + 1)?;
-    let loop_expr = LoopStatement {
-        predict: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
-        loop_block: cmd.1,
+    let loop_expr = Loop {
+        test: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
+        body: cmd.1,
     };
-    Ok((cmd.0, Box::new(loop_expr)))
-}
-
-fn parse_print(line: &[Token], is_newline: bool) -> Result<Box<dyn Expression>> {
-    debug!("{:?}", line);
-    let expression = parse_expression(&line[2..(line.len() - 1)])?;
-    Ok(Box::new(PrintStatement {
-        expression,
-        is_newline,
-    }))
+    Ok((cmd.0, loop_expr))
 }

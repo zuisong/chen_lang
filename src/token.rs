@@ -86,8 +86,6 @@ pub enum Token {
     String(String),
     /// 标识符
     Identifier(String),
-    /// 标准库函数
-    StdFunction(StdFunction),
     /// 左大括号
     LBig,
     /// 右大括号
@@ -186,8 +184,6 @@ fn parse_token(chars: &Vec<char>, loc: &Location) -> Result<(Token, Location), T
 
             let s: String = chars.as_slice()[loc.index..l.index].iter().collect();
             let token = match s.as_str() {
-                "println" => Token::StdFunction(StdFunction::Print(true)),
-                "print" => Token::StdFunction(StdFunction::Print(false)),
                 "let" => Token::Keyword(Keyword::LET),
                 "return" => Token::Keyword(Keyword::RETURN),
                 "const" => Token::Keyword(Keyword::CONST),
