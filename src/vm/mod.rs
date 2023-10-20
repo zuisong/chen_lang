@@ -22,10 +22,10 @@ struct Symbol {
     nlocals: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Program {
-    syms: HashMap<String, Symbol>,  // 函数符号表
-    instructions: Vec<Instruction>, // 指令列表
+    pub syms: HashMap<String, Symbol>,  // 函数符号表
+    pub instructions: Vec<Instruction>, // 指令列表
 }
 
 pub fn eval(pgrm: Program) {

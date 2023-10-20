@@ -12,6 +12,7 @@ use std::fmt::{Debug, Display};
 use anyhow::Result;
 use expression::Value;
 use tracing::debug;
+use vm::Program;
 
 ///
 /// 关键字   if for
@@ -74,6 +75,10 @@ fn parser(tokens: Vec<Token>) -> Result<Ast> {
     let (_, ast) = parse::parse_block(lines.as_slice(), 0)?;
 
     Ok(ast)
+}
+
+fn compile(ast: Ast) -> Result<Program> {
+ todo!()   
 }
 
 // 运行

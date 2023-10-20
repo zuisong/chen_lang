@@ -7,8 +7,8 @@ use std::vec;
 use anyhow::Result;
 use tracing::info;
 
-use crate::*;
 use crate::parse::OperatorPriority::*;
+use crate::*;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 enum OperatorPriority {
@@ -138,7 +138,7 @@ pub fn parse_block(lines: &[Box<[Token]>], mut start_line: usize) -> Result<(usi
     let mut v = Vec::new();
     while start_line < lines.len() && lines[start_line][0] != Token::RBig {
         match &lines[start_line][0] {
-            Token::Keyword(Keyword::LET) | Token::Keyword(Keyword::CONST) => {
+            Token::Keyword(Keyword::LET) => {
                 let var = parse_declare(&lines[start_line])?;
                 v.push(Statement::Local(var));
                 start_line += 1;
@@ -224,10 +224,9 @@ fn parse_func_call(line: &[Token]) -> Result<FunctionCall> {
             for i in 0..(param_idx.len() - 1) {
                 params.push(parse_expression(&line[param_idx[i]..param_idx[i + 1]])?);
             }
-            params.push(
-                parse_expression(&line[(param_idx[param_idx.len() - 1] + 1)..(line.len() - 1)])
-                    ?,
-            );
+            params.push(parse_expression(
+                &line[(param_idx[param_idx.len() - 1] + 1)..(line.len() - 1)],
+            )?);
         }
     }
 
@@ -274,7 +273,6 @@ pub fn parse_declare(line: &[Token]) -> Result<Local> {
     };
     Ok(var)
 }
-
 
 fn parse_define_function(
     lines: &[Box<[Token]>],

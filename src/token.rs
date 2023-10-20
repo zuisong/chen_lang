@@ -18,7 +18,6 @@ pub enum Keyword {
     /// if
     IF,
     LET,
-    CONST,
     /// else
     ELSE,
     /// for
@@ -186,7 +185,6 @@ fn parse_token(chars: &Vec<char>, loc: &Location) -> Result<(Token, Location), T
             let token = match s.as_str() {
                 "let" => Token::Keyword(Keyword::LET),
                 "return" => Token::Keyword(Keyword::RETURN),
-                "const" => Token::Keyword(Keyword::CONST),
                 "if" => Token::Keyword(Keyword::IF),
                 "def" => Token::Keyword(Keyword::DEF),
                 "else" => Token::Keyword(Keyword::ELSE),
