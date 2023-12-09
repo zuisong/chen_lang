@@ -1,5 +1,6 @@
 use std::{char, num::ParseIntError};
 
+use nom::{branch::alt, IResult};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -107,6 +108,45 @@ pub enum Token {
     Comment,
     // 空格
     Space,
+}
+
+fn parse_token2(chars: &[u8]) -> IResult<&[u8], Token> {
+    use nom::character::complete::*;
+    use nom::combinator::*;
+    use nom::Parser;
+
+    alt((
+        value(Token::NewLine, line_ending),
+        value(Token::Space, one_of(" \t")),
+        value(Token::Space, char('\n')),
+        value(Token::LBig, char('{')),
+        value(Token::RBig, char('}')),
+        value(Token::LSquare, char('[')),
+        value(Token::RSquare, char(']')),
+        value(Token::LParen, char('(')),
+        value(Token::RParen, char(')')),
+        value(Token::COLON, char(':')),
+        value(Token::COMMA, char(',')),
+        value(Token::Operator(Operator::ADD), char('+')),
+        value(Token::Operator(Operator::Multiply), char('*')),
+        value(Token::Operator(Operator::Divide), char('/')),
+        value(Token::Operator(Operator::Mod), char('%')),
+        value(Token::Operator(Operator::Equals), tag("==")),
+        value(Token::Operator(Operator::Assign), char('=')),
+        value(Token::Operator(Operator::And), tag("&&")),
+        value(Token::Operator(Operator::Or), tag("||")),
+        value(Token::Operator(Operator::NotEquals), tag("!=")),
+        value(Token::Operator(Operator::NOT), tag("!")),
+        value(Token::Operator(Operator::LTE), tag("<=")),
+        value(Token::Operator(Operator::LT), tag("<")),
+        value(Token::Operator(Operator::GTE), tag(">=")),
+        value(Token::Operator(Operator::GT), tag(">")),
+        value(
+            Token::Operator(Operator::Subtract),
+            char('%').and(none_of("0123456789")),
+        ),
+    ))
+    .parse(chars)
 }
 
 fn parse_token(chars: &Vec<char>, loc: &Location) -> Result<(Token, Location), TokenError> {
