@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 #[allow(dead_code)]
 #[derive(Debug)]
-enum Instruction {
+pub enum Instruction {
     DupPlusFP(i32),          // 复制fp偏移量i处的值并推入栈顶
     MoveMinusFP(usize, i32), // 将fp-偏移量i处的值移动到fp+偏移量local_offset处
     MovePlusFP(usize),       // 将栈顶值移动到fp+偏移量i处
@@ -16,10 +16,10 @@ enum Instruction {
 }
 
 #[derive(Debug)]
-struct Symbol {
-    location: i32,
-    narguments: usize,
-    nlocals: usize,
+pub struct Symbol {
+  pub  location: i32,
+  pub  narguments: usize,
+  pub  nlocals: usize,
 }
 
 #[derive(Debug, Default)]

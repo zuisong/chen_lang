@@ -25,12 +25,12 @@ use vm::Program;
 use crate::expression::*;
 use crate::token::*;
 
-/// context模块
-pub mod context;
 /// 表达式模块
 pub mod expression;
 /// 语法分析模块
 pub mod parse;
+
+pub mod compiler;
 /// 测试模块
 #[cfg(test)]
 mod tests;
@@ -78,7 +78,7 @@ fn parser(tokens: Vec<Token>) -> Result<Ast> {
 }
 
 fn compile(ast: Ast) -> Result<Program> {
- todo!()   
+    todo!()
 }
 
 // 运行
