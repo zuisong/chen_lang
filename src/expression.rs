@@ -3,26 +3,26 @@ use std::fmt::Debug;
 
 use crate::token::Operator;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Literal {
     Identifier(String),
     Value(Value),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct FunctionCall {
     pub name: String,
     pub arguments: Vec<Expression>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct BinaryOperation {
     pub operator: Operator,
     pub left: Box<Expression>,
     pub right: Box<Expression>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Expression {
     FunctionCall(FunctionCall),
     BinaryOperation(BinaryOperation),
@@ -30,32 +30,32 @@ pub enum Expression {
     NotStatement(NotStatement),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct FunctionDeclaration {
     pub name: String,
     pub parameters: Vec<String>,
     pub body: Vec<Statement>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct If {
     pub test: Expression,
     pub body: Vec<Statement>,
     pub else_body: Vec<Statement>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Local {
     pub name: String,
     pub expression: Expression,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Return {
     pub expression: Expression,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Statement {
     Expression(Expression),
     If(If),
@@ -69,7 +69,7 @@ pub enum Statement {
 pub type Ast = Vec<Statement>;
 
 /// 取反
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct NotStatement {
     /// 要取反的表达式
     pub expr: Box<Expression>,
@@ -85,7 +85,7 @@ pub struct PrintStatement {
 }
 
 /// 赋值语句
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Assign {
     /// 变量名
     pub name: String,
@@ -94,7 +94,7 @@ pub struct Assign {
 }
 
 /// 循环语句
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Loop {
     /// 循环终止判断条件
     pub test: Expression,

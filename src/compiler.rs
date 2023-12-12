@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+
 use crate::expression::*;
 use crate::token::Operator;
 use crate::vm::{Instruction, Program, Symbol};
@@ -29,10 +30,7 @@ fn compile_binary_operation(
             //         .loc
             //         .debug(raw, "Unable to compile binary operation:")
             // )
-            panic!(
-                "Unable to compile binary operation: {:?}",
-                bop.operator
-            )
+            panic!("Unable to compile binary operation: {:?}", bop.operator)
         }
     }
 }
@@ -48,8 +46,7 @@ fn compile_function_call(
         compile_expression(pgrm, raw, locals, arg);
     }
 
-    pgrm.instructions
-        .push(Instruction::Call(fc.name, len));
+    pgrm.instructions.push(Instruction::Call(fc.name, len));
 }
 
 fn compile_literal(
@@ -89,7 +86,7 @@ fn compile_expression(
         Expression::Literal(lit) => {
             compile_literal(pgrm, raw, locals, lit);
         }
-        Expression::NotStatement(_) => todo!()
+        Expression::NotStatement(_) => todo!(),
     }
 }
 
@@ -192,8 +189,12 @@ fn compile_statement(
         Statement::If(if_) => compile_if(pgrm, raw, locals, if_),
         Statement::Local(loc) => compile_local(pgrm, raw, locals, loc),
         Statement::Expression(e) => compile_expression(pgrm, raw, locals, e),
-        Statement::Loop(_) => { todo!() }
-        Statement::Assign(_) => { todo!() }
+        Statement::Loop(_) => {
+            todo!()
+        }
+        Statement::Assign(_) => {
+            todo!()
+        }
     }
 }
 

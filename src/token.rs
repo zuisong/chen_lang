@@ -1,7 +1,18 @@
 use std::{char, num::ParseIntError};
 
-use nom::{branch::alt, IResult};
+use anyhow::anyhow;
 use thiserror::Error;
+use tracing::debug;
+use winnow::{
+    ascii::not_line_ending,
+    ascii::{alphanumeric1, digit1, line_ending},
+    combinator::separated_pair,
+    combinator::{alt, delimited, not, opt},
+    token::one_of,
+    token::tag,
+    token::take_until0,
+    IResult, Parser,
+};
 
 #[derive(Error, Debug)]
 pub enum TokenError {
@@ -110,43 +121,91 @@ pub enum Token {
     Space,
 }
 
-fn parse_token2(chars: &[u8]) -> IResult<&[u8], Token> {
-    use nom::character::complete::*;
-    use nom::combinator::*;
-    use nom::Parser;
-
+fn parse_with_winnow(chars: &[u8]) -> IResult<&[u8], Token> {
     alt((
-        value(Token::NewLine, line_ending),
-        value(Token::Space, one_of(" \t")),
-        value(Token::Space, char('\n')),
-        value(Token::LBig, char('{')),
-        value(Token::RBig, char('}')),
-        value(Token::LSquare, char('[')),
-        value(Token::RSquare, char(']')),
-        value(Token::LParen, char('(')),
-        value(Token::RParen, char(')')),
-        value(Token::COLON, char(':')),
-        value(Token::COMMA, char(',')),
-        value(Token::Operator(Operator::ADD), char('+')),
-        value(Token::Operator(Operator::Multiply), char('*')),
-        value(Token::Operator(Operator::Divide), char('/')),
-        value(Token::Operator(Operator::Mod), char('%')),
-        value(Token::Operator(Operator::Equals), tag("==")),
-        value(Token::Operator(Operator::Assign), char('=')),
-        value(Token::Operator(Operator::And), tag("&&")),
-        value(Token::Operator(Operator::Or), tag("||")),
-        value(Token::Operator(Operator::NotEquals), tag("!=")),
-        value(Token::Operator(Operator::NOT), tag("!")),
-        value(Token::Operator(Operator::LTE), tag("<=")),
-        value(Token::Operator(Operator::LT), tag("<")),
-        value(Token::Operator(Operator::GTE), tag(">=")),
-        value(Token::Operator(Operator::GT), tag(">")),
-        value(
-            Token::Operator(Operator::Subtract),
-            char('%').and(none_of("0123456789")),
-        ),
+        separated_pair(tag("#"), not_line_ending, line_ending).map(|_| Token::Comment),
+        alt((
+            line_ending.value(Token::NewLine),
+            one_of((' ', '\t', '\r', '\n')).value(Token::Space),
+            tag("{").value(Token::LBig),
+            tag("}").value(Token::RBig),
+            tag("[").value(Token::LSquare),
+            tag("]").value(Token::RSquare),
+            tag("(").value(Token::LParen),
+            tag(")").value(Token::RParen),
+            tag(":").value(Token::COLON),
+            tag(",").value(Token::COMMA),
+        )),
+        alt((
+            tag("+").value(Token::Operator(Operator::ADD)),
+            tag("*").value(Token::Operator(Operator::Multiply)),
+            tag("/").value(Token::Operator(Operator::Divide)),
+            tag("%").value(Token::Operator(Operator::Mod)),
+            tag("==").value(Token::Operator(Operator::Equals)),
+            tag("=").value(Token::Operator(Operator::Assign)),
+            tag("&&").value(Token::Operator(Operator::And)),
+            tag("||").value(Token::Operator(Operator::Or)),
+            tag("!=").value(Token::Operator(Operator::NotEquals)),
+            tag("!").value(Token::Operator(Operator::NOT)),
+            tag("<=").value(Token::Operator(Operator::LTE)),
+            tag("<").value(Token::Operator(Operator::LT)),
+            tag(">=").value(Token::Operator(Operator::GTE)),
+            tag(">").value(Token::Operator(Operator::GT)),
+            (tag("-"), not(digit1)).value(Token::Operator(Operator::Subtract)),
+            alt((
+                delimited(tag("\""), take_until0("\""), tag("\"")),
+                delimited(tag("\'"), take_until0("\'"), tag("\'")),
+            ))
+            .map(|s: &[u8]| Token::String(String::from_utf8_lossy(s).to_string())),
+            //
+            (opt(tag("-")), digit1).try_map(|(sig, s): (Option<&[u8]>, &[u8])| {
+                String::from_utf8_lossy(s)
+                    .parse::<i32>()
+                    .map(|i| match sig {
+                        Some(_) => Token::Int(i * -1),
+                        None => Token::Int(i),
+                    })
+            }),
+            alphanumeric1.map(|arr| {
+                let s = String::from_utf8_lossy(arr);
+                let token = match s.as_ref() {
+                    "let" => Token::Keyword(Keyword::LET),
+                    "return" => Token::Keyword(Keyword::RETURN),
+                    "if" => Token::Keyword(Keyword::IF),
+                    "def" => Token::Keyword(Keyword::DEF),
+                    "else" => Token::Keyword(Keyword::ELSE),
+                    "for" => Token::Keyword(Keyword::FOR),
+                    "true" => Token::Bool(true),
+                    "false" => Token::Bool(false),
+                    _ => Token::Identifier(s.to_string()),
+                };
+                token
+            }),
+        )),
     ))
-    .parse(chars)
+    .parse_peek(chars)
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_matches;
+
+    use crate::token::parse_with_winnow;
+    use crate::Operator;
+    use crate::Token;
+
+    #[test]
+    fn test() {
+        assert_matches!(parse_with_winnow(b"-1"), Ok((b"", Token::Int(-1))));
+        assert_matches!(
+            parse_with_winnow(b"-a"),
+            Ok((b"a", Token::Operator(Operator::Subtract)))
+        );
+        assert_matches!(parse_with_winnow(b"10a"), Ok((b"a", Token::Int(10))));
+        assert_matches!(parse_with_winnow(b"\"aaaa\""), Ok((b"", Token::String(ref a))) if a == "aaaa");
+        assert_matches!(parse_with_winnow(b"\'aaaa\'"),Ok((b"", Token::String(ref a))) if a == "aaaa");
+        assert_matches!(parse_with_winnow(b"\'\'"), Ok((b"", Token::String(ref a))) if a== "" );
+    }
 }
 
 fn parse_token(chars: &Vec<char>, loc: &Location) -> Result<(Token, Location), TokenError> {
@@ -193,9 +252,7 @@ fn parse_token(chars: &Vec<char>, loc: &Location) -> Result<(Token, Location), T
                     _ => l.incr(),
                 };
             }
-            let s: String = chars.as_slice()[(loc.index + 1)..(l.index)]
-                .iter()
-                .collect();
+            let s: String = chars.as_slice()[(loc.index + 1)..l.index].iter().collect();
             (Token::String(s), l.incr())
         }
         _ if cur == '-' || cur.is_numeric() => {
@@ -243,18 +300,22 @@ fn parse_token(chars: &Vec<char>, loc: &Location) -> Result<(Token, Location), T
 }
 
 /// 代码转成token串
-pub fn tokenlizer(code: String) -> Result<Vec<Token>, TokenError> {
-    let chars: Vec<_> = code.chars().collect();
+pub fn tokenlizer(code: String) -> anyhow::Result<Vec<Token>> {
+    let mut input = code.as_bytes();
 
     let mut tokens = vec![];
 
-    let mut loc = Location::default();
-    while loc.index < chars.len() {
-        let (token, new_loc) = parse_token(&chars, &loc)?;
+    loop {
+        debug!("{}", String::from_utf8_lossy(input));
+        let (remain_input, token) =
+            parse_with_winnow(&input).map_err(|e| anyhow!(e.to_string()))?;
         if !matches!(token, Token::Comment | Token::Space) {
             tokens.push(token);
         }
-        loc = new_loc;
+        if remain_input.is_empty() {
+            break;
+        }
+        input = remain_input
     }
 
     Ok(tokens)
@@ -323,7 +384,7 @@ impl Location {
             }
         }
 
-        let space = " ".repeat(self.col as usize);
+        let space = " ".repeat(self.col);
         format!("{}\n\n{}\n{}^ Near here", msg.into(), line_str, space)
     }
 }

@@ -17,9 +17,9 @@ pub enum Instruction {
 
 #[derive(Debug)]
 pub struct Symbol {
-  pub  location: i32,
-  pub  narguments: usize,
-  pub  nlocals: usize,
+    pub location: i32,
+    pub narguments: usize,
+    pub nlocals: usize,
 }
 
 #[derive(Debug, Default)]
