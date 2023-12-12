@@ -7,12 +7,13 @@ version = "0.1.0"
 description = "A tiny programming language written in rust"
 [dependencies]
 anyhow = "1.0.75"
+thiserror = "1.0.51"
+winnow = "0.5.30"
+tracing = { version = "0.1.40" }
+
 clap = { version = "4.4.11", optional = true, features = ["derive"] }
 clap_complete = { version = "4.4.4", optional = true }
-thiserror = "1.0.50"
-tracing = "0.1.40"
-tracing-subscriber = "0.3.18"
-winnow = "0.5.28"
+tracing-subscriber = { version = "0.3.18", optional = true }
 
 [dev-dependencies]
 pretty_assertions = { version = "1.4.0", features = ["unstable"] }
@@ -28,7 +29,15 @@ path = "src/wasm/main.rs"
 required-features = ["wasm"]
 
 [features]
-binaries = ["dep:clap", "dep:clap_complete"]
+binaries = ["dep:clap", "dep:clap_complete", "dep:tracing-subscriber"]
 wasm = []
 
 default = ["binaries"]
+
+
+[profile.release]
+strip = true      # Automatically strip symbols from the binary.
+opt-level = "z"   # Optimize for size.
+lto = true
+codegen-units = 1
+panic = "abort"

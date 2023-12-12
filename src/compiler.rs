@@ -189,13 +189,70 @@ fn compile_statement(
         Statement::If(if_) => compile_if(pgrm, raw, locals, if_),
         Statement::Local(loc) => compile_local(pgrm, raw, locals, loc),
         Statement::Expression(e) => compile_expression(pgrm, raw, locals, e),
-        Statement::Loop(_) => {
-            todo!()
-        }
-        Statement::Assign(_) => {
-            todo!()
-        }
+        Statement::Loop(e) => compile_loop(pgrm, raw, locals, e),
+        Statement::Assign(e) => compile_assign(pgrm, raw, locals, e),
     }
+}
+
+fn compile_assign(
+    pgrm: &mut Program,
+    raw: &[char],
+    locals: &mut HashMap<String, i32>,
+    assign: Assign,
+) {
+    // 编译右侧表达式
+    compile_expression(pgrm, raw, locals, *assign.expr);
+
+    // 生成 Store 指令
+    let offset = locals[&assign.name];
+    pgrm.instructions.push(Instruction::Store(offset));
+}
+
+fn compile_loop(pgrm: &mut Program, raw: &[char], locals: &mut HashMap<String, i32>, loop_: Loop) {
+    // 循环开始的标签
+    let loop_start = format!("loop_start_{}", pgrm.instructions.len());
+
+    // 循环结束的标签
+    let loop_end = format!("loop_end_{}", pgrm.instructions.len());
+
+    // 跳转到循环开始标签
+    pgrm.instructions.push(Instruction::Jump(loop_end.clone()));
+
+    // 插入循环开始标签
+    pgrm.syms.insert(
+        loop_start.clone(),
+        Symbol {
+            location: pgrm.instructions.len() as i32,
+            narguments: 0,
+            nlocals: 0,
+        },
+    );
+
+    // 编译循环条件表达式
+    compile_expression(pgrm, raw, locals, loop_.test);
+
+    // 如果条件满足,跳转到循环开始标签
+    pgrm.instructions
+        .push(Instruction::JumpIfNotZero(loop_end.clone()));
+
+    // 编译循环体语句
+    for stmt in loop_.body {
+        compile_statement(pgrm, raw, locals, stmt);
+    }
+
+    // 跳转回循环开始标签,形成循环
+    pgrm.instructions
+        .push(Instruction::Jump(loop_start.clone()));
+
+    // 插入循环结束标签
+    pgrm.syms.insert(
+        loop_end.clone(),
+        Symbol {
+            location: pgrm.instructions.len() as i32,
+            narguments: 0,
+            nlocals: 0,
+        },
+    );
 }
 
 pub fn compile(raw: &[char], ast: Ast) -> Program {
@@ -209,4 +266,29 @@ pub fn compile(raw: &[char], ast: Ast) -> Program {
     }
 
     pgrm
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn test_compile() {
+        let code: String = r#"
+        let i = 0
+        for i<100{
+       
+                print(i )
+            i = i+1
+        }
+        "#
+        .to_string();
+
+        let res = crate::parser(crate::token::tokenlizer(code).unwrap()).unwrap();
+
+        let pgrm = crate::compiler::compile(&['a'], res);
+
+        dbg!(&pgrm);
+
+        crate::vm::eval(pgrm);
+    }
 }

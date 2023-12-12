@@ -121,7 +121,7 @@ pub enum Token {
     Space,
 }
 
-fn parse_with_winnow(chars: &[u8]) -> IResult<&[u8], Token> {
+fn parse_with_winnow(chars: &str) -> IResult<&str, Token> {
     alt((
         separated_pair(tag("#"), not_line_ending, line_ending).map(|_| Token::Comment),
         alt((
@@ -156,18 +156,16 @@ fn parse_with_winnow(chars: &[u8]) -> IResult<&[u8], Token> {
                 delimited(tag("\""), take_until0("\""), tag("\"")),
                 delimited(tag("\'"), take_until0("\'"), tag("\'")),
             ))
-            .map(|s: &[u8]| Token::String(String::from_utf8_lossy(s).to_string())),
+            .map(|s: &str| Token::String(s.to_string())),
             //
-            (opt(tag("-")), digit1).try_map(|(sig, s): (Option<&[u8]>, &[u8])| {
-                String::from_utf8_lossy(s)
-                    .parse::<i32>()
-                    .map(|i| match sig {
-                        Some(_) => Token::Int(i * -1),
-                        None => Token::Int(i),
-                    })
+            (opt(tag("-")), digit1).try_map(|(sig, s): (Option<&str>, &str)| {
+                s.parse::<i32>().map(|i| match sig {
+                    Some(_) => Token::Int(i * -1),
+                    None => Token::Int(i),
+                })
             }),
-            alphanumeric1.map(|arr| {
-                let s = String::from_utf8_lossy(arr);
+            alphanumeric1.map(|arr: &str| {
+                let s = arr;
                 let token = match s.as_ref() {
                     "let" => Token::Keyword(Keyword::LET),
                     "return" => Token::Keyword(Keyword::RETURN),
@@ -196,19 +194,21 @@ mod tests {
 
     #[test]
     fn test() {
-        assert_matches!(parse_with_winnow(b"-1"), Ok((b"", Token::Int(-1))));
+        assert_matches!(parse_with_winnow("-1"), Ok(("", Token::Int(-1))));
         assert_matches!(
-            parse_with_winnow(b"-a"),
-            Ok((b"a", Token::Operator(Operator::Subtract)))
+            parse_with_winnow("-a"),
+            Ok(("a", Token::Operator(Operator::Subtract)))
         );
-        assert_matches!(parse_with_winnow(b"10a"), Ok((b"a", Token::Int(10))));
-        assert_matches!(parse_with_winnow(b"\"aaaa\""), Ok((b"", Token::String(ref a))) if a == "aaaa");
-        assert_matches!(parse_with_winnow(b"\'aaaa\'"),Ok((b"", Token::String(ref a))) if a == "aaaa");
-        assert_matches!(parse_with_winnow(b"\'\'"), Ok((b"", Token::String(ref a))) if a== "" );
+        assert_matches!(parse_with_winnow("10a"), Ok(("a", Token::Int(10))));
+        assert_matches!(parse_with_winnow("\"aaaa\""), Ok(("", Token::String(ref a))) if a == "aaaa");
+        assert_matches!(parse_with_winnow("\'aaaa\'"),Ok(("", Token::String(ref a))) if a == "aaaa");
+        assert_matches!(parse_with_winnow("\'\'"), Ok(("", Token::String(ref a))) if a== "" );
     }
 }
 
-fn parse_token(chars: &Vec<char>, loc: &Location) -> Result<(Token, Location), TokenError> {
+#[allow(unused)]
+fn parse_token(input: &str, loc: &Location) -> Result<(Token, Location), TokenError> {
+    let chars: Vec<char> = input.chars().collect();
     let cur = *chars.get(loc.index).unwrap_or(&' ');
     let next = *chars.get(loc.index + 1).unwrap_or(&' ');
     let res = match cur {
@@ -301,12 +301,12 @@ fn parse_token(chars: &Vec<char>, loc: &Location) -> Result<(Token, Location), T
 
 /// 代码转成token串
 pub fn tokenlizer(code: String) -> anyhow::Result<Vec<Token>> {
-    let mut input = code.as_bytes();
+    let mut input = code.as_str();
 
     let mut tokens = vec![];
 
     loop {
-        debug!("{}", String::from_utf8_lossy(input));
+        debug!(?input);
         let (remain_input, token) =
             parse_with_winnow(&input).map_err(|e| anyhow!(e.to_string()))?;
         if !matches!(token, Token::Comment | Token::Space) {

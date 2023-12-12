@@ -125,7 +125,7 @@ pub fn eval(pgrm: Program) {
             Instruction::LessThan => {
                 let right = data.pop().unwrap();
                 let left = data.pop().unwrap();
-                data.push(if left < right { 1 } else { 0 });
+                data.push(if left < right { 0 } else { 1 });
                 pc += 1;
             }
             Instruction::Store(n) => {

@@ -1,11 +1,5 @@
-extern crate chen_lang;
-
 use std::ffi::{CStr, CString};
-use std::mem;
-use std::{
-    os::raw::{c_char, c_void},
-    rc::Rc,
-};
+use std::os::raw::c_char;
 
 fn main() {}
 
