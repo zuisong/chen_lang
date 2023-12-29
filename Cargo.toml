@@ -6,17 +6,23 @@ name = "chen_lang"
 version = "0.1.0"
 description = "A tiny programming language written in rust"
 [dependencies]
-anyhow = "1.0.75"
-thiserror = "1.0.51"
-winnow = "0.5.30"
-tracing = { version = "0.1.40" }
+anyhow = "1"
+thiserror = "1"
+winnow = "0.5"
+tracing = { version = "0.1" }
+tracing-subscriber = { version = "0.3", optional = true }
 
-clap = { version = "4.4.11", optional = true, features = ["derive"] }
-clap_complete = { version = "4.4.4", optional = true }
-tracing-subscriber = { version = "0.3.18", optional = true }
+clap = { version = "4", optional = true, features = ["derive"] }
+clap_complete = { version = "4", optional = true }
+
+
+
+
+[build-dependencies]
 
 [dev-dependencies]
-pretty_assertions = { version = "1.4.0", features = ["unstable"] }
+assert_cmd = "2.0.12"
+pretty_assertions = { version = "1", features = ["unstable"] }
 
 [[bin]]
 name = "chen_lang"
@@ -41,3 +47,4 @@ opt-level = "z"   # Optimize for size.
 lto = true
 codegen-units = 1
 panic = "abort"
+

@@ -121,7 +121,7 @@ fn compile_declaration(
     pgrm.syms.insert(
         fd.name,
         Symbol {
-            location: function_index as i32,
+            location: function_index,
             narguments,
             nlocals: new_locals.keys().len(),
         },

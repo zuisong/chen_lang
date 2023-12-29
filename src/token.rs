@@ -156,17 +156,17 @@ fn parse_with_winnow(chars: &str) -> IResult<&str, Token> {
                 delimited(tag("\""), take_until0("\""), tag("\"")),
                 delimited(tag("\'"), take_until0("\'"), tag("\'")),
             ))
-            .map(|s: &str| Token::String(s.to_string())),
+                .map(|s: &str| Token::String(s.to_string())),
             //
             (opt(tag("-")), digit1).try_map(|(sig, s): (Option<&str>, &str)| {
                 s.parse::<i32>().map(|i| match sig {
-                    Some(_) => Token::Int(i * -1),
+                    Some(_) => Token::Int(-i),
                     None => Token::Int(i),
                 })
             }),
             alphanumeric1.map(|arr: &str| {
                 let s = arr;
-                let token = match s.as_ref() {
+                match s {
                     "let" => Token::Keyword(Keyword::LET),
                     "return" => Token::Keyword(Keyword::RETURN),
                     "if" => Token::Keyword(Keyword::IF),
@@ -176,12 +176,11 @@ fn parse_with_winnow(chars: &str) -> IResult<&str, Token> {
                     "true" => Token::Bool(true),
                     "false" => Token::Bool(false),
                     _ => Token::Identifier(s.to_string()),
-                };
-                token
+                }
             }),
         )),
     ))
-    .parse_peek(chars)
+        .parse_peek(chars)
 }
 
 #[cfg(test)]
@@ -296,7 +295,7 @@ fn parse_token(input: &str, loc: &Location) -> Result<(Token, Location), TokenEr
             return Err(TokenError::UnknownToken { token: cur });
         }
     };
-    return Ok(res);
+    Ok(res)
 }
 
 /// 代码转成token串
@@ -308,7 +307,7 @@ pub fn tokenlizer(code: String) -> anyhow::Result<Vec<Token>> {
     loop {
         debug!(?input);
         let (remain_input, token) =
-            parse_with_winnow(&input).map_err(|e| anyhow!(e.to_string()))?;
+            parse_with_winnow(input).map_err(|e| anyhow!(e.to_string()))?;
         if !matches!(token, Token::Comment | Token::Space) {
             tokens.push(token);
         }

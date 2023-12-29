@@ -43,6 +43,25 @@ enum SubCommand {
     },
 }
 
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn _test() {
+        assert_cmd::Command::new("cargo")
+            .arg("build")
+
+            .ok();
+    }
+
+    #[test]
+    fn cmd_test() {
+        assert_cmd::Command::cargo_bin(env!("CARGO_PKG_NAME"))
+            .unwrap()
+            .args(&["-h"])
+            .ok();
+    }
+}
+
 fn main() -> Result<()> {
     let matches = Args::parse();
     let _ = tracing_subscriber::registry()

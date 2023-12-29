@@ -297,7 +297,7 @@ fn parse_define_function(
     let func = FunctionDeclaration {
         name: func_name,
         parameters: params,
-        body: body,
+        body,
     };
     Ok((endline, (func)))
 }
