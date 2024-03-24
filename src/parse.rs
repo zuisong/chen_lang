@@ -4,8 +4,6 @@ use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::vec;
 
-use anyhow::Result;
-
 use crate::parse::OperatorPriority::*;
 use crate::*;
 

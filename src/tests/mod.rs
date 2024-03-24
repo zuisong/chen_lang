@@ -3,7 +3,7 @@ mod parse_test;
 mod token_test;
 
 #[cfg(test)]
-mod tests {
+mod tests_1 {
     use pretty_assertions::assert_eq;
 
     #[test]

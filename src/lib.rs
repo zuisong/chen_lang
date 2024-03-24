@@ -77,7 +77,8 @@ fn parser(tokens: Vec<Token>) -> Result<Ast> {
     Ok(ast)
 }
 
-fn compile(ast: Ast) -> Result<Program> {
+#[allow(dead_code)]
+fn compile(_ast: Ast) -> Result<Program> {
     todo!()
 }
 

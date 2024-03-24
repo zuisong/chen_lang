@@ -8,7 +8,7 @@ description = "A tiny programming language written in rust"
 [dependencies]
 anyhow = "1"
 thiserror = "1"
-winnow = "0.5"
+winnow = "0.6"
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", optional = true }
 
@@ -21,7 +21,7 @@ clap_complete = { version = "4", optional = true }
 [build-dependencies]
 
 [dev-dependencies]
-assert_cmd = "2.0.12"
+assert_cmd = "2"
 pretty_assertions = { version = "1", features = ["unstable"] }
 
 [[bin]]

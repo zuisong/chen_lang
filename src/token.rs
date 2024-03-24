@@ -4,13 +4,9 @@ use anyhow::anyhow;
 use thiserror::Error;
 use tracing::debug;
 use winnow::{
-    ascii::not_line_ending,
-    ascii::{alphanumeric1, digit1, line_ending},
-    combinator::separated_pair,
-    combinator::{alt, delimited, not, opt},
-    token::one_of,
-    token::tag,
-    token::take_until0,
+    ascii::{alphanumeric1, digit1, line_ending, till_line_ending},
+    combinator::{alt, delimited, not, opt, separated_pair},
+    token::{literal, one_of, take_until},
     IResult, Parser,
 };
 
@@ -123,42 +119,42 @@ pub enum Token {
 
 fn parse_with_winnow(chars: &str) -> IResult<&str, Token> {
     alt((
-        separated_pair(tag("#"), not_line_ending, line_ending).map(|_| Token::Comment),
+        separated_pair(literal("#"), till_line_ending, line_ending).map(|_| Token::Comment),
         alt((
             line_ending.value(Token::NewLine),
             one_of((' ', '\t', '\r', '\n')).value(Token::Space),
-            tag("{").value(Token::LBig),
-            tag("}").value(Token::RBig),
-            tag("[").value(Token::LSquare),
-            tag("]").value(Token::RSquare),
-            tag("(").value(Token::LParen),
-            tag(")").value(Token::RParen),
-            tag(":").value(Token::COLON),
-            tag(",").value(Token::COMMA),
+            literal("{").value(Token::LBig),
+            literal("}").value(Token::RBig),
+            literal("[").value(Token::LSquare),
+            literal("]").value(Token::RSquare),
+            literal("(").value(Token::LParen),
+            literal(")").value(Token::RParen),
+            literal(":").value(Token::COLON),
+            literal(",").value(Token::COMMA),
         )),
         alt((
-            tag("+").value(Token::Operator(Operator::ADD)),
-            tag("*").value(Token::Operator(Operator::Multiply)),
-            tag("/").value(Token::Operator(Operator::Divide)),
-            tag("%").value(Token::Operator(Operator::Mod)),
-            tag("==").value(Token::Operator(Operator::Equals)),
-            tag("=").value(Token::Operator(Operator::Assign)),
-            tag("&&").value(Token::Operator(Operator::And)),
-            tag("||").value(Token::Operator(Operator::Or)),
-            tag("!=").value(Token::Operator(Operator::NotEquals)),
-            tag("!").value(Token::Operator(Operator::NOT)),
-            tag("<=").value(Token::Operator(Operator::LTE)),
-            tag("<").value(Token::Operator(Operator::LT)),
-            tag(">=").value(Token::Operator(Operator::GTE)),
-            tag(">").value(Token::Operator(Operator::GT)),
-            (tag("-"), not(digit1)).value(Token::Operator(Operator::Subtract)),
+            literal("+").value(Token::Operator(Operator::ADD)),
+            literal("*").value(Token::Operator(Operator::Multiply)),
+            literal("/").value(Token::Operator(Operator::Divide)),
+            literal("%").value(Token::Operator(Operator::Mod)),
+            literal("==").value(Token::Operator(Operator::Equals)),
+            literal("=").value(Token::Operator(Operator::Assign)),
+            literal("&&").value(Token::Operator(Operator::And)),
+            literal("||").value(Token::Operator(Operator::Or)),
+            literal("!=").value(Token::Operator(Operator::NotEquals)),
+            literal("!").value(Token::Operator(Operator::NOT)),
+            literal("<=").value(Token::Operator(Operator::LTE)),
+            literal("<").value(Token::Operator(Operator::LT)),
+            literal(">=").value(Token::Operator(Operator::GTE)),
+            literal(">").value(Token::Operator(Operator::GT)),
+            (literal("-"), not(digit1)).value(Token::Operator(Operator::Subtract)),
             alt((
-                delimited(tag("\""), take_until0("\""), tag("\"")),
-                delimited(tag("\'"), take_until0("\'"), tag("\'")),
+                delimited(literal("\""), take_until(0.., "\""), literal("\"")),
+                delimited(literal("\'"), take_until(0.., "\'"), literal("\'")),
             ))
-                .map(|s: &str| Token::String(s.to_string())),
+            .map(|s: &str| Token::String(s.to_string())),
             //
-            (opt(tag("-")), digit1).try_map(|(sig, s): (Option<&str>, &str)| {
+            (opt(literal("-")), digit1).try_map(|(sig, s): (Option<&str>, &str)| {
                 s.parse::<i32>().map(|i| match sig {
                     Some(_) => Token::Int(-i),
                     None => Token::Int(i),
@@ -180,7 +176,7 @@ fn parse_with_winnow(chars: &str) -> IResult<&str, Token> {
             }),
         )),
     ))
-        .parse_peek(chars)
+    .parse_peek(chars)
 }
 
 #[cfg(test)]
@@ -201,7 +197,7 @@ mod tests {
         assert_matches!(parse_with_winnow("10a"), Ok(("a", Token::Int(10))));
         assert_matches!(parse_with_winnow("\"aaaa\""), Ok(("", Token::String(ref a))) if a == "aaaa");
         assert_matches!(parse_with_winnow("\'aaaa\'"),Ok(("", Token::String(ref a))) if a == "aaaa");
-        assert_matches!(parse_with_winnow("\'\'"), Ok(("", Token::String(ref a))) if a== "" );
+        assert_matches!(parse_with_winnow("\'\'"), Ok(("", Token::String(ref a))) if a.is_empty());
     }
 }
 
@@ -306,8 +302,7 @@ pub fn tokenlizer(code: String) -> anyhow::Result<Vec<Token>> {
 
     loop {
         debug!(?input);
-        let (remain_input, token) =
-            parse_with_winnow(input).map_err(|e| anyhow!(e.to_string()))?;
+        let (remain_input, token) = parse_with_winnow(input).map_err(|e| anyhow!(e.to_string()))?;
         if !matches!(token, Token::Comment | Token::Space) {
             tokens.push(token);
         }

@@ -43,25 +43,6 @@ enum SubCommand {
     },
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn _test() {
-        assert_cmd::Command::new("cargo")
-            .arg("build")
-
-            .ok();
-    }
-
-    #[test]
-    fn cmd_test() {
-        assert_cmd::Command::cargo_bin(env!("CARGO_PKG_NAME"))
-            .unwrap()
-            .args(&["-h"])
-            .ok();
-    }
-}
-
 fn main() -> Result<()> {
     let matches = Args::parse();
     let _ = tracing_subscriber::registry()
@@ -104,4 +85,21 @@ fn run_file(code_file: String) -> Result<()> {
 
 fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
     generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn _test() {
+        assert_cmd::Command::new("cargo").arg("build").ok().unwrap();
+    }
+
+    #[test]
+    fn cmd_test() {
+        assert_cmd::Command::cargo_bin(env!("CARGO_PKG_NAME"))
+            .unwrap()
+            .args(["-h"])
+            .ok()
+            .unwrap();
+    }
 }
