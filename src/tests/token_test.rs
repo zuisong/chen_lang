@@ -1,15 +1,13 @@
-#![rustfmt::skip]
-
 use pretty_assertions::assert_eq;
 
-use crate::Keyword::DEF;
-use crate::Operator::{NotEquals, Or, Subtract};
 use crate::token;
 use crate::token::Keyword::{ELSE, FOR, IF, LET};
-use crate::token::Operator::{ADD, Assign, Equals, LT, Mod};
+use crate::token::Operator::{Assign, Equals, Mod, ADD, LT};
 use crate::token::Token::{
     Identifier, Int, Keyword, LBig, LParen, NewLine, Operator, RBig, RParen, String,
 };
+use crate::Keyword::DEF;
+use crate::Operator::{NotEquals, Or, Subtract};
 
 #[test]
 fn test_parse_keyword() {
@@ -42,7 +40,7 @@ for i<100{
 }
 "#
     .to_string();
-
+    #[rustfmt::skip]
     assert_eq!(
         token::tokenlizer(code).unwrap(),
         vec![
@@ -90,6 +88,7 @@ println(sum)
 "#
     .to_string();
 
+    #[rustfmt::skip]
     assert_eq!(
         token::tokenlizer(code).unwrap(),
         vec![

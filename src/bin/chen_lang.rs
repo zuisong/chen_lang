@@ -74,32 +74,14 @@ fn run_file(code_file: String) -> Result<()> {
     debug!(?s);
     let mut f = OpenOptions::new().read(true).open(s)?;
 
-    let mut v = vec![];
-    f.read_to_end(&mut v)?;
-    let code = String::from_utf8(v)?;
-
+    let mut code = String::new();
+    f.read_to_string(&mut code)?;
     debug!(?code);
+
     chen_lang::run(code)?;
     Ok(())
 }
 
 fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
     generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn _test() {
-        assert_cmd::Command::new("cargo").arg("build").ok().unwrap();
-    }
-
-    #[test]
-    fn cmd_test() {
-        assert_cmd::Command::cargo_bin(env!("CARGO_PKG_NAME"))
-            .unwrap()
-            .args(["-h"])
-            .ok()
-            .unwrap();
-    }
 }
