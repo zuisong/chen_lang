@@ -15,13 +15,11 @@ tracing-subscriber = { version = "0.3", optional = true }
 clap = { version = "4", optional = true, features = ["derive"] }
 clap_complete = { version = "4", optional = true }
 
-
-
-
 [build-dependencies]
 
 [dev-dependencies]
 assert_cmd = "2"
+escargot = "0.5"
 pretty_assertions = { version = "1", features = ["unstable"] }
 
 [[bin]]
