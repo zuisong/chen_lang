@@ -2,7 +2,7 @@ use pretty_assertions::assert_eq;
 
 use crate::token;
 use crate::token::Keyword::{ELSE, FOR, IF, LET};
-use crate::token::Operator::{Assign, Equals, Mod, ADD, LT};
+use crate::token::Operator::{Add, Assign, Equals, Lt, Mod};
 use crate::token::Token::{
     Identifier, Int, Keyword, LBig, LParen, NewLine, Operator, RBig, RParen, String,
 };
@@ -46,14 +46,14 @@ for i<100{
         vec![
             NewLine,
             Keyword(LET), Identifier("i".to_string()), Operator(Assign), Int(0), NewLine,
-            Keyword(FOR), Identifier("i".to_string()), Operator(LT), Int(100), LBig, NewLine,
+            Keyword(FOR), Identifier("i".to_string()), Operator(Lt), Int(100), LBig, NewLine,
             NewLine,
             Keyword(IF), Identifier("i".to_string()), Operator(Mod), Int(2), Operator(Equals), Int(0), LBig, NewLine,
-            Identifier("println".to_string()), LParen, Identifier("i".to_string()), Operator(ADD), String(" 是偶数".to_string()), RParen, NewLine,
+            Identifier("println".to_string()), LParen, Identifier("i".to_string()), Operator(Add), String(" 是偶数".to_string()), RParen, NewLine,
             RBig, Keyword(ELSE), LBig, NewLine,
-            Identifier("println".to_string()), LParen, Identifier("i".to_string()), Operator(ADD), String(" 是奇数".to_string()), RParen, NewLine,
+            Identifier("println".to_string()), LParen, Identifier("i".to_string()), Operator(Add), String(" 是奇数".to_string()), RParen, NewLine,
             RBig, NewLine,
-            Identifier("i".to_string()), Operator(Assign), Identifier("i".to_string()), Operator(ADD), Int(1),
+            Identifier("i".to_string()), Operator(Assign), Identifier("i".to_string()), Operator(Add), Int(1),
             NewLine,
             RBig, NewLine,
         ]
@@ -100,7 +100,7 @@ println(sum)
             Identifier("i".to_string()), Operator(Assign), Identifier("i".to_string()), Operator(Subtract), Int(1), NewLine,
             Keyword(IF), LParen, Identifier("i".to_string()), Operator(Mod), Int(2), Operator(NotEquals), Int(0), RParen, Operator(Or), LParen, Identifier("i".to_string()), Operator(Mod), Int(3), Operator(Equals), Int(0), RParen, LBig, NewLine,
             Identifier("println".to_string()), LParen, Identifier("i".to_string()), RParen, NewLine,
-            Identifier("sum".to_string()), Operator(Assign), Identifier("sum".to_string()), Operator(ADD), Identifier("i".to_string()), NewLine,
+            Identifier("sum".to_string()), Operator(Assign), Identifier("sum".to_string()), Operator(Add), Identifier("i".to_string()), NewLine,
             RBig, NewLine,
             RBig, NewLine,
             Identifier("println".to_string()), LParen, String("100以内的 奇数或者是能被三整除的偶数 之和是".to_string()), RParen, NewLine,

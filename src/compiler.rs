@@ -13,14 +13,14 @@ fn compile_binary_operation(
     compile_expression(pgrm, raw, locals, *bop.left);
     compile_expression(pgrm, raw, locals, *bop.right);
     match bop.operator {
-        Operator::ADD => {
+        Operator::Add => {
             pgrm.instructions.push(Instruction::Add);
         }
         Operator::Subtract => {
             pgrm.instructions.push(Instruction::Subtract);
         }
 
-        Operator::LT => {
+        Operator::Lt => {
             pgrm.instructions.push(Instruction::LessThan);
         }
         _ => {
@@ -276,7 +276,7 @@ mod tests {
         let code: String = r#"
         let i = 0
         for i<100{
-       
+
                 print(i )
             i = i+1
         }

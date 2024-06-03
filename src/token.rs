@@ -40,7 +40,7 @@ pub enum Keyword {
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Operator {
     /// +
-    ADD,
+    Add,
     /// -
     Subtract,
     /// *
@@ -60,15 +60,15 @@ pub enum Operator {
     /// ||
     Or,
     /// !
-    NOT,
+    Not,
     /// >
-    GT,
+    Gt,
     /// <
-    LT,
+    Lt,
     /// >=
-    GTE,
+    GtE,
     /// <=
-    LTE,
+    LtE,
 }
 
 /// 标准库函数
@@ -102,7 +102,7 @@ pub enum Token {
     /// 右方括号
     RSquare,
     /// 冒号
-    COLON,
+    Colon,
     /// 逗号
     COMMA,
     /// (
@@ -129,11 +129,11 @@ fn parse_with_winnow(chars: &str) -> IResult<&str, Token> {
             literal("]").value(Token::RSquare),
             literal("(").value(Token::LParen),
             literal(")").value(Token::RParen),
-            literal(":").value(Token::COLON),
+            literal(":").value(Token::Colon),
             literal(",").value(Token::COMMA),
         )),
         alt((
-            literal("+").value(Token::Operator(Operator::ADD)),
+            literal("+").value(Token::Operator(Operator::Add)),
             literal("*").value(Token::Operator(Operator::Multiply)),
             literal("/").value(Token::Operator(Operator::Divide)),
             literal("%").value(Token::Operator(Operator::Mod)),
@@ -142,11 +142,11 @@ fn parse_with_winnow(chars: &str) -> IResult<&str, Token> {
             literal("&&").value(Token::Operator(Operator::And)),
             literal("||").value(Token::Operator(Operator::Or)),
             literal("!=").value(Token::Operator(Operator::NotEquals)),
-            literal("!").value(Token::Operator(Operator::NOT)),
-            literal("<=").value(Token::Operator(Operator::LTE)),
-            literal("<").value(Token::Operator(Operator::LT)),
-            literal(">=").value(Token::Operator(Operator::GTE)),
-            literal(">").value(Token::Operator(Operator::GT)),
+            literal("!").value(Token::Operator(Operator::Not)),
+            literal("<=").value(Token::Operator(Operator::LtE)),
+            literal("<").value(Token::Operator(Operator::Lt)),
+            literal(">=").value(Token::Operator(Operator::GtE)),
+            literal(">").value(Token::Operator(Operator::Gt)),
             (literal("-"), not(digit1)).value(Token::Operator(Operator::Subtract)),
             alt((
                 delimited(literal("\""), take_until(0.., "\""), literal("\"")),
@@ -222,9 +222,9 @@ fn parse_token(input: &str, loc: &Location) -> Result<(Token, Location), TokenEr
         ']' => (Token::RSquare, loc.incr()),
         '(' => (Token::LParen, loc.incr()),
         ')' => (Token::RParen, loc.incr()),
-        ':' => (Token::COLON, loc.incr()),
+        ':' => (Token::Colon, loc.incr()),
         ',' => (Token::COMMA, loc.incr()),
-        '+' => (Token::Operator(Operator::ADD), loc.incr()),
+        '+' => (Token::Operator(Operator::Add), loc.incr()),
         '*' => (Token::Operator(Operator::Multiply), loc.incr()),
         '/' => (Token::Operator(Operator::Divide), loc.incr()),
         '%' => (Token::Operator(Operator::Mod), loc.incr()),
@@ -233,11 +233,11 @@ fn parse_token(input: &str, loc: &Location) -> Result<(Token, Location), TokenEr
         '&' if next == '&' => (Token::Operator(Operator::And), loc.incr2()),
         '|' if next == '|' => (Token::Operator(Operator::Or), loc.incr2()),
         '!' if next == '=' => (Token::Operator(Operator::NotEquals), loc.incr2()),
-        '!' if next != '=' => (Token::Operator(Operator::NOT), loc.incr()),
-        '<' if next == '=' => (Token::Operator(Operator::LTE), loc.incr2()),
-        '<' if next != '=' => (Token::Operator(Operator::LT), loc.incr()),
-        '>' if next == '=' => (Token::Operator(Operator::GTE), loc.incr2()),
-        '>' if next != '=' => (Token::Operator(Operator::GT), loc.incr()),
+        '!' if next != '=' => (Token::Operator(Operator::Not), loc.incr()),
+        '<' if next == '=' => (Token::Operator(Operator::LtE), loc.incr2()),
+        '<' if next != '=' => (Token::Operator(Operator::Lt), loc.incr()),
+        '>' if next == '=' => (Token::Operator(Operator::GtE), loc.incr2()),
+        '>' if next != '=' => (Token::Operator(Operator::Gt), loc.incr()),
         '-' if !next.is_numeric() => (Token::Operator(Operator::Subtract), loc.incr()),
         '"' | '\'' => {
             let mut l = loc.incr();

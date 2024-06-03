@@ -34,7 +34,7 @@ impl PartialOrd for OperatorPriority {
 
 fn get_priority(opt: &Operator) -> OperatorPriority {
     match opt {
-        Operator::ADD => Small,
+        Operator::Add => Small,
         Operator::Subtract => Small,
         Operator::Multiply => Middle,
         Operator::Divide => Middle,
@@ -44,11 +44,11 @@ fn get_priority(opt: &Operator) -> OperatorPriority {
         Operator::Equals => Middle,
         Operator::NotEquals => Middle,
         Operator::Or => Minimal,
-        Operator::NOT => Normal,
-        Operator::GT => Middle,
-        Operator::LT => Middle,
-        Operator::GTE => Middle,
-        Operator::LTE => Middle,
+        Operator::Not => Normal,
+        Operator::Gt => Middle,
+        Operator::Lt => Middle,
+        Operator::GtE => Middle,
+        Operator::LtE => Middle,
     }
 }
 
@@ -100,7 +100,7 @@ pub fn parse_expression(line: &[Token]) -> anyhow::Result<Expression> {
                     unreachable!();
                 }
 
-                Operator::NOT => Expression::NotStatement(NotStatement {
+                Operator::Not => Expression::NotStatement(NotStatement {
                     expr: Box::new(tmp.pop().unwrap()),
                 }),
 

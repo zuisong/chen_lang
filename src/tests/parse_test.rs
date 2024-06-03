@@ -34,7 +34,7 @@ fn parse() {
             },),
             Statement::Loop(Loop {
                 test: Expression::BinaryOperation(BinaryOperation {
-                    operator: Operator::LT,
+                    operator: Operator::Lt,
                     left: Expression::Literal(Literal::Identifier("i".to_string(),),).into(),
                     right: Expression::Literal(Literal::Value(Value::Int(100,),),).into(),
                 },),
@@ -55,7 +55,7 @@ fn parse() {
                             FunctionCall {
                                 name: "println".to_string(),
                                 arguments: vec![Expression::BinaryOperation(BinaryOperation {
-                                    operator: Operator::ADD,
+                                    operator: Operator::Add,
                                     left: Expression::Literal(
                                         Literal::Identifier("i".to_string(),),
                                     )
@@ -71,7 +71,7 @@ fn parse() {
                             FunctionCall {
                                 name: "println".to_string(),
                                 arguments: vec![Expression::BinaryOperation(BinaryOperation {
-                                    operator: Operator::ADD,
+                                    operator: Operator::Add,
                                     left: Expression::Literal(
                                         Literal::Identifier("i".to_string(),),
                                     )
@@ -87,7 +87,7 @@ fn parse() {
                     Statement::Assign(Assign {
                         name: "i".to_string(),
                         expr: Expression::BinaryOperation(BinaryOperation {
-                            operator: Operator::ADD,
+                            operator: Operator::Add,
                             left: Expression::Literal(Literal::Identifier("i".to_string(),),)
                                 .into(),
                             right: Expression::Literal(Literal::Value(Value::Int(1,),),).into(),

@@ -82,6 +82,6 @@ fn run_file(code_file: String) -> Result<()> {
     Ok(())
 }
 
-fn print_completions<G: Generator>(gen: G, cmd: &mut Command) {
-    generate(gen, cmd, cmd.get_name().to_string(), &mut io::stdout());
+fn print_completions<G: Generator>(g: G, cmd: &mut Command) {
+    generate(g, cmd, cmd.get_name().to_string(), &mut io::stdout());
 }
