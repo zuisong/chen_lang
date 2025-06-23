@@ -140,7 +140,7 @@ pub fn eval(pgrm: Program) {
 mod tests {
     use std::collections::HashMap;
 
-    use super::{eval, Instruction, Program};
+    use super::{Instruction, Program, eval};
 
     #[test]
     fn test_print_1() {

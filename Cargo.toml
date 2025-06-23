@@ -1,14 +1,15 @@
 [package]
 authors = ["zuisong <378818573@qq.com>"]
 default-run = "chen_lang"
-edition = "2021"
+edition = "2024"
 name = "chen_lang"
 version = "0.1.0"
 description = "A tiny programming language written in rust"
+rust-version = "1.86"
 [dependencies]
 anyhow = "1"
-thiserror = "1"
-winnow = "0.6"
+thiserror = "2"
+winnow = "0.7"
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", optional = true }
 

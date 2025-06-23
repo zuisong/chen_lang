@@ -48,7 +48,7 @@ where
 }
 
 /// 运行代码
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub fn run(code: String) -> Result<()> {
     let tokens = tokenlizer(code)?;
     debug!("tokens => {:?}", &tokens);

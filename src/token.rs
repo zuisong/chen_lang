@@ -4,10 +4,10 @@ use anyhow::anyhow;
 use thiserror::Error;
 use tracing::debug;
 use winnow::{
+    ModalResult, Parser,
     ascii::{alphanumeric1, digit1, line_ending, till_line_ending},
     combinator::{alt, delimited, not, opt, separated_pair},
     token::{literal, one_of, take_until},
-    IResult, Parser,
 };
 
 #[derive(Error, Debug)]
@@ -116,8 +116,7 @@ pub enum Token {
     // 空格
     Space,
 }
-
-fn parse_with_winnow(chars: &str) -> IResult<&str, Token> {
+fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
     alt((
         separated_pair(literal("#"), till_line_ending, line_ending).map(|_| Token::Comment),
         alt((
@@ -183,9 +182,9 @@ fn parse_with_winnow(chars: &str) -> IResult<&str, Token> {
 mod tests {
     use pretty_assertions::assert_matches;
 
-    use crate::token::parse_with_winnow;
     use crate::Operator;
     use crate::Token;
+    use crate::token::parse_with_winnow;
 
     #[test]
     fn test() {
@@ -374,7 +373,7 @@ impl Location {
             }
 
             if self.line == line {
-                line_str.push_str(&c.to_string());
+                line_str.push(*c);
             }
         }
 

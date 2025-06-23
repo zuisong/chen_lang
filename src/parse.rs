@@ -121,7 +121,7 @@ pub fn parse_expression(line: &[Token]) -> anyhow::Result<Expression> {
                 Token::Int(i) => Literal::Value(Value::Int(i)),
                 Token::Bool(i) => Literal::Value(Value::Bool(i)),
                 Token::String(i) => Literal::Value(Value::Str(i)),
-                _ => panic!("错误,{:?}", t),
+                _ => panic!("错误,{t:?}"),
             };
             tmp.push(Expression::Literal(ele));
         }
@@ -320,7 +320,7 @@ pub fn parse_assign(line: &[Token]) -> Result<Assign> {
             };
             Ok(var)
         }
-        _ => Err(err_msg(format!("赋值语句语法不对，{:?}", line))),
+        _ => Err(err_msg(format!("赋值语句语法不对，{line:?}"))),
     }
 }
 

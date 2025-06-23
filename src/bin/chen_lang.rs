@@ -5,12 +5,12 @@ use std::{
 
 use anyhow::{Ok, Result};
 use clap::{
-    builder::{PossibleValuesParser, TypedValueParser, ValueParser},
     Command, CommandFactory, Parser,
+    builder::{PossibleValuesParser, TypedValueParser, ValueParser},
 };
-use clap_complete::{generate, Generator, Shell};
-use tracing::{debug, metadata::LevelFilter, Level};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, Layer};
+use clap_complete::{Generator, Shell, generate};
+use tracing::{Level, debug, metadata::LevelFilter};
+use tracing_subscriber::{Layer, layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about)]
