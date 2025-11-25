@@ -309,7 +309,6 @@ pub fn eval(pgrm: Program) {
 #[cfg(test)]
 mod tests {
 use std::collections::HashMap;
-use tracing::debug;
 
     use super::{Instruction, Program, eval};
 
