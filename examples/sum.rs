@@ -7,7 +7,7 @@ fn main() {
 def aaa(n){
     let i = 100
     let sum = 0
-    for i!=0 {
+    for i != 0 {
         i = i - 1
         # 这里有相对复杂的逻辑运算
         if (i%2!=0) || (i%3==0)  {

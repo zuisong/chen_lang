@@ -5,7 +5,7 @@ edition = "2024"
 name = "chen_lang"
 version = "0.1.0"
 description = "A tiny programming language written in rust"
-rust-version = "1.86"
+rust-version = "1.90"
 [dependencies]
 anyhow = "1"
 thiserror = "2"
@@ -22,6 +22,7 @@ clap_complete = { version = "4", optional = true }
 assert_cmd = "2"
 escargot = "0.5"
 pretty_assertions = { version = "1", features = ["unstable"] }
+tempfile = "3"
 
 [[bin]]
 name = "chen_lang"

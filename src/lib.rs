@@ -54,7 +54,12 @@ pub fn run(code: String) -> Result<()> {
     debug!("tokens => {:?}", &tokens);
     let ast: Ast = parser(tokens)?;
     debug!("ast => {:?}", &ast);
-    // evaluate(ast)?;
+    
+    // 编译为字节码并执行
+    let program = compiler::compile(&[], ast);
+    debug!("bytecode => {:?}", &program);
+    vm::eval(program);
+    
     Ok(())
 }
 

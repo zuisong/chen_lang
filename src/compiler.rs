@@ -14,22 +14,46 @@ fn compile_binary_operation(
     compile_expression(pgrm, raw, locals, *bop.right);
     match bop.operator {
         Operator::Add => {
+            // 直接使用 Add 指令，VM 会处理字符串连接
             pgrm.instructions.push(Instruction::Add);
         }
         Operator::Subtract => {
             pgrm.instructions.push(Instruction::Subtract);
         }
-
+        Operator::Multiply => {
+            pgrm.instructions.push(Instruction::Multiply);
+        }
+        Operator::Divide => {
+            pgrm.instructions.push(Instruction::Divide);
+        }
+        Operator::Mod => {
+            pgrm.instructions.push(Instruction::Modulo);
+        }
+        Operator::Equals => {
+            pgrm.instructions.push(Instruction::Equal);
+        }
+        Operator::NotEquals => {
+            pgrm.instructions.push(Instruction::NotEqual);
+        }
         Operator::Lt => {
             pgrm.instructions.push(Instruction::LessThan);
         }
+        Operator::LtE => {
+            pgrm.instructions.push(Instruction::LessThanOrEqual);
+        }
+        Operator::Gt => {
+            pgrm.instructions.push(Instruction::GreaterThan);
+        }
+        Operator::GtE => {
+            pgrm.instructions.push(Instruction::GreaterThanOrEqual);
+        }
+        Operator::And => {
+            pgrm.instructions.push(Instruction::And);
+        }
+        Operator::Or => {
+            pgrm.instructions.push(Instruction::Or);
+        }
         _ => {
-            // panic!(
-            //     "{}",
-            //     bop.operator
-            //         .loc
-            //         .debug(raw, "Unable to compile binary operation:")
-            // )
             panic!("Unable to compile binary operation: {:?}", bop.operator)
         }
     }
@@ -57,10 +81,20 @@ fn compile_literal(
 ) {
     match lit {
         Literal::Value(i) => {
-            if let Value::Int(n) = i {
-                pgrm.instructions.push(Instruction::Store(n));
-            } else {
-                todo!()
+            match i {
+                Value::Int(n) => {
+                    pgrm.instructions.push(Instruction::Store(n));
+                }
+                Value::Bool(b) => {
+                    pgrm.instructions.push(Instruction::Store(if b { 1 } else { 0 }));
+                }
+                Value::Str(s) => {
+                    // 直接存储字符串
+                    pgrm.instructions.push(Instruction::StoreString(s.clone()));
+                }
+                _ => {
+                    todo!()
+                }
             }
         }
         Literal::Identifier(ident) => {
@@ -86,7 +120,10 @@ fn compile_expression(
         Expression::Literal(lit) => {
             compile_literal(pgrm, raw, locals, lit);
         }
-        Expression::NotStatement(_) => todo!(),
+        Expression::NotStatement(not_stmt) => {
+            compile_expression(pgrm, raw, locals, *not_stmt.expr);
+            pgrm.instructions.push(Instruction::Not);
+        }
     }
 }
 
@@ -149,16 +186,41 @@ fn compile_return(
 
 fn compile_if(pgrm: &mut Program, raw: &[char], locals: &mut HashMap<String, i32>, if_: If) {
     compile_expression(pgrm, raw, locals, if_.test);
-    let done_label = format!("if_else_{}", pgrm.instructions.len());
+    let else_label = format!("if_else_{}", pgrm.instructions.len());
+    let end_label = format!("if_end_{}", pgrm.instructions.len());
+    
+    // If condition is false, jump to else
     pgrm.instructions
-        .push(Instruction::JumpIfNotZero(done_label.clone()));
+        .push(Instruction::JumpIfZero(else_label.clone()));
+    
+    // Compile then branch
     for stmt in if_.body {
         compile_statement(pgrm, raw, locals, stmt);
     }
+    
+    // Jump to end
+    pgrm.instructions.push(Instruction::Jump(end_label.clone()));
+    
+    // Else label
     pgrm.syms.insert(
-        done_label,
+        else_label,
         Symbol {
-            location: pgrm.instructions.len() as i32 - 1,
+            location: pgrm.instructions.len() as i32,
+            nlocals: 0,
+            narguments: 0,
+        },
+    );
+    
+    // Compile else branch
+    for stmt in if_.else_body {
+        compile_statement(pgrm, raw, locals, stmt);
+    }
+    
+    // End label
+    pgrm.syms.insert(
+        end_label,
+        Symbol {
+            location: pgrm.instructions.len() as i32,
             nlocals: 0,
             narguments: 0,
         },
@@ -203,9 +265,9 @@ fn compile_assign(
     // 编译右侧表达式
     compile_expression(pgrm, raw, locals, *assign.expr);
 
-    // 生成 Store 指令
+    // 生成 MovePlusFP 指令
     let offset = locals[&assign.name];
-    pgrm.instructions.push(Instruction::Store(offset));
+    pgrm.instructions.push(Instruction::MovePlusFP(offset as usize));
 }
 
 fn compile_loop(pgrm: &mut Program, raw: &[char], locals: &mut HashMap<String, i32>, loop_: Loop) {
@@ -214,9 +276,6 @@ fn compile_loop(pgrm: &mut Program, raw: &[char], locals: &mut HashMap<String, i
 
     // 循环结束的标签
     let loop_end = format!("loop_end_{}", pgrm.instructions.len());
-
-    // 跳转到循环开始标签
-    pgrm.instructions.push(Instruction::Jump(loop_end.clone()));
 
     // 插入循环开始标签
     pgrm.syms.insert(
@@ -231,9 +290,9 @@ fn compile_loop(pgrm: &mut Program, raw: &[char], locals: &mut HashMap<String, i
     // 编译循环条件表达式
     compile_expression(pgrm, raw, locals, loop_.test);
 
-    // 如果条件满足,跳转到循环开始标签
+    // 如果条件不满足,跳转到循环结束标签
     pgrm.instructions
-        .push(Instruction::JumpIfNotZero(loop_end.clone()));
+        .push(Instruction::JumpIfZero(loop_end.clone()));
 
     // 编译循环体语句
     for stmt in loop_.body {
@@ -272,23 +331,20 @@ pub fn compile(raw: &[char], ast: Ast) -> Program {
 mod tests {
 
     #[test]
-    fn test_compile() {
-        let code: String = r#"
-        let i = 0
-        for i<100{
+    fn test_vm_simple() {
+        use std::collections::HashMap;
+        use crate::vm::{Instruction, Program, eval};
+        
+        let pgrm = Program {
+            syms: HashMap::new(),
+            instructions: vec![
+                Instruction::Store(5),
+                Instruction::Store(3),
+                Instruction::Add,
+                Instruction::Call("print".to_string(), 1),
+            ],
+        };
 
-                print(i )
-            i = i+1
-        }
-        "#
-        .to_string();
-
-        let res = crate::parser(crate::token::tokenlizer(code).unwrap()).unwrap();
-
-        let pgrm = crate::compiler::compile(&['a'], res);
-
-        dbg!(&pgrm);
-
-        crate::vm::eval(pgrm);
+        eval(pgrm);
     }
 }

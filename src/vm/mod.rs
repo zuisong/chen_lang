@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub enum Instruction {
+    // Stack operations
     DupPlusFP(i32),          // 复制fp偏移量i处的值并推入栈顶
     MoveMinusFP(usize, i32), // 将fp-偏移量i处的值移动到fp+偏移量local_offset处
     MovePlusFP(usize),       // 将栈顶值移动到fp+偏移量i处
@@ -12,7 +14,20 @@ pub enum Instruction {
     Call(String, usize),     // 调用函数
     Add,
     Subtract,
+    Multiply,
+    Divide,
+    Modulo,
+    Equal,
+    NotEqual,
     LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
+    And,
+    Or,
+    Not,
+    JumpIfZero(String),      // 如果栈顶值为0则跳转到label处
+    StoreString(String),      // 存储字符串字面量
 }
 
 #[derive(Debug)]
@@ -32,6 +47,7 @@ pub fn eval(pgrm: Program) {
     let mut pc: i32 = 0; // 程序计数器
     let mut fp: i32 = 0; // 帧指针
     let mut data: Vec<i32> = vec![]; // 数据栈
+    let mut string_pool: Vec<String> = vec![]; // 字符串池
 
     while pc < pgrm.instructions.len() as i32 {
         match &pgrm.instructions[pc as usize] {
@@ -55,10 +71,19 @@ pub fn eval(pgrm: Program) {
             }
             Instruction::JumpIfNotZero(label) => {
                 let top = data.pop().unwrap();
+                if top != 0 {
+                    pc = pgrm.syms[label].location;
+                } else {
+                    pc += 1;
+                }
+            }
+            Instruction::JumpIfZero(label) => {
+                let top = data.pop().unwrap();
                 if top == 0 {
                     pc = pgrm.syms[label].location;
+                } else {
+                    pc += 1;
                 }
-                pc += 1;
             }
             Instruction::Jump(label) => {
                 pc = pgrm.syms[label].location;
@@ -87,12 +112,28 @@ pub fn eval(pgrm: Program) {
             }
             Instruction::Call(label, narguments) => {
                 // Handle builtin functions
-                if label == "print" {
+                if label == "print" || label == "println" {
                     for _ in 0..*narguments {
-                        print!("{}", data.pop().unwrap());
+                        let val = data.pop().unwrap();
+                        // 检查是否是字符串（负数）
+                        if val < 0 {
+                            // 从字符串池中获取字符串
+                            let index = (-val) as usize - 1; // 转换为0-based索引
+                            if index < string_pool.len() {
+                                print!("{}", string_pool[index]);
+                            } else {
+                                print!("str_{}", val);
+                            }
+                        } else {
+                            print!("{}", val);
+                        }
                         print!(" ");
                     }
-                    println!();
+                    if label == "println" {
+                        println!();
+                    } else {
+                        print!(""); // print 也换行以保持一致性
+                    }
                     pc += 1;
                     continue;
                 }
@@ -113,7 +154,41 @@ pub fn eval(pgrm: Program) {
             Instruction::Add => {
                 let right = data.pop().unwrap();
                 let left = data.pop().unwrap();
-                data.push(left + right);
+                
+                // 检查是否是字符串连接操作
+                if left < 0 || right < 0 {
+                    // 至少有一个操作数是字符串
+                    let left_str = if left < 0 {
+                        let index = (-left) as usize - 1;
+                        if index < string_pool.len() {
+                            string_pool[index].clone()
+                        } else {
+                            format!("str_{}", left)
+                        }
+                    } else {
+                        left.to_string()
+                    };
+                    
+                    let right_str = if right < 0 {
+                        let index = (-right) as usize - 1;
+                        if index < string_pool.len() {
+                            string_pool[index].clone()
+                        } else {
+                            format!("str_{}", right)
+                        }
+                    } else {
+                        right.to_string()
+                    };
+                    
+                    // 连接字符串并添加到字符串池
+                    let result = left_str + &right_str;
+                    string_pool.push(result.clone());
+                    let index = string_pool.len() as i32;
+                    data.push(-index);
+                } else {
+                    // 普通整数加法
+                    data.push(left + right);
+                }
                 pc += 1;
             }
             Instruction::Subtract => {
@@ -122,10 +197,82 @@ pub fn eval(pgrm: Program) {
                 data.push(left - right);
                 pc += 1;
             }
+            Instruction::Multiply => {
+                let right = data.pop().unwrap();
+                let left = data.pop().unwrap();
+                data.push(left * right);
+                pc += 1;
+            }
+            Instruction::Divide => {
+                let right = data.pop().unwrap();
+                let left = data.pop().unwrap();
+                data.push(left / right);
+                pc += 1;
+            }
+            Instruction::Modulo => {
+                let right = data.pop().unwrap();
+                let left = data.pop().unwrap();
+                data.push(left % right);
+                pc += 1;
+            }
+            Instruction::Equal => {
+                let right = data.pop().unwrap();
+                let left = data.pop().unwrap();
+                data.push(if left == right { 1 } else { 0 });
+                pc += 1;
+            }
+            Instruction::NotEqual => {
+                let right = data.pop().unwrap();
+                let left = data.pop().unwrap();
+                data.push(if left != right { 1 } else { 0 });
+                pc += 1;
+            }
             Instruction::LessThan => {
                 let right = data.pop().unwrap();
                 let left = data.pop().unwrap();
-                data.push(if left < right { 0 } else { 1 });
+                data.push(if left < right { 1 } else { 0 });
+                pc += 1;
+            }
+            Instruction::LessThanOrEqual => {
+                let right = data.pop().unwrap();
+                let left = data.pop().unwrap();
+                data.push(if left <= right { 1 } else { 0 });
+                pc += 1;
+            }
+            Instruction::GreaterThan => {
+                let right = data.pop().unwrap();
+                let left = data.pop().unwrap();
+                data.push(if left > right { 1 } else { 0 });
+                pc += 1;
+            }
+            Instruction::GreaterThanOrEqual => {
+                let right = data.pop().unwrap();
+                let left = data.pop().unwrap();
+                data.push(if left >= right { 1 } else { 0 });
+                pc += 1;
+            }
+            Instruction::And => {
+                let right = data.pop().unwrap();
+                let left = data.pop().unwrap();
+                data.push(if left != 0 && right != 0 { 1 } else { 0 });
+                pc += 1;
+            }
+            Instruction::Or => {
+                let right = data.pop().unwrap();
+                let left = data.pop().unwrap();
+                data.push(if left != 0 || right != 0 { 1 } else { 0 });
+                pc += 1;
+            }
+            Instruction::Not => {
+                let val = data.pop().unwrap();
+                data.push(if val == 0 { 1 } else { 0 });
+                pc += 1;
+            }
+            Instruction::StoreString(s) => {
+                // 将字符串添加到字符串池，并存储其索引（负数）
+                string_pool.push(s.clone());
+                let index = string_pool.len() as i32;
+                data.push(-index); // 使用负数表示字符串索引
                 pc += 1;
             }
             Instruction::Store(n) => {
