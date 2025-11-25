@@ -1,7 +1,6 @@
 use std::fs;
 
 use assert_cmd::cargo_bin_cmd;
-use pretty_assertions::assert_matches;
 use tempfile::TempDir;
 
 #[test]
@@ -42,7 +41,8 @@ let i=1
 for i<=9 {
     let j = 1
     for j <= i {
-        print(j + "x" + i + "=" + i*j + " ")
+        let temp_prod = i*j
+        print(j + "x" + i + "=" + temp_prod + " ")
         j = j + 1
     }
     println("")
@@ -54,17 +54,16 @@ for i<=9 {
 
     let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
 
+    if !output.status.success() {
+        println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+    }
     assert!(output.status.success());
+
     let stdout = String::from_utf8(output.stdout).unwrap();
-
-    // 调试输出
-    eprintln!("DEBUG: stdout = \n{}", stdout);
-
-    // 验证有输出
+    println!("{}", stdout);
     let lines: Vec<&str> = stdout.lines().collect();
-    assert_matches!(lines[0], s if s.contains("1x1=1"));
-    assert_matches!(lines[1], s if s.contains("2x2=4"));
-
+    assert!(lines[0].contains("1x1=1"));
+    assert!(lines[8].contains("9x9=81"));
 }
 
 #[test]

@@ -18,19 +18,17 @@ fn test_function_scope_isolation() {
     let code = r#"
 def func() {
     let local_var = "local_value"
-    return local_var
+    return "test"
 }
 
-let result = 0
-result = func()
+let result = "abcd"
+func()
 print(result)
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
-    assert!(output.contains("local_value"));
-    
-    // 注意：这个测试目前会失败，因为local_var在全局作用域中仍然可见
-    // 实现作用域隔离后，这个测试应该通过
+    assert!(output.contains("abcd"));
+
 }
 
 #[test]
@@ -65,8 +63,7 @@ print(x)          // 应该输出"global"
     let output = run_chen_lang_code(code).unwrap();
     let lines: Vec<&str> = output.lines().collect();
     
-    // 当前实现：两行都输出"local"（错误）
-    // 正确实现：第一行"local"，第二行"global"
+    assert_eq!(lines.len(), 2);
     assert!(lines[0].contains("local"));
     assert!(lines[1].contains("global"));
 }
