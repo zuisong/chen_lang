@@ -51,19 +51,6 @@ where
 #[unsafe(no_mangle)]
 pub fn run(code: String) -> Result<()> {
     let tokens = tokenlizer(code)?;
-    debug!("tokens => {:?}", &tokens);
-    let ast: Ast = parser(tokens)?;
-    debug!("ast => {:?}", &ast);
-    
-    // 编译为字节码并执行
-    let program = compiler::compile(&[], ast);
-    vm::eval(program);
-    
-    Ok(())
-}
-
-/// 词法
-fn parser(tokens: Vec<Token>) -> Result<Ast> {
     let mut lines: Vec<Box<[Token]>> = vec![];
     let mut temp = vec![];
     for x in tokens {
@@ -77,8 +64,15 @@ fn parser(tokens: Vec<Token>) -> Result<Ast> {
         }
     }
     let (_, ast) = parse::parse_block(lines.as_slice(), 0)?;
-
-    Ok(ast)
+    debug!("ast => {:?}", &ast);
+    
+    // 编译为字节码并执行
+    let program = compiler::compile(&[], ast);
+    debug!("Instructions: {:?}", program.instructions);
+    debug!("Symbols: {:?}", program.syms);
+    vm::eval(program);
+    
+    Ok(())
 }
 
 #[allow(dead_code)]

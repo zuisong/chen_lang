@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use tracing::debug;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -103,18 +104,21 @@ pub fn eval(pgrm: Program) {
                 pc = pgrm.syms[label].location;
             }
             Instruction::Return => {
+                debug!("RETURN: data={:?}, fp={}, pc={}", data, fp, pc);
                 let ret = data.pop().unwrap();
+                debug!("RETURN: popped return value={}", ret);
 
                 // Clean up the local stack
                 while fp < data.len() as i32 {
                     data.pop();
                 }
+                debug!("RETURN: after cleanup, data={:?}", data);
 
                 // Restore pc and fp
                 let mut narguments = data.pop().unwrap();
                 pc = data.pop().unwrap();
                 fp = data.pop().unwrap();
-                println!("RETURN: Restored pc={}, fp={}", pc, fp);
+                debug!("RETURN: Restored pc={}, fp={}, narguments={}", pc, fp, narguments);
 
                 // Clean up arguments
                 while narguments > 0 {
@@ -126,6 +130,7 @@ pub fn eval(pgrm: Program) {
                 data.push(ret);
             }
             Instruction::Call(label, narguments) => {
+                debug!("CALL: label={}, narguments={}, data={:?}, fp={}, pc={}", label, narguments, data, fp, pc);
                 // Handle builtin functions
                 if label == "print" || label == "println" {
                     for _ in 0..*narguments {
@@ -149,6 +154,7 @@ pub fn eval(pgrm: Program) {
                     } else {
                         print!(""); // print 也换行以保持一致性
                     }
+                    // 内置函数不需要返回值，直接继续执行下一条指令
                     pc += 1;
                     continue;
                 }
@@ -302,7 +308,8 @@ pub fn eval(pgrm: Program) {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+use std::collections::HashMap;
+use tracing::debug;
 
     use super::{Instruction, Program, eval};
 

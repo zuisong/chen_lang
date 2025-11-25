@@ -6,7 +6,8 @@ def test(){
     println("hello")
     42
 }
-let x = test()
+let x = 0
+x = test()
 println("done")
 "#
     .to_string();

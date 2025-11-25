@@ -3,9 +3,10 @@ fn main() {
 
     let code = r#"
 def func(){
-    123
+    return 123
 }
-let x = func()
+let x = 1
+x =  func()
 println(x)
 "#
     .to_string();

@@ -214,7 +214,13 @@ fn parse_func_call(line: &[Token]) -> Result<FunctionCall> {
 
     match param_idx.len() {
         0 => {
-            params.push(parse_expression(&line[2..(line.len() - 1)])?);
+            // 检查是否是无参数函数调用
+            if line.len() == 3 && line[1] == Token::LParen && line[2] == Token::RParen {
+                // 无参数函数调用，不需要解析参数
+                params = vec![];
+            } else {
+                params.push(parse_expression(&line[2..(line.len() - 1)])?);
+            }
         }
         _ => {
             params.push(parse_expression(&line[2..param_idx[0]])?);
@@ -251,7 +257,6 @@ pub fn parse_return(line: &[Token]) -> Result<Return> {
 
 /// 分析声明语句
 pub fn parse_declare(line: &[Token]) -> Result<Local> {
-    debug!("{:?}", &line);
 
     // let var_type = match &line[0] {
     //     Token::Keyword(Keyword::LET) => VarType::Let,
@@ -263,6 +268,18 @@ pub fn parse_declare(line: &[Token]) -> Result<Local> {
         Token::Identifier(name) => name,
         _ => unreachable!(),
     };
+
+    // 检查是否有初始值
+    if line.len() < 4 || line[2] != Token::Operator(Operator::Assign) {
+        return Err(err_msg("语法错误：变量定义必须有初始值。正确格式：let x = 表达式"));
+    }
+
+    // 检查是否是函数调用语法（不支持）
+    if let Token::Identifier(_) = line[3] {
+        if line.get(4) == Some(&Token::LParen) {
+            return Err(err_msg("语法错误：不支持在变量声明中直接调用函数。请使用两行：\nlet x = 0\nx = test()"));
+        }
+    }
 
     let var = Local {
         name: name.clone(),
@@ -305,14 +322,14 @@ pub fn parse_assign(line: &[Token]) -> Result<Assign> {
     debug!("{:?}", &line);
 
     match &line[0] {
-        Token::Identifier(name) => {
-            assert_eq!(&line[1], &Token::Operator(Operator::Assign));
-            let expr: Expression = match &line[2] {
-                Token::Identifier(_) if line.get(3) == Some(&Token::LParen) => {
-                    Expression::FunctionCall(parse_func_call(&line[2..])?)
-                }
-                _ => parse_expression(&line[2..])?,
-            };
+            Token::Identifier(name) => {
+                assert_eq!(&line[1], &Token::Operator(Operator::Assign));
+                let expr: Expression = match &line[2] {
+                    Token::Identifier(_) if line.get(3) == Some(&Token::LParen) => {
+                        Expression::FunctionCall(parse_func_call(&line[2..])?)
+                    }
+                    _ => parse_expression(&line[2..])?,
+                };
 
             let var = Assign {
                 name: name.clone(),

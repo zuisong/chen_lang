@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use tracing::debug;
 
 use crate::expression::*;
 use crate::token::Operator;
@@ -320,26 +321,50 @@ pub fn compile(raw: &[char], ast: Ast) -> Program {
     for stmt in ast {
         match stmt {
             Statement::FunctionDeclaration(fd) => {
+                debug!("Found function declaration: {}", fd.name);
                 function_declarations.push(fd);
             }
             _ => {
+                debug!("Found main statement: {:?}", stmt);
                 main_statements.push(stmt);
             }
         }
     }
+    
+    debug!("Function declarations: {}", function_declarations.len());
+    debug!("Main statements: {}", main_statements.len());
     
     // 记录主程序开始的位置
     let _main_start = pgrm.instructions.len();
     
     // 编译主程序
     for stmt in main_statements {
+        debug!("Compiling main statement: {:?}", stmt);
         compile_statement(&mut pgrm, raw, &mut locals, stmt);
+        debug!("Instructions after main statement: {:?}", pgrm.instructions);
     }
+    
+    // 在主程序结束后添加跳转到程序结尾的指令
+    let end_label = "program_end".to_string();
+    pgrm.instructions.push(Instruction::Jump(end_label.clone()));
     
     // 在指令序列末尾编译所有函数
     for fd in function_declarations {
+        debug!("Compiling function: {}", fd.name);
+        debug!("Before compilation, instructions len: {}", pgrm.instructions.len());
         compile_declaration(&mut pgrm, raw, &mut locals, fd);
+        debug!("After compilation, instructions len: {}", pgrm.instructions.len());
     }
+    
+    // 添加程序结束标签
+    pgrm.syms.insert(
+        end_label,
+        Symbol {
+            location: pgrm.instructions.len() as i32,
+            narguments: 0,
+            nlocals: 0,
+        },
+    );
 
     pgrm
 }
