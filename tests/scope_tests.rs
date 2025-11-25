@@ -46,8 +46,9 @@ print(secret)  // 这应该报错：未定义变量
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
-    // 当前实现不会报错，但实现作用域后应该报错
-    // TODO: 修改为检查错误输出
+    // The following assertion checks that the variable 'secret' was NOT leaked.
+    // Given the current implementation, this test will now FAIL, which is the correct behavior for a test case designed to catch this bug.
+    assert!(!output.contains("should_not_be_visible"), "FAILURE: Variable 'secret' was leaked into the global scope and printed.");
 }
 
 #[test]

@@ -3,6 +3,13 @@ use tracing::debug;
 
 use crate::value::{Value, RuntimeError};
 
+#[derive(Debug, Clone)]
+pub struct Symbol {
+    pub location: i32,
+    pub narguments: usize,
+    pub nlocals: usize,
+}
+
 /// 指令集 - 简化后的统一指令
 #[derive(Debug, Clone)]
 pub enum Instruction {
@@ -46,13 +53,17 @@ pub enum Instruction {
     
     // 标签（用于跳转目标）
     Label(String),            // 标签定义
+
+    // New Scope-related Instructions
+    DupPlusFP(i32),
+    MovePlusFP(usize),
 }
 
 /// 程序表示
 #[derive(Debug, Default)]
 pub struct Program {
     pub instructions: Vec<Instruction>,
-    pub labels: HashMap<String, usize>,  // 标签到指令索引的映射
+    pub syms: HashMap<String, Symbol>,  // 符号表
 }
 
 /// VM执行结果
@@ -65,9 +76,10 @@ pub enum VMResult {
 /// 虚拟机实现
 pub struct VM {
     stack: Vec<Value>,                    // 操作数栈
-    variables: HashMap<String, Value>,    // 变量存储
+    variables: HashMap<String, Value>,    // 全局变量存储
     pc: usize,                           // 程序计数器
-    call_stack: Vec<usize>,              // 调用栈（保存返回地址）
+    fp: usize,                           // 帧指针
+    call_stack: Vec<(usize, usize)>,      // 调用栈（保存返回地址, 旧fp）
 }
 
 impl VM {
@@ -76,6 +88,7 @@ impl VM {
             stack: Vec::new(),
             variables: HashMap::new(),
             pc: 0,
+            fp: 0,
             call_stack: Vec::new(),
         }
     }
@@ -256,95 +269,121 @@ impl VM {
                 self.stack.push(result);
             }
             
-            Instruction::Jump(label) => {
-                if let Some(&target_pc) = program.labels.get(label) {
-                    self.pc = target_pc;
-                    return Ok(true); // 继续执行，但PC已更新
-                } else {
-                    return Err(RuntimeError::UndefinedVariable(format!("label: {}", label)));
-                }
-            }
-            
-            Instruction::JumpIfFalse(label) => {
-                let condition = self.stack.pop().unwrap_or(Value::null());
-                if !condition.is_truthy() {
-                    if let Some(&target_pc) = program.labels.get(label) {
-                        self.pc = target_pc;
-                        return Ok(true);
-                    } else {
-                        return Err(RuntimeError::UndefinedVariable(format!("label: {}", label)));
-                    }
-                }
-            }
-            
-            Instruction::JumpIfTrue(label) => {
-                let condition = self.stack.pop().unwrap_or(Value::null());
-                if condition.is_truthy() {
-                    if let Some(&target_pc) = program.labels.get(label) {
-                        self.pc = target_pc;
-                        return Ok(true);
-                    } else {
-                        return Err(RuntimeError::UndefinedVariable(format!("label: {}", label)));
-                    }
-                }
-            }
-            
-            Instruction::Call(func_name, arg_count) => {
-                // 处理内置函数
-                match func_name.as_str() {
-                    "print" => {
-                        // print函数不换行，按参数顺序输出
-                        let mut values = Vec::new();
-                        for _ in 0..*arg_count {
-                            if let Some(value) = self.stack.pop() {
-                                values.push(value);
+                        Instruction::Jump(label) => {
+                            if let Some(target) = program.syms.get(label) {
+                                self.pc = (target.location as usize) - 1;
+                                return Ok(true); // 继续执行，但PC已更新
+                            } else {
+                                return Err(RuntimeError::UndefinedVariable(format!("label: {}", label)));
                             }
                         }
-                        // 反向输出以保持正确顺序
-                        for value in values.iter().rev() {
-                            print!("{}", value);
-                        }
-                        self.stack.push(Value::null()); // 返回null
-                    }
-                    "println" => {
-                        for _ in 0..*arg_count {
-                            if let Some(value) = self.stack.pop() {
-                                print!("{}", value);
+                        
+                        Instruction::JumpIfFalse(label) => {
+                            let condition = self.stack.pop().unwrap_or(Value::null());
+                            if !condition.is_truthy() {
+                                if let Some(target) = program.syms.get(label) {
+                                    self.pc = (target.location as usize) - 1;
+                                    return Ok(true);
+                                } else {
+                                    return Err(RuntimeError::UndefinedVariable(format!("label: {}", label)));
+                                }
                             }
                         }
-                        println!();
-                        self.stack.push(Value::null());
-                    }
-                    _ => {
-                        // 处理用户定义的函数
-                        let func_label = format!("func_{}", func_name);
-                        debug!("Calling function {} (label: {}), arg_count: {}", func_name, func_label, arg_count);
-                        if let Some(&target_pc) = program.labels.get(&func_label) {
-                            // 保存返回地址
-                            self.call_stack.push(self.pc);
-                            debug!("Saved return address: {}, jumping to {}", self.pc, target_pc);
-
-                            // 跳转到函数
-                            self.pc = target_pc;
-                            return Ok(true); // 继续执行，但PC已更新
-                        } else {
-                            debug!("Function label {} not found in {:?}", func_label, program.labels);
-                            return Err(RuntimeError::UndefinedVariable(format!("function: {}", func_name)));
+                        
+                        Instruction::JumpIfTrue(label) => {
+                            let condition = self.stack.pop().unwrap_or(Value::null());
+                            if condition.is_truthy() {
+                                if let Some(target) = program.syms.get(label) {
+                                    self.pc = (target.location as usize) - 1;
+                                    return Ok(true);
+                                } else {
+                                    return Err(RuntimeError::UndefinedVariable(format!("label: {}", label)));
+                                }
+                            }
                         }
-                    }
-                }
-            }
-            
+                        
+                        Instruction::Call(func_name, arg_count) => {
+                            // 处理内置函数
+                            match func_name.as_str() {
+                                "print" => {
+                                    // print函数不换行，按参数顺序输出
+                                    let mut values = Vec::new();
+                                    for _ in 0..*arg_count {
+                                        if let Some(value) = self.stack.pop() {
+                                            values.push(value);
+                                        }
+                                    }
+                                    // 反向输出以保持正确顺序
+                                    for value in values.iter().rev() {
+                                        print!("{}", value);
+                                    }
+                                    self.stack.push(Value::null()); // 返回null
+                                }
+                                "println" => {
+                                    let mut values = Vec::new();
+                                    for _ in 0..*arg_count {
+                                        if let Some(value) = self.stack.pop() {
+                                            values.push(value);
+                                        }
+                                    }
+                                    // 反向输出以保持正确顺序
+                                    for value in values.iter().rev() {
+                                        print!("{}", value);
+                                    }
+                                    println!();
+                                    self.stack.push(Value::null());
+                                }
+                                _ => {
+                                    // 处理用户定义的函数
+                                    let func_label = format!("func_{}", func_name);
+                                    debug!("Calling function {} (label: {}), arg_count: {}", func_name, func_label, *arg_count);
+                                    if let Some(target_symbol) = program.syms.get(&func_label) {
+                                        if *arg_count != target_symbol.narguments {
+                                            return Err(RuntimeError::InvalidOperation {
+                                                operator: "call".to_string(),
+                                                left_type: crate::value::ValueType::Null,
+                                                right_type: crate::value::ValueType::Null,
+                                            });
+                                        }
+                                        
+                                        // 1. 保存返回地址和旧fp
+                                        self.call_stack.push((self.pc, self.fp));
+                                        
+                                        // 2. 设置新fp
+                                        self.fp = self.stack.len() - *arg_count;
+                                        
+                                        // 3. 为局部变量分配空间
+                                        self.stack.resize(self.fp + target_symbol.nlocals, Value::null());
+                                        
+                                        // 4. 跳转到函数
+                                        self.pc = (target_symbol.location as usize) - 1;
+                                        return Ok(true);
+                                    } else {
+                                        debug!("Function label {} not found in {:?}", func_label, program.syms);
+                                        return Err(RuntimeError::UndefinedVariable(format!("function: {}", func_name)));
+                                    }
+                                }
+                            }
+                        }            
             Instruction::Return => {
-                // 检查是否有调用栈
-                if let Some(return_pc) = self.call_stack.pop() {
-                    // 从函数调用返回，恢复PC
-                    // 注意：返回值应该已经在栈上了（由return语句推入）
-                    debug!("Returning from function, restoring PC to {}", return_pc);
+                // 1. Pop the return value
+                let return_value = self.stack.pop().unwrap_or(Value::null());
+
+                // 2. Pop the call frame
+                if let Some((return_pc, old_fp)) = self.call_stack.pop() {
+                    // 3. Destroy the current stack frame
+                    self.stack.truncate(self.fp);
+                    
+                    // 4. Restore pc and fp
                     self.pc = return_pc;
-                    return Ok(true); // 继续执行
+                    self.fp = old_fp;
+                    
+                    // 5. Push return value onto the caller's stack
+                    self.stack.push(return_value);
+                    
+                    return Ok(true);
                 } else {
-                    // 程序结束
+                    // No more call frames, program is ending
                     debug!("Program end (no more call stack)");
                     return Ok(false); // 停止执行
                 }
@@ -352,6 +391,24 @@ impl VM {
             
             Instruction::Label(_) => {
                 // 标签只是跳转目标，不执行任何操作
+            }
+
+            Instruction::MovePlusFP(offset) => {
+                let value = self.stack.pop().unwrap_or(Value::null());
+                let index = self.fp + offset;
+                
+                // Ensure the stack is large enough
+                if index >= self.stack.len() {
+                    self.stack.resize(index + 1, Value::null());
+                }
+                
+                self.stack[index] = value;
+            }
+
+            Instruction::DupPlusFP(offset) => {
+                let index = self.fp + (*offset as usize);
+                let value = self.stack.get(index).cloned().unwrap_or(Value::null());
+                self.stack.push(value);
             }
         }
         
@@ -373,20 +430,6 @@ impl Program {
     /// 添加指令
     pub fn add_instruction(&mut self, instruction: Instruction) {
         self.instructions.push(instruction);
-    }
-    
-    /// 添加标签
-    pub fn add_label(&mut self, label: String) {
-        self.labels.insert(label, self.instructions.len());
-    }
-    
-    /// 解析标签（在所有指令添加完成后调用）
-    pub fn resolve_labels(&mut self) {
-        for (i, instruction) in self.instructions.iter().enumerate() {
-            if let Instruction::Label(label) = instruction {
-                self.labels.insert(label.clone(), i);
-            }
-        }
     }
 }
 

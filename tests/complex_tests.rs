@@ -39,7 +39,7 @@ fn test_nine_nine_multiply_table() {
         &test_file,
         r#"
 let i=1
-for i<=2 {
+for i<=9 {
     let j = 1
     for j <= i {
         print(j + "x" + i + "=" + i*j + " ")
@@ -58,8 +58,7 @@ for i<=2 {
     let stdout = String::from_utf8(output.stdout).unwrap();
 
     // 调试输出
-    eprintln!("DEBUG: stdout = {:?}", stdout);
-    eprintln!("DEBUG: stdout as bytes = {:?}", stdout.as_bytes());
+    eprintln!("DEBUG: stdout = \n{}", stdout);
 
     // 验证有输出
     let lines: Vec<&str> = stdout.lines().collect();

@@ -4,6 +4,7 @@ use tracing::debug;
 use crate::expression::*;
 use crate::token::Operator;
 use crate::vm::{Instruction, Program, Symbol};
+use crate::value::Value;
 
 fn compile_binary_operation(
     pgrm: &mut Program,
@@ -81,22 +82,8 @@ fn compile_literal(
     lit: Literal,
 ) {
     match lit {
-        Literal::Value(i) => {
-            match i {
-                Value::Int(n) => {
-                    pgrm.instructions.push(Instruction::Store(n));
-                }
-                Value::Bool(b) => {
-                    pgrm.instructions.push(Instruction::Store(if b { 1 } else { 0 }));
-                }
-                Value::Str(s) => {
-                    // 直接存储字符串
-                    pgrm.instructions.push(Instruction::StoreString(s.clone()));
-                }
-                _ => {
-                    todo!()
-                }
-            }
+        Literal::Value(value) => {
+            pgrm.instructions.push(Instruction::Push(value));
         }
         Literal::Identifier(ident) => {
             pgrm.instructions
@@ -142,10 +129,6 @@ fn compile_declaration(
     let function_index = pgrm.instructions.len() as i32;
     let narguments = fd.parameters.len();
     for (i, param) in fd.parameters.iter().enumerate() {
-        pgrm.instructions.push(Instruction::MoveMinusFP(
-            i,
-            narguments as i32 - (i as i32 + 1),
-        ));
         new_locals.insert(param.clone(), i as i32);
     }
 
@@ -158,7 +141,7 @@ fn compile_declaration(
 
     // Overwrite function lookup with total number of locals
     pgrm.syms.insert(
-        fd.name,
+        format!("func_{}", fd.name),
         Symbol {
             location: function_index,
             narguments,
@@ -184,15 +167,18 @@ fn compile_if(pgrm: &mut Program, raw: &[char], locals: &mut HashMap<String, i32
     
     // If condition is false, jump to else
     pgrm.instructions
-        .push(Instruction::JumpIfZero(else_label.clone()));
+        .push(Instruction::JumpIfFalse(else_label.clone()));
     
     // Compile then branch
+    let mut then_locals = locals.clone();
     for stmt in if_.body {
-        compile_statement(pgrm, raw, locals, stmt);
+        compile_statement(pgrm, raw, &mut then_locals, stmt);
     }
     
-    // Jump to end
-    pgrm.instructions.push(Instruction::Jump(end_label.clone()));
+    // If there is an else body, jump to the end after the then body
+    if !if_.else_body.is_empty() {
+        pgrm.instructions.push(Instruction::Jump(end_label.clone()));
+    }
     
     // Else label
     pgrm.syms.insert(
@@ -205,8 +191,9 @@ fn compile_if(pgrm: &mut Program, raw: &[char], locals: &mut HashMap<String, i32
     );
     
     // Compile else branch
+    let mut else_locals = locals.clone();
     for stmt in if_.else_body {
-        compile_statement(pgrm, raw, locals, stmt);
+        compile_statement(pgrm, raw, &mut else_locals, stmt);
     }
     
     // End label
@@ -241,10 +228,17 @@ fn compile_statement(
     match stmt {
         Statement::FunctionDeclaration(fd) => compile_declaration(pgrm, raw, locals, fd),
         Statement::Return(r) => compile_return(pgrm, raw, locals, r),
-        Statement::If(if_) => compile_if(pgrm, raw, locals, if_),
+        Statement::If(if_) => {
+            compile_if(pgrm, raw, locals, if_);
+        }
         Statement::Local(loc) => compile_local(pgrm, raw, locals, loc),
-        Statement::Expression(e) => compile_expression(pgrm, raw, locals, e),
-        Statement::Loop(e) => compile_loop(pgrm, raw, locals, e),
+        Statement::Expression(e) => {
+            compile_expression(pgrm, raw, locals, e);
+            pgrm.instructions.push(Instruction::Pop);
+        }
+        Statement::Loop(e) => {
+            compile_loop(pgrm, raw, locals, e);
+        }
         Statement::Assign(e) => compile_assign(pgrm, raw, locals, e),
     }
 }
@@ -285,11 +279,12 @@ fn compile_loop(pgrm: &mut Program, raw: &[char], locals: &mut HashMap<String, i
 
     // 如果条件不满足,跳转到循环结束标签
     pgrm.instructions
-        .push(Instruction::JumpIfZero(loop_end.clone()));
+        .push(Instruction::JumpIfFalse(loop_end.clone()));
 
     // 编译循环体语句
+    let mut loop_locals = locals.clone();
     for stmt in loop_.body {
-        compile_statement(pgrm, raw, locals, stmt);
+        compile_statement(pgrm, raw, &mut loop_locals, stmt);
     }
 
     // 跳转回循环开始标签,形成循环
@@ -367,26 +362,4 @@ pub fn compile(raw: &[char], ast: Ast) -> Program {
     );
 
     pgrm
-}
-
-#[cfg(test)]
-mod tests {
-
-    #[test]
-    fn test_vm_simple() {
-        use std::collections::HashMap;
-        use crate::vm::{Instruction, Program, eval};
-        
-        let pgrm = Program {
-            syms: HashMap::new(),
-            instructions: vec![
-                Instruction::Store(5),
-                Instruction::Store(3),
-                Instruction::Add,
-                Instruction::Call("print".to_string(), 1),
-            ],
-        };
-
-        eval(pgrm);
-    }
 }
