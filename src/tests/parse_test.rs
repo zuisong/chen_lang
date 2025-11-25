@@ -1,5 +1,5 @@
 use crate::{
-    Token, expression::{Assign, BinaryOperation, Expression, FunctionCall, If, Literal, Local, Loop, Statement, Value}, parse, token::{self, Operator}
+    Token, expression::{Assign, BinaryOperation, Expression, FunctionCall, If, Literal, Local, Loop, Statement}, parse, token::{self, Operator}, value::Value
 };
 
 #[test]
@@ -77,7 +77,7 @@ fn parse() {
                                         Literal::Identifier("i".to_string(),),
                                     )
                                     .into(),
-                                    right: Expression::Literal(Literal::Value(Value::Str(
+                                    right: Expression::Literal(Literal::Value(Value::string(
                                         " 是偶数".to_string(),
                                     ),),)
                                     .into(),
@@ -93,7 +93,7 @@ fn parse() {
                                         Literal::Identifier("i".to_string(),),
                                     )
                                     .into(),
-                                    right: Expression::Literal(Literal::Value(Value::Str(
+                                    right: Expression::Literal(Literal::Value(Value::string(
                                         " 是奇数".to_string(),
                                     ),),)
                                     .into(),

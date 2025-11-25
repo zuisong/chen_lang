@@ -6,6 +6,7 @@ use std::vec;
 
 use crate::parse::OperatorPriority::*;
 use crate::*;
+use crate::value::Value;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 enum OperatorPriority {
@@ -119,8 +120,9 @@ pub fn parse_expression(line: &[Token]) -> anyhow::Result<Expression> {
             let ele: Literal = match t {
                 Token::Identifier(name) => Literal::Identifier(name),
                 Token::Int(i) => Literal::Value(Value::Int(i)),
+                Token::Float(f) => Literal::Value(Value::Float(f)),
                 Token::Bool(i) => Literal::Value(Value::Bool(i)),
-                Token::String(i) => Literal::Value(Value::Str(i)),
+                Token::String(i) => Literal::Value(Value::string(i)),
                 _ => panic!("错误,{t:?}"),
             };
             tmp.push(Expression::Literal(ele));
@@ -181,7 +183,7 @@ pub fn parse_block(lines: &[Box<[Token]>], mut start_line: usize) -> Result<(usi
                 start_line += 1;
             }
             // 返回值
-            Token::Int(_) | Token::Bool(_) if lines[start_line].get(1).is_none() => {
+            Token::Int(_) | Token::Float(_) | Token::Bool(_) if lines[start_line].get(1).is_none() => {
                 let var = parse_expression(&lines[start_line])?;
                 v.push(Statement::Expression(var));
                 start_line += 1;

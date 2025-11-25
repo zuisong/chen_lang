@@ -7,7 +7,7 @@ use winnow::{
     ModalResult, Parser,
     ascii::{alphanumeric1, digit1, line_ending, till_line_ending},
     combinator::{alt, delimited, not, opt, separated_pair},
-    token::{literal, one_of, take_until},
+    token::{literal, one_of, take_until, take_while},
 };
 
 #[derive(Error, Debug)]
@@ -79,7 +79,7 @@ pub enum StdFunction {
 }
 
 /// token 类型
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Token {
     /// 关键字
     Keyword(Keyword),
@@ -87,6 +87,8 @@ pub enum Token {
     Operator(Operator),
     /// int
     Int(i32),
+    /// float
+    Float(f32),
     /// bool
     Bool(bool),
     /// string
@@ -117,64 +119,74 @@ pub enum Token {
     Space,
 }
 fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
-    alt((
-        separated_pair(literal("#"), till_line_ending, line_ending).map(|_| Token::Comment),
         alt((
-            line_ending.value(Token::NewLine),
-            one_of((' ', '\t', '\r', '\n')).value(Token::Space),
-            literal("{").value(Token::LBig),
-            literal("}").value(Token::RBig),
-            literal("[").value(Token::LSquare),
-            literal("]").value(Token::RSquare),
-            literal("(").value(Token::LParen),
-            literal(")").value(Token::RParen),
-            literal(":").value(Token::Colon),
-            literal(",").value(Token::COMMA),
-        )),
-        alt((
-            literal("+").value(Token::Operator(Operator::Add)),
-            literal("*").value(Token::Operator(Operator::Multiply)),
-            literal("/").value(Token::Operator(Operator::Divide)),
-            literal("%").value(Token::Operator(Operator::Mod)),
-            literal("==").value(Token::Operator(Operator::Equals)),
-            literal("=").value(Token::Operator(Operator::Assign)),
-            literal("&&").value(Token::Operator(Operator::And)),
-            literal("||").value(Token::Operator(Operator::Or)),
-            literal("!=").value(Token::Operator(Operator::NotEquals)),
-            literal("!").value(Token::Operator(Operator::Not)),
-            literal("<=").value(Token::Operator(Operator::LtE)),
-            literal("<").value(Token::Operator(Operator::Lt)),
-            literal(">=").value(Token::Operator(Operator::GtE)),
-            literal(">").value(Token::Operator(Operator::Gt)),
-            (literal("-"), not(digit1)).value(Token::Operator(Operator::Subtract)),
+            separated_pair(literal("#"), till_line_ending, line_ending).map(|_| Token::Comment),
             alt((
-                delimited(literal("\""), take_until(0.., "\""), literal("\"")),
-                delimited(literal("\'"), take_until(0.., "\'"), literal("\'")),
-            ))
-            .map(|s: &str| Token::String(s.to_string())),
-            //
-            (opt(literal("-")), digit1).try_map(|(sig, s): (Option<&str>, &str)| {
-                s.parse::<i32>().map(|i| match sig {
-                    Some(_) => Token::Int(-i),
-                    None => Token::Int(i),
-                })
-            }),
-            alphanumeric1.map(|arr: &str| {
-                let s = arr;
-                match s {
-                    "let" => Token::Keyword(Keyword::LET),
-                    "return" => Token::Keyword(Keyword::RETURN),
-                    "if" => Token::Keyword(Keyword::IF),
-                    "def" => Token::Keyword(Keyword::DEF),
-                    "else" => Token::Keyword(Keyword::ELSE),
-                    "for" => Token::Keyword(Keyword::FOR),
-                    "true" => Token::Bool(true),
-                    "false" => Token::Bool(false),
-                    _ => Token::Identifier(s.to_string()),
-                }
-            }),
-        )),
-    ))
+                line_ending.value(Token::NewLine),
+                one_of((' ', '\t', '\r', '\n')).value(Token::Space),
+                literal("{").value(Token::LBig),
+                literal("}").value(Token::RBig),
+                literal("[").value(Token::LSquare),
+                literal("]").value(Token::RSquare),
+                literal("(").value(Token::LParen),
+                literal(")").value(Token::RParen),
+                literal(":").value(Token::Colon),
+                literal(",").value(Token::COMMA),
+            )),
+            alt((
+                literal("+").value(Token::Operator(Operator::Add)),
+                literal("*").value(Token::Operator(Operator::Multiply)),
+                literal("/").value(Token::Operator(Operator::Divide)),
+                literal("%").value(Token::Operator(Operator::Mod)),
+                literal("==").value(Token::Operator(Operator::Equals)),
+                literal("=").value(Token::Operator(Operator::Assign)),
+                literal("&&").value(Token::Operator(Operator::And)),
+                literal("||").value(Token::Operator(Operator::Or)),
+                literal("!=").value(Token::Operator(Operator::NotEquals)),
+                literal("!").value(Token::Operator(Operator::Not)),
+                literal("<=").value(Token::Operator(Operator::LtE)),
+                literal("<").value(Token::Operator(Operator::Lt)),
+                literal(">=").value(Token::Operator(Operator::GtE)),
+                literal(">").value(Token::Operator(Operator::Gt)),
+                (literal("-"), not(digit1)).value(Token::Operator(Operator::Subtract)),
+                alt((
+                    delimited(literal("\""), take_until(0.., "\""), literal("\"")),
+                    delimited(literal("\'"), take_until(0.., "\'"), literal("\'")),
+                ))
+                .map(|s: &str| Token::String(s.to_string())),
+                //
+                // 浮点数解析（必须在整数之前，因为更具体）
+                (opt(literal("-")), digit1, literal("."), opt(digit1)).try_map(|(sig, int_part, _, frac_part): (Option<&str>, &str, _, Option<&str>)| {
+                    let frac = frac_part.unwrap_or("0");
+                    let float_str = match sig {
+                        Some(_) => format!("-{}.{}", int_part, frac),
+                        None => format!("{}.{}", int_part, frac),
+                    };
+                    float_str.parse::<f32>().map(Token::Float)
+                }),
+                // 整数解析
+                (opt(literal("-")), digit1).try_map(|(sig, s): (Option<&str>, &str)| {
+                    s.parse::<i32>().map(|i| match sig {
+                        Some(_) => Token::Int(-i),
+                        None => Token::Int(i),
+                    })
+                }),
+                take_while(1.., |c: char| c.is_alphanumeric() || c == '_').map(|arr: &str| {
+                    let s = arr;
+                    match s {
+                        "let" => Token::Keyword(Keyword::LET),
+                        "return" => Token::Keyword(Keyword::RETURN),
+                        "if" => Token::Keyword(Keyword::IF),
+                        "def" => Token::Keyword(Keyword::DEF),
+                        "else" => Token::Keyword(Keyword::ELSE),
+                        "for" => Token::Keyword(Keyword::FOR),
+                        "true" => Token::Bool(true),
+                        "false" => Token::Bool(false),
+                        _ => Token::Identifier(s.to_string()),
+                    }
+                }),
+            )),
+        ))
     .parse_peek(chars)
 }
 

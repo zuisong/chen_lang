@@ -57,7 +57,11 @@ for i<=2 {
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
 
-    // 验证有输出（字符串被转换为哈希值）
+    // 调试输出
+    eprintln!("DEBUG: stdout = {:?}", stdout);
+    eprintln!("DEBUG: stdout as bytes = {:?}", stdout.as_bytes());
+
+    // 验证有输出
     let lines: Vec<&str> = stdout.lines().collect();
     assert_matches!(lines[0], s if s.contains("1x1=1"));
     assert_matches!(lines[1], s if s.contains("2x2=4"));
@@ -95,7 +99,7 @@ println(sum)
     .unwrap();
 
     let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
-
+    dbg!(&output);
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains("100以内的 奇数或者是能被三整除的偶数 之和是"));

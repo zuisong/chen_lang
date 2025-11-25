@@ -2,27 +2,28 @@ use std::clone::Clone;
 use std::fmt::Debug;
 
 use crate::token::Operator;
+use crate::value::Value;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
     Identifier(String),
     Value(Value),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FunctionCall {
     pub name: String,
     pub arguments: Vec<Expression>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct BinaryOperation {
     pub operator: Operator,
     pub left: Box<Expression>,
     pub right: Box<Expression>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     FunctionCall(FunctionCall),
     BinaryOperation(BinaryOperation),
@@ -30,32 +31,32 @@ pub enum Expression {
     NotStatement(NotStatement),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct FunctionDeclaration {
     pub name: String,
     pub parameters: Vec<String>,
     pub body: Vec<Statement>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct If {
     pub test: Expression,
     pub body: Vec<Statement>,
     pub else_body: Vec<Statement>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Local {
     pub name: String,
     pub expression: Expression,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Return {
     pub expression: Expression,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Expression(Expression),
     If(If),
@@ -69,14 +70,14 @@ pub enum Statement {
 pub type Ast = Vec<Statement>;
 
 /// 取反
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct NotStatement {
     /// 要取反的表达式
     pub expr: Box<Expression>,
 }
 
 /// 打印
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PrintStatement {
     /// 要打印的表达式对象
     pub expression: Box<Expression>,
@@ -85,7 +86,7 @@ pub struct PrintStatement {
 }
 
 /// 赋值语句
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Assign {
     /// 变量名
     pub name: String,
@@ -94,7 +95,7 @@ pub struct Assign {
 }
 
 /// 循环语句
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Loop {
     /// 循环终止判断条件
     pub test: Expression,
@@ -102,16 +103,4 @@ pub struct Loop {
     pub body: Vec<Statement>,
 }
 
-/// ----------------------------------------
-/// 常数类型
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub enum Value {
-    /// int 常量
-    Int(i32),
-    /// bool 常量
-    Bool(bool),
-    /// void 常量
-    Void,
-    /// string 常量
-    Str(String),
-}
+

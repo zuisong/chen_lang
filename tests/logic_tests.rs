@@ -26,8 +26,8 @@ print(result2)
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.contains("0")); // a && b = 0
-    assert!(stdout.contains("1")); // a || b = 1
+    assert!(stdout.contains("false")); // a && b = false
+    assert!(stdout.contains("true")); // a || b = true
 }
 
 #[test]
@@ -55,7 +55,7 @@ print(result3)
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.contains("1")); // a > b = 1 (true)
-    assert!(stdout.contains("0")); // a == b = 0 (false)
-    assert!(stdout.contains("0")); // a <= b = 0 (false)
+    assert!(stdout.contains("true")); // a > b = true
+    assert!(stdout.contains("false")); // a == b = false
+    assert!(stdout.contains("false")); // a <= b = false
 }
