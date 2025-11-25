@@ -68,6 +68,7 @@ pub fn run(code: String) -> Result<()> {
 
     // 编译为字节码并执行
     let program = compile_to_bytecode(ast)?;
+    debug!("Generated instructions: {:?}", program.instructions);
 
     let mut vm = vm::VM::new();
     match vm.execute(&program) {

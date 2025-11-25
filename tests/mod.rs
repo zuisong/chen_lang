@@ -15,3 +15,6 @@ mod logic_tests;
 
 // Value system tests (float, string, type conversion)
 mod value_tests;
+
+// Scope and variable lifetime tests
+mod scope_tests;

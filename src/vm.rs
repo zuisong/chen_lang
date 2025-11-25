@@ -138,8 +138,10 @@ impl VM {
             Instruction::Load(var_name) => {
                 if let Some(value) = self.variables.get(var_name) {
                     debug!("Loading variable {} = {:?}", var_name, value);
+                    debug!("All variables in VM: {:?}", self.variables);
                     self.stack.push(value.clone());
                 } else {
+                    debug!("Variable {} not found! Available variables: {:?}", var_name, self.variables);
                     return Err(RuntimeError::UndefinedVariable(var_name.clone()));
                 }
             }
