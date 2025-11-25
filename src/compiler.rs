@@ -133,10 +133,8 @@ fn compile_declaration(
     _: &mut HashMap<String, i32>,
     fd: FunctionDeclaration,
 ) {
-    // Jump to end of function to guard top-level
-    let done_label = format!("function_done_{}", pgrm.instructions.len());
-    pgrm.instructions
-        .push(Instruction::Jump(done_label.clone()));
+    // 函数定义不应该在主程序执行流程中，所以不需要Jump指令
+    // 直接将函数体编译到指令序列的末尾
 
     let mut new_locals = HashMap::<String, i32>::new();
 
@@ -154,6 +152,9 @@ fn compile_declaration(
         compile_statement(pgrm, raw, &mut new_locals, stmt);
     }
 
+    // 确保函数有返回指令（如果没有显式返回）
+    // 注意：这里不添加Return指令，因为函数体应该有自己的Return语句
+
     // Overwrite function lookup with total number of locals
     pgrm.syms.insert(
         fd.name,
@@ -161,15 +162,6 @@ fn compile_declaration(
             location: function_index,
             narguments,
             nlocals: new_locals.keys().len(),
-        },
-    );
-
-    pgrm.syms.insert(
-        done_label,
-        Symbol {
-            location: pgrm.instructions.len() as i32,
-            narguments: 0,
-            nlocals: 0,
         },
     );
 }
@@ -320,8 +312,33 @@ pub fn compile(raw: &[char], ast: Ast) -> Program {
         syms: HashMap::new(),
         instructions: Vec::new(),
     };
+    
+    // 首先收集所有函数定义，但不编译它们
+    let mut function_declarations = Vec::new();
+    let mut main_statements = Vec::new();
+    
     for stmt in ast {
+        match stmt {
+            Statement::FunctionDeclaration(fd) => {
+                function_declarations.push(fd);
+            }
+            _ => {
+                main_statements.push(stmt);
+            }
+        }
+    }
+    
+    // 记录主程序开始的位置
+    let _main_start = pgrm.instructions.len();
+    
+    // 编译主程序
+    for stmt in main_statements {
         compile_statement(&mut pgrm, raw, &mut locals, stmt);
+    }
+    
+    // 在指令序列末尾编译所有函数
+    for fd in function_declarations {
+        compile_declaration(&mut pgrm, raw, &mut locals, fd);
     }
 
     pgrm

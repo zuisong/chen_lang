@@ -56,7 +56,21 @@ pub fn eval(pgrm: Program) {
                 pc += 1;
             }
             Instruction::MoveMinusFP(local_offset, fp_offset) => {
-                data[fp as usize + local_offset] = data[(fp - (fp_offset + 4)) as usize];
+                // Calculate the correct offset to access parameters
+                // Stack layout: [..., old_fp, return_addr, narguments, arg1, arg2, ..., local1, local2, ...]
+                // fp points to first local, so to access parameter at fp_offset, we need:
+                // fp - (nlocals - local_offset) - 3 (for narguments, return_addr, old_fp)
+                // But, compiler passes fp_offset as: narguments - (param_index + 1)
+                // So we need to adjust the calculation
+                let src_index = (fp - fp_offset - 3) as usize;
+                let dst_index = fp as usize + local_offset;
+                
+                // Ensure stack has enough space for the destination
+                while dst_index >= data.len() {
+                    data.push(0);
+                }
+                
+                data[dst_index] = data[src_index];
                 pc += 1;
             }
             Instruction::MovePlusFP(i) => {
@@ -100,6 +114,7 @@ pub fn eval(pgrm: Program) {
                 let mut narguments = data.pop().unwrap();
                 pc = data.pop().unwrap();
                 fp = data.pop().unwrap();
+                println!("RETURN: Restored pc={}, fp={}", pc, fp);
 
                 // Clean up arguments
                 while narguments > 0 {
@@ -142,14 +157,16 @@ pub fn eval(pgrm: Program) {
                 data.push(pc + 1);
                 data.push(pgrm.syms[label].narguments as i32);
                 pc = pgrm.syms[label].location;
-                fp = data.len() as i32;
 
-                // Set up space for all arguments/locals
+                // Set up space for all arguments/locals BEFORE setting fp
                 let mut nlocals = pgrm.syms[label].nlocals;
                 while nlocals > 0 {
                     data.push(0);
                     nlocals -= 1;
                 }
+                
+                // Now set fp to point to the first local
+                fp = data.len() as i32;
             }
             Instruction::Add => {
                 let right = data.pop().unwrap();

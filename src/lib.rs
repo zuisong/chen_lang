@@ -57,7 +57,6 @@ pub fn run(code: String) -> Result<()> {
     
     // 编译为字节码并执行
     let program = compiler::compile(&[], ast);
-    debug!("bytecode => {:?}", &program);
     vm::eval(program);
     
     Ok(())
