@@ -34,6 +34,10 @@ pub enum Keyword {
     DEF,
     /// return
     RETURN,
+    /// break
+    BREAK,
+    /// continue
+    CONTINUE,
 }
 
 /// 操作符
@@ -174,6 +178,8 @@ fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
                     "def" => Token::Keyword(Keyword::DEF),
                     "else" => Token::Keyword(Keyword::ELSE),
                     "for" => Token::Keyword(Keyword::FOR),
+                    "break" => Token::Keyword(Keyword::BREAK),
+                    "continue" => Token::Keyword(Keyword::CONTINUE),
                     "true" => Token::Bool(true),
                     "false" => Token::Bool(false),
                     _ => Token::Identifier(s.to_string()),
@@ -289,6 +295,8 @@ fn parse_token(input: &str, loc: &Location) -> Result<(Token, Location), TokenEr
                 "def" => Token::Keyword(Keyword::DEF),
                 "else" => Token::Keyword(Keyword::ELSE),
                 "for" => Token::Keyword(Keyword::FOR),
+                "break" => Token::Keyword(Keyword::BREAK),
+                "continue" => Token::Keyword(Keyword::CONTINUE),
                 "true" => Token::Bool(true),
                 "false" => Token::Bool(false),
                 _ => Token::Identifier(s),

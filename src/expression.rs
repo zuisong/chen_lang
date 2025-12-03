@@ -66,6 +66,8 @@ pub enum Statement {
     Return(Return),
     Local(Local),
     Assign(Assign),
+    Break,
+    Continue,
 }
 
 pub type Ast = Vec<Statement>;

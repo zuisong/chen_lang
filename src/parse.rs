@@ -125,6 +125,12 @@ impl Parser {
         if self.match_token(&Token::Keyword(Keyword::RETURN)) {
             return self.parse_return();
         }
+        if self.match_token(&Token::Keyword(Keyword::BREAK)) {
+            return Ok(Statement::Break);
+        }
+        if self.match_token(&Token::Keyword(Keyword::CONTINUE)) {
+            return Ok(Statement::Continue);
+        }
 
         // Assignment or Expression
         // We need to look ahead to distinguish `x = 1` (Assign) from `x + 1` (Expression)

@@ -25,6 +25,12 @@ struct Compiler<'a> {
     program: Program,
     scopes: Vec<Scope>,
     locals_count: usize,
+    loop_stack: Vec<LoopLabels>,
+}
+
+struct LoopLabels {
+    start: String,
+    end: String,
 }
 
 // The main entry point for compilation.
@@ -45,6 +51,7 @@ impl<'a> Compiler<'a> {
             program: Program::default(),
             scopes,
             locals_count: 0,
+            loop_stack: Vec::new(),
         }
     }
 
@@ -129,6 +136,18 @@ impl<'a> Compiler<'a> {
             }
             Statement::Loop(e) => self.compile_loop(e),
             Statement::Assign(e) => self.compile_assign(e),
+            Statement::Break => {
+                let labels = self.loop_stack.last().expect("break outside of loop");
+                self.program
+                    .instructions
+                    .push(Instruction::Jump(labels.end.clone()));
+            }
+            Statement::Continue => {
+                let labels = self.loop_stack.last().expect("continue outside of loop");
+                self.program
+                    .instructions
+                    .push(Instruction::Jump(labels.start.clone()));
+            }
         }
     }
 
@@ -359,6 +378,11 @@ impl<'a> Compiler<'a> {
             },
         );
 
+        self.loop_stack.push(LoopLabels {
+            start: loop_start.clone(),
+            end: loop_end.clone(),
+        });
+
         self.compile_expression(loop_.test);
         self.program
             .instructions
@@ -369,6 +393,7 @@ impl<'a> Compiler<'a> {
             self.compile_statement(stmt);
         }
         self.end_scope();
+        self.loop_stack.pop();
 
         self.program
             .instructions
