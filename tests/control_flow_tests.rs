@@ -21,7 +21,12 @@ for i <= 2 {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -48,7 +53,12 @@ if a > b {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -77,11 +87,16 @@ for i <= 99 {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
-    
+
     // 验证包含偶数和奇数的输出
     assert!(stdout.contains("0 是偶数"));
     assert!(stdout.contains("1 是奇数"));

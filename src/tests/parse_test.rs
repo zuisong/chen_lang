@@ -1,5 +1,10 @@
 use crate::{
-    Token, expression::{Assign, BinaryOperation, Expression, FunctionCall, If, Literal, Local, Loop, Statement}, parse, token::{self, Operator}, value::Value
+    expression::{
+        Assign, BinaryOperation, Expression, FunctionCall, If, Literal, Local, Loop, Statement,
+    },
+    parse,
+    token::{self, Operator},
+    value::Value,
 };
 
 #[test]
@@ -19,28 +24,14 @@ fn parse() {
     .to_string();
 
     let tokens = token::tokenlizer(code).unwrap();
-    let mut lines: Vec<Box<[Token]>> = vec![];
-    let mut temp = vec![];
-    for x in tokens {
-        if let Token::NewLine = x {
-            if !temp.is_empty() {
-                lines.push(temp.into_boxed_slice());
-                temp = vec![];
-            }
-        } else {
-            temp.push(x)
-        }
-    }
-    let res = parse::parse_block(lines.as_slice(), 0);
+    let res = parse::parse(tokens);
 
-    dbg!(&lines);
     dbg!(&res);
 
     assert!(res.is_ok());
-    let (_end_line, statements) = res.unwrap();
+    let statements = res.unwrap();
     // Just check that parsing works without specific line count
     assert!(!statements.is_empty());
-
 
     assert_eq!(
         statements,

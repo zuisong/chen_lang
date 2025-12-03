@@ -11,13 +11,14 @@ fn test_integer_arithmetic() {
 
     let temp_dir = TempDir::new().unwrap();
     let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        "let x = 5\nlet y = 3\nprint(x + y)\n",
-    )
-    .unwrap();
+    fs::write(&test_file, "let x = 5\nlet y = 3\nprint(x + y)\n").unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -30,13 +31,14 @@ fn test_float_arithmetic() {
 
     let temp_dir = TempDir::new().unwrap();
     let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        "let x = 3.14\nlet y = 2.0\nprint(x * y)\n",
-    )
-    .unwrap();
+    fs::write(&test_file, "let x = 3.14\nlet y = 2.0\nprint(x * y)\n").unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -55,7 +57,12 @@ fn test_string_concatenation() {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -74,7 +81,12 @@ fn test_mixed_type_arithmetic() {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -93,7 +105,12 @@ fn test_float_division() {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -112,7 +129,12 @@ fn test_negative_float() {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -131,7 +153,12 @@ fn test_variable_assignment_with_float() {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -150,7 +177,12 @@ fn test_string_with_numbers() {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -169,7 +201,12 @@ fn test_complex_float_expression() {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -189,7 +226,12 @@ fn test_zero_float() {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -208,7 +250,12 @@ fn test_float_comparison() {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -227,7 +274,12 @@ fn test_mixed_comparison() {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();

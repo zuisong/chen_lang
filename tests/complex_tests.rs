@@ -20,7 +20,12 @@ print(result)
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -52,7 +57,12 @@ for i<=9 {
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     if !output.status.success() {
         println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
@@ -96,7 +106,12 @@ println(sum)
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
     dbg!(&output);
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();

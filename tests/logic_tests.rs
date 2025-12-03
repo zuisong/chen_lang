@@ -22,7 +22,12 @@ print(result2)
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();
@@ -51,7 +56,12 @@ print(result3)
     )
     .unwrap();
 
-    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output().unwrap();
+    let output = cmd
+        .arg("run")
+        .arg(&test_file)
+        .env("RUST_LOG", "off")
+        .output()
+        .unwrap();
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).unwrap();

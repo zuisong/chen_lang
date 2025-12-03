@@ -1,417 +1,469 @@
 #![deny(missing_docs)]
 
-use std::cmp::Ordering;
-use std::collections::VecDeque;
-use std::vec;
+use anyhow::{Result, anyhow};
 
-use crate::parse::OperatorPriority::*;
-use crate::*;
 use crate::value::Value;
+use crate::*;
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-enum OperatorPriority {
-    Middle,
-    Small,
-    Normal,
-    Minimal,
+/// The Parser struct manages the state of parsing a stream of tokens.
+pub struct Parser {
+    tokens: Vec<Token>,
+    current: usize,
 }
 
-impl OperatorPriority {
-    fn priority_value(&self) -> i32 {
-        match self {
-            Middle => 2,
-            Small => 1,
-            Normal => 0,
-            Minimal => -1,
+impl Parser {
+    /// Create a new parser from a vector of tokens.
+    pub fn new(tokens: Vec<Token>) -> Self {
+        Self { tokens, current: 0 }
+    }
+
+    /// Parse the tokens into an AST (list of statements).
+    pub fn parse(&mut self) -> Result<Ast> {
+        self.parse_block()
+    }
+
+    // --- Helper Methods ---
+
+    fn peek(&self) -> Option<&Token> {
+        self.tokens.get(self.current)
+    }
+
+    fn peek_next(&self) -> Option<&Token> {
+        self.tokens.get(self.current + 1)
+    }
+
+    fn previous(&self) -> Option<&Token> {
+        if self.current > 0 {
+            self.tokens.get(self.current - 1)
+        } else {
+            None
         }
     }
-}
 
-impl PartialOrd for OperatorPriority {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.priority_value().partial_cmp(&other.priority_value())
+    fn is_at_end(&self) -> bool {
+        self.current >= self.tokens.len()
     }
-}
 
-fn get_priority(opt: &Operator) -> OperatorPriority {
-    match opt {
-        Operator::Add => Small,
-        Operator::Subtract => Small,
-        Operator::Multiply => Middle,
-        Operator::Divide => Middle,
-        Operator::Mod => Middle,
-        Operator::Assign => Small,
-        Operator::And => Minimal,
-        Operator::Equals => Middle,
-        Operator::NotEquals => Middle,
-        Operator::Or => Minimal,
-        Operator::Not => Normal,
-        Operator::Gt => Middle,
-        Operator::Lt => Middle,
-        Operator::GtE => Middle,
-        Operator::LtE => Middle,
+    fn advance(&mut self) -> Option<&Token> {
+        if !self.is_at_end() {
+            self.current += 1;
+        }
+        self.previous()
     }
-}
 
-/// 简单表达式分析 (只有运算的 一行)
-pub fn parse_expression(line: &[Token]) -> anyhow::Result<Expression> {
-    // 中缀表达式变后缀表达式
-    let mut result: Vec<&Token> = Vec::new();
-    let mut stack: Vec<&Token> = vec![];
-    for token in line {
-        match *token {
-            Token::LParen => stack.push(token),
-            Token::RParen => {
-                while let Some(top) = stack.pop() {
-                    if *top == Token::LParen {
-                        break;
-                    }
-                    result.push(top);
-                }
+    fn check(&self, token_type: &Token) -> bool {
+        if self.is_at_end() {
+            return false;
+        }
+        // Note: This is a loose check, might need refinement for enum variants with data
+        // For now, we'll use discriminants or simple matching where possible.
+        // Since Token derives PartialEq, we can check exact matches for keywords/ops.
+        // For variants with data (Int, String), we might need `matches!`.
+        match (self.peek().unwrap(), token_type) {
+            (Token::Keyword(k1), Token::Keyword(k2)) => k1 == k2,
+            (Token::Operator(o1), Token::Operator(o2)) => o1 == o2,
+            (Token::LBig, Token::LBig) => true,
+            (Token::RBig, Token::RBig) => true,
+            (Token::LParen, Token::LParen) => true,
+            (Token::RParen, Token::RParen) => true,
+            (Token::NewLine, Token::NewLine) => true,
+            (Token::COMMA, Token::COMMA) => true,
+            // Add more as needed
+            _ => false,
+        }
+    }
+
+    fn match_token(&mut self, token_type: &Token) -> bool {
+        if self.check(token_type) {
+            self.advance();
+            true
+        } else {
+            false
+        }
+    }
+
+    fn consume(&mut self, token_type: &Token, message: &str) -> Result<&Token> {
+        if self.check(token_type) {
+            Ok(self.advance().unwrap())
+        } else {
+            Err(anyhow!(message.to_string()))
+        }
+    }
+
+    fn skip_newlines(&mut self) {
+        while self.match_token(&Token::NewLine) {}
+    }
+
+    // --- Parsing Logic ---
+
+    fn parse_block(&mut self) -> Result<Ast> {
+        let mut statements = Vec::new();
+
+        while !self.is_at_end() && !self.check(&Token::RBig) {
+            self.skip_newlines();
+            if self.is_at_end() || self.check(&Token::RBig) {
+                break;
             }
-            Token::Operator(opt) => {
-                while let Some(Token::Operator(opt2)) = stack.last() {
-                    if get_priority(opt2) >= get_priority(&opt) {
-                        result.push(stack.pop().unwrap());
-                        continue;
-                    }
+            statements.push(self.parse_statement()?);
+            self.skip_newlines();
+        }
+
+        Ok(statements)
+    }
+
+    fn parse_statement(&mut self) -> Result<Statement> {
+        if self.match_token(&Token::Keyword(Keyword::LET)) {
+            return self.parse_declare();
+        }
+        if self.match_token(&Token::Keyword(Keyword::FOR)) {
+            return self.parse_for();
+        }
+        if self.match_token(&Token::Keyword(Keyword::IF)) {
+            return self.parse_if();
+        }
+        if self.match_token(&Token::Keyword(Keyword::DEF)) {
+            return self.parse_function();
+        }
+        if self.match_token(&Token::Keyword(Keyword::RETURN)) {
+            return self.parse_return();
+        }
+
+        // Assignment or Expression
+        // We need to look ahead to distinguish `x = 1` (Assign) from `x + 1` (Expression)
+        // Or `func()` (Expression)
+
+        // Simple heuristic: if it starts with Identifier and next is Assign, it's assignment.
+        if let Some(Token::Identifier(name)) = self.peek() {
+            if let Some(Token::Operator(Operator::Assign)) = self.peek_next() {
+                let name = name.clone();
+                self.advance(); // consume identifier
+                self.advance(); // consume =
+                let expr = self.parse_expression_logic()?;
+                return Ok(Statement::Assign(Assign {
+                    name,
+                    expr: Box::new(expr),
+                }));
+            }
+        }
+
+        let expr = self.parse_expression_logic()?;
+        Ok(Statement::Expression(expr))
+    }
+
+    fn parse_declare(&mut self) -> Result<Statement> {
+        // let x = ...
+        let name = if let Some(Token::Identifier(name)) = self.advance() {
+            name.clone()
+        } else {
+            return Err(anyhow!("Expected variable name after 'let'"));
+        };
+
+        self.consume(
+            &Token::Operator(Operator::Assign),
+            "Expected '=' after variable name",
+        )?;
+
+        let expr = self.parse_expression_logic()?;
+
+        Ok(Statement::Local(Local {
+            name,
+            expression: expr,
+        }))
+    }
+
+    fn parse_return(&mut self) -> Result<Statement> {
+        let expr = self.parse_expression_logic()?;
+        Ok(Statement::Return(Return { expression: expr }))
+    }
+
+    fn parse_if(&mut self) -> Result<Statement> {
+        // if condition { ... } else { ... }
+        let condition = self.parse_expression_logic()?;
+
+        self.skip_newlines();
+        self.consume(&Token::LBig, "Expected '{' after if condition")?;
+        let then_branch = self.parse_block()?;
+        self.consume(&Token::RBig, "Expected '}' after if block")?;
+
+        let mut else_branch = Vec::new();
+        self.skip_newlines();
+        if self.match_token(&Token::Keyword(Keyword::ELSE)) {
+            self.skip_newlines();
+            self.consume(&Token::LBig, "Expected '{' after else")?;
+            else_branch = self.parse_block()?;
+            self.consume(&Token::RBig, "Expected '}' after else block")?;
+        }
+
+        Ok(Statement::If(If {
+            test: condition,
+            body: then_branch,
+            else_body: else_branch,
+        }))
+    }
+
+    fn parse_for(&mut self) -> Result<Statement> {
+        // for condition { ... }
+        let condition = self.parse_expression_logic()?;
+
+        self.skip_newlines();
+        self.consume(&Token::LBig, "Expected '{' after for condition")?;
+        let body = self.parse_block()?;
+        self.consume(&Token::RBig, "Expected '}' after for block")?;
+
+        Ok(Statement::Loop(Loop {
+            test: condition,
+            body,
+        }))
+    }
+
+    fn parse_function(&mut self) -> Result<Statement> {
+        // def name(arg1, arg2) { ... }
+        let name = if let Some(Token::Identifier(name)) = self.advance() {
+            name.clone()
+        } else {
+            return Err(anyhow!("Expected function name after 'def'"));
+        };
+
+        self.consume(&Token::LParen, "Expected '(' after function name")?;
+
+        let mut parameters = Vec::new();
+        if !self.check(&Token::RParen) {
+            loop {
+                if let Some(Token::Identifier(param)) = self.advance() {
+                    parameters.push(param.clone());
+                } else {
+                    return Err(anyhow!("Expected parameter name"));
+                }
+
+                if !self.match_token(&Token::COMMA) {
                     break;
                 }
-                stack.push(token);
-            }
-            _ => result.push(token),
-        }
-    }
-    while let Some(t) = stack.pop() {
-        result.push(t);
-    }
-
-    let mut result: VecDeque<_> = result
-        .into_iter()
-        .filter(|&it| it != &Token::LParen && it != &Token::RParen)
-        .cloned()
-        .collect();
-
-    let mut tmp: Vec<Expression> = Vec::new();
-
-    while let Some(t) = result.pop_front() {
-        if let Token::Operator(opt) = t {
-            let new_exp: Expression = match opt {
-                Operator::Assign => {
-                    unreachable!();
-                }
-
-                Operator::Not => Expression::NotStatement(NotStatement {
-                    expr: Box::new(tmp.pop().unwrap()),
-                }),
-
-                _ => {
-                    let o1 = tmp.pop().unwrap();
-                    let o2 = tmp.pop().unwrap();
-                    Expression::BinaryOperation(BinaryOperation {
-                        left: Box::new(o2),
-                        right: Box::new(o1),
-                        operator: opt,
-                    })
-                }
-            };
-            tmp.push(new_exp);
-        } else {
-            let ele: Literal = match t {
-                Token::Identifier(name) => Literal::Identifier(name),
-                Token::Int(i) => Literal::Value(Value::Int(i)),
-                Token::Float(f) => Literal::Value(Value::Float(f)),
-                Token::Bool(i) => Literal::Value(Value::Bool(i)),
-                Token::String(i) => Literal::Value(Value::string(i)),
-                _ => panic!("错误,{t:?}"),
-            };
-            tmp.push(Expression::Literal(ele));
-        }
-    }
-
-    tmp.pop().ok_or(err_msg("parse error"))
-}
-
-/// 分析很多行的方法
-pub fn parse_block(lines: &[Box<[Token]>], mut start_line: usize) -> Result<(usize, Ast)> {
-    let mut v = Vec::new();
-    while start_line < lines.len() && lines[start_line][0] != Token::RBig {
-        match &lines[start_line][0] {
-            Token::LBig => {
-                let (endline, stmts) = parse_block(lines, start_line + 1)?;
-                v.push(Statement::Expression(Expression::Block(stmts)));
-                start_line = endline + 1;
-            }
-            Token::Keyword(Keyword::LET) => {
-                let (endline, var) = parse_declare(lines, start_line)?;
-                v.push(Statement::Local(var));
-                start_line = endline;
-            }
-            Token::Keyword(Keyword::FOR) => {
-                let var = parse_for(lines, start_line)?;
-                v.push(Statement::Loop(var.1));
-                start_line = var.0 + 1;
-            }
-            Token::Keyword(Keyword::DEF) => {
-                let var = parse_define_function(lines, start_line)?;
-                v.push(Statement::FunctionDeclaration(var.1));
-                start_line = var.0 + 1;
-            }
-            Token::Keyword(Keyword::IF) => {
-                let var = parse_if(lines, start_line)?;
-                v.push(Statement::If(var.1));
-                start_line = var.0 + 1;
-            }
-            Token::Keyword(Keyword::RETURN) => {
-                let var = parse_return(&lines[start_line])?;
-                v.push(Statement::Return(var));
-                start_line += 1;
-            }
-            // 赋值
-            Token::Identifier(_)
-                if lines[start_line].get(1) == Some(&Token::Operator(Operator::Assign)) =>
-            {
-                let (endline, var) = parse_assign(lines, start_line)?;
-                v.push(Statement::Assign(var));
-                start_line = endline;
-            }
-            // 函数调用
-            Token::Identifier(_) if lines[start_line].get(1) == Some(&Token::LParen) => {
-                let var = parse_func_call(&lines[start_line])?;
-                v.push(Statement::Expression(Expression::FunctionCall(var)));
-                start_line += 1;
-            }
-            // 返回值
-            Token::Identifier(_) => {
-                let var = parse_expression(&lines[start_line])?;
-                v.push(Statement::Expression(var));
-                start_line += 1;
-            }
-            // 返回值
-            Token::Int(_) | Token::Float(_) | Token::Bool(_) | Token::String(_) | Token::LParen | Token::Operator(Operator::Not) | Token::Operator(Operator::Subtract) => {
-                let var = parse_expression(&lines[start_line])?;
-                v.push(Statement::Expression(var));
-                start_line += 1;
-            }
-            _ => {
-                unimplemented!("语法错误 {:?}", lines[start_line]);
             }
         }
+        self.consume(&Token::RParen, "Expected ')' after parameters")?;
+
+        self.skip_newlines();
+        self.consume(&Token::LBig, "Expected '{' before function body")?;
+        let body = self.parse_block()?;
+        self.consume(&Token::RBig, "Expected '}' after function body")?;
+
+        Ok(Statement::FunctionDeclaration(FunctionDeclaration {
+            name,
+            parameters,
+            body,
+        }))
     }
-    Ok((start_line, v.into_iter().collect()))
-}
 
-fn parse_func_call(line: &[Token]) -> Result<FunctionCall> {
-    let func_name = if let Token::Identifier(name) = &line[0] {
-        name.to_string()
-    } else {
-        return Err(err_msg("不是函数定义语句"));
-    };
+    // --- Expression Parsing ---
+    // Using precedence climbing or a simplified Pratt parser approach.
+    // For simplicity, reusing the existing logic but adapting it to stream.
+    // Actually, the existing `parse_expression` was shunting-yard on a single line.
+    // We should implement a proper recursive descent or precedence climbing here.
 
-    assert_eq!(&line[1], &Token::LParen);
-    let param_idx: Vec<_> = line
-        .iter()
-        .enumerate()
-        .skip(2)
-        .filter(|it| it.1 == &Token::COMMA)
-        .map(|it| it.0)
-        .collect();
+    fn parse_expression_logic(&mut self) -> Result<Expression> {
+        // Handle Block Expression first: { ... }
+        self.skip_newlines();
+        if self.match_token(&Token::LBig) {
+            let stmts = self.parse_block()?;
+            self.consume(&Token::RBig, "Expected '}' after block")?;
+            return Ok(Expression::Block(stmts));
+        }
 
-    let mut params = vec![];
+        self.parse_logical_or()
+    }
 
-    match param_idx.len() {
-        0 => {
-            // 检查是否是无参数函数调用
-            if line.len() == 3 && line[1] == Token::LParen && line[2] == Token::RParen {
-                // 无参数函数调用，不需要解析参数
-                params = vec![];
+    fn parse_logical_or(&mut self) -> Result<Expression> {
+        let mut left = self.parse_logical_and()?;
+
+        while self.match_token(&Token::Operator(Operator::Or)) {
+            let right = self.parse_logical_and()?;
+            left = Expression::BinaryOperation(BinaryOperation {
+                left: Box::new(left),
+                operator: Operator::Or,
+                right: Box::new(right),
+            });
+        }
+        Ok(left)
+    }
+
+    fn parse_logical_and(&mut self) -> Result<Expression> {
+        let mut left = self.parse_equality()?;
+
+        while self.match_token(&Token::Operator(Operator::And)) {
+            let right = self.parse_equality()?;
+            left = Expression::BinaryOperation(BinaryOperation {
+                left: Box::new(left),
+                operator: Operator::And,
+                right: Box::new(right),
+            });
+        }
+        Ok(left)
+    }
+
+    fn parse_equality(&mut self) -> Result<Expression> {
+        let mut left = self.parse_comparison()?;
+
+        while let Some(Token::Operator(op)) = self.peek() {
+            if matches!(op, Operator::Equals | Operator::NotEquals) {
+                let op = *op;
+                self.advance();
+                let right = self.parse_comparison()?;
+                left = Expression::BinaryOperation(BinaryOperation {
+                    left: Box::new(left),
+                    operator: op,
+                    right: Box::new(right),
+                });
             } else {
-                params.push(parse_expression(&line[2..(line.len() - 1)])?);
+                break;
             }
         }
-        _ => {
-            params.push(parse_expression(&line[2..param_idx[0]])?);
-            for i in 0..(param_idx.len() - 1) {
-                params.push(parse_expression(&line[param_idx[i]..param_idx[i + 1]])?);
+        Ok(left)
+    }
+
+    fn parse_comparison(&mut self) -> Result<Expression> {
+        let mut left = self.parse_term()?;
+
+        while let Some(Token::Operator(op)) = self.peek() {
+            if matches!(
+                op,
+                Operator::Gt | Operator::GtE | Operator::Lt | Operator::LtE
+            ) {
+                let op = *op;
+                self.advance();
+                let right = self.parse_term()?;
+                left = Expression::BinaryOperation(BinaryOperation {
+                    left: Box::new(left),
+                    operator: op,
+                    right: Box::new(right),
+                });
+            } else {
+                break;
             }
-            params.push(parse_expression(
-                &line[(param_idx[param_idx.len() - 1] + 1)..(line.len() - 1)],
-            )?);
         }
+        Ok(left)
     }
 
-    Ok(FunctionCall {
-        name: func_name,
-        arguments: params,
-    })
-}
+    fn parse_term(&mut self) -> Result<Expression> {
+        let mut left = self.parse_factor()?;
 
-/// 分析返回语句
-pub fn parse_return(line: &[Token]) -> Result<Return> {
-    debug!("{:?}", &line);
-
-    // let var_type = match &line[0] {
-    //     Token::Keyword(Keyword::LET) => VarType::Let,
-    //     Token::Keyword(Keyword::CONST) => VarType::Const,
-    //     _ => unreachable!(),
-    // };
-
-    let var = Return {
-        expression: parse_expression(&line[1..])?,
-    };
-    Ok(var)
-}
-
-/// 分析声明语句
-pub fn parse_declare(lines: &[Box<[Token]>], mut start_line: usize) -> Result<(usize, Local)> {
-    let line = &lines[start_line];
-    // let var_type = match &line[0] {
-    //     Token::Keyword(Keyword::LET) => VarType::Let,
-    //     Token::Keyword(Keyword::CONST) => VarType::Const,
-    //     _ => unreachable!(),
-    // };
-
-    let name = match &line[1] {
-        Token::Identifier(name) => name,
-        _ => unreachable!(),
-    };
-
-    // 检查是否有初始值
-    if line.len() < 4 || line[2] != Token::Operator(Operator::Assign) {
-        return Err(err_msg("语法错误：变量定义必须有初始值。正确格式：let x = 表达式"));
+        while let Some(Token::Operator(op)) = self.peek() {
+            if matches!(op, Operator::Add | Operator::Subtract) {
+                let op = *op;
+                self.advance();
+                let right = self.parse_factor()?;
+                left = Expression::BinaryOperation(BinaryOperation {
+                    left: Box::new(left),
+                    operator: op,
+                    right: Box::new(right),
+                });
+            } else {
+                break;
+            }
+        }
+        Ok(left)
     }
 
-    // 检查是否是函数调用语法（不支持）
-    if let Token::Identifier(_) = line[3] {
-        if line.get(4) == Some(&Token::LParen) {
-            return Err(err_msg("语法错误：不支持在变量声明中直接调用函数。请使用两行：\nlet x = 0\nx = test()"));
+    fn parse_factor(&mut self) -> Result<Expression> {
+        let mut left = self.parse_unary()?;
+
+        while let Some(Token::Operator(op)) = self.peek() {
+            if matches!(op, Operator::Multiply | Operator::Divide | Operator::Mod) {
+                let op = *op;
+                self.advance();
+                let right = self.parse_unary()?;
+                left = Expression::BinaryOperation(BinaryOperation {
+                    left: Box::new(left),
+                    operator: op,
+                    right: Box::new(right),
+                });
+            } else {
+                break;
+            }
         }
+        Ok(left)
     }
 
-    let expr = if line[3] == Token::LBig {
-        if line.last() == Some(&Token::RBig) {
-             // Single line block
-             start_line += 1;
-             if line.len() == 5 {
-                 // Empty block: let x = { }
-                 Expression::Block(vec![])
-             } else {
-                 // Try to parse content as expression: let x = { expr }
-                 let content = &line[4..line.len()-1];
-                 let expr = parse_expression(content)?;
-                 Expression::Block(vec![Statement::Expression(expr)])
-             }
-        } else {
-            let (endline, stmts) = parse_block(lines, start_line + 1)?;
-            start_line = endline + 1;
-            Expression::Block(stmts)
-        }
-    } else {
-        start_line += 1;
-        parse_expression(&line[3..])?
-    };
-
-    let var = Local {
-        name: name.clone(),
-        expression: expr,
-    };
-    Ok((start_line, var))
-}
-
-fn parse_define_function(
-    lines: &[Box<[Token]>],
-    start_line: usize,
-) -> Result<(usize, FunctionDeclaration)> {
-    let func_name = if let Token::Identifier(name) = &lines[start_line][1] {
-        name.to_string()
-    } else {
-        return Err(err_msg("不是函数定义语句"));
-    };
-
-    let (endline, body) = parse_block(lines, start_line + 1)?;
-
-    let params = lines[start_line]
-        .iter()
-        .skip(3)
-        .filter_map(|it| match it {
-            Token::Identifier(s) => Some(s.clone()),
-            _ => None,
-        })
-        .collect();
-
-    let func = FunctionDeclaration {
-        name: func_name,
-        parameters: params,
-        body,
-    };
-    Ok((endline, (func)))
-}
-
-/// 赋值语句分析
-pub fn parse_assign(lines: &[Box<[Token]>], mut start_line: usize) -> Result<(usize, Assign)> {
-    let line = &lines[start_line];
-    debug!("{:?}", &line);
-
-    match &line[0] {
-            Token::Identifier(name) => {
-                assert_eq!(&line[1], &Token::Operator(Operator::Assign));
-                
-                let expr = if line[2] == Token::LBig {
-                    if line.last() == Some(&Token::RBig) {
-                        start_line += 1;
-                        Expression::Block(if line.len() == 4 { vec![] } else { vec![Statement::Expression(parse_expression(&line[3..line.len()-1])?)] })
-                    } else {
-                        let (endline, stmts) = parse_block(lines, start_line + 1)?;
-                        start_line = endline + 1;
-                        Expression::Block(stmts)
-                    }
+    fn parse_unary(&mut self) -> Result<Expression> {
+        if let Some(Token::Operator(op)) = self.peek() {
+            if matches!(op, Operator::Not | Operator::Subtract) {
+                let op = *op;
+                self.advance();
+                let right = self.parse_unary()?;
+                if op == Operator::Not {
+                    return Ok(Expression::NotStatement(NotStatement {
+                        expr: Box::new(right),
+                    }));
                 } else {
-                    let e = match &line[2] {
-                        Token::Identifier(_) if line.get(3) == Some(&Token::LParen) => {
-                            Expression::FunctionCall(parse_func_call(&line[2..])?)
-                        }
-                        _ => parse_expression(&line[2..])?,
-                    };
-                    start_line += 1;
-                    e
-                };
-
-            let var = Assign {
-                name: name.clone(),
-                expr: Box::new(expr),
-            };
-            Ok((start_line, var))
+                    // Unary minus is 0 - expr
+                    return Ok(Expression::BinaryOperation(BinaryOperation {
+                        left: Box::new(Expression::Literal(Literal::Value(Value::Int(0)))),
+                        operator: Operator::Subtract,
+                        right: Box::new(right),
+                    }));
+                }
+            }
         }
-        _ => Err(err_msg(format!("赋值语句语法不对，{line:?}"))),
+        self.parse_primary()
+    }
+
+    fn parse_primary(&mut self) -> Result<Expression> {
+        self.skip_newlines();
+        let token = self
+            .advance()
+            .ok_or(anyhow!("Unexpected end of input"))?
+            .clone();
+
+        match token {
+            Token::Int(i) => Ok(Expression::Literal(Literal::Value(Value::Int(i)))),
+            Token::Float(f) => Ok(Expression::Literal(Literal::Value(Value::Float(f)))),
+            Token::Bool(b) => Ok(Expression::Literal(Literal::Value(Value::Bool(b)))),
+            Token::String(s) => Ok(Expression::Literal(Literal::Value(Value::string(s)))),
+            Token::Identifier(name) => {
+                // Check for function call
+                if self.check(&Token::LParen) {
+                    self.advance(); // consume '('
+                    let mut args = Vec::new();
+                    self.skip_newlines();
+                    if !self.check(&Token::RParen) {
+                        loop {
+                            self.skip_newlines();
+                            args.push(self.parse_expression_logic()?);
+                            self.skip_newlines();
+                            if !self.match_token(&Token::COMMA) {
+                                break;
+                            }
+                        }
+                    }
+                    self.skip_newlines();
+                    self.consume(&Token::RParen, "Expected ')' after arguments")?;
+                    Ok(Expression::FunctionCall(FunctionCall {
+                        name,
+                        arguments: args,
+                    }))
+                } else {
+                    Ok(Expression::Literal(Literal::Identifier(name)))
+                }
+            }
+            Token::LParen => {
+                self.skip_newlines();
+                let expr = self.parse_expression_logic()?;
+                self.skip_newlines();
+                self.consume(&Token::RParen, "Expected ')' after expression")?;
+                Ok(expr)
+            }
+            _ => Err(anyhow!("Unexpected token: {:?}", token)),
+        }
     }
 }
 
-/// 分析条件语句
-pub fn parse_if(lines: &[Box<[Token]>], start_line: usize) -> Result<(usize, If)> {
-    let (mut endline, if_cmd) = parse_block(lines, start_line + 1)?;
-    let else_cmd = if let Some(Token::Keyword(Keyword::ELSE)) = lines[endline].get(1) {
-        assert_eq!(lines[endline][0], Token::RBig);
-        assert_eq!(lines[endline][2], Token::LBig);
-        let (new_endline, cmd) = parse_block(lines, endline + 1)?;
-        endline = new_endline;
-        cmd
-    } else {
-        Vec::new()
-    };
-    let loop_expr = If {
-        test: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
-        body: if_cmd,
-        else_body: else_cmd,
-    };
-    Ok((endline, loop_expr))
-}
+// Keep the old function signature for compatibility with lib.rs for now,
+// but we will update lib.rs to use Parser directly.
+// Actually, let's just expose a helper function that matches the old signature roughly,
+// or better, just update lib.rs.
+// But for now, let's provide a `parse` function that takes tokens.
 
-/// 分析循环语句
-pub fn parse_for(lines: &[Box<[Token]>], start_line: usize) -> Result<(usize, Loop)> {
-    let cmd = parse_block(lines, start_line + 1)?;
-    let loop_expr = Loop {
-        test: parse_expression(&lines[start_line][1..(lines[start_line].len() - 1)])?,
-        body: cmd.1,
-    };
-    Ok((cmd.0, loop_expr))
+/// Parse a vector of tokens into an AST.
+pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
+    let mut parser = Parser::new(tokens);
+    parser.parse()
 }
