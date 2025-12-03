@@ -21,6 +21,7 @@ struct Compiler<'a> {
     raw: &'a [char],
     program: Program,
     scopes: Vec<Scope>,
+    locals_count: usize,
 }
 
 // The main entry point for compilation.
@@ -40,6 +41,7 @@ impl<'a> Compiler<'a> {
             raw,
             program: Program::default(),
             scopes,
+            locals_count: 0,
         }
     }
 
@@ -56,8 +58,9 @@ impl<'a> Compiler<'a> {
     // Defines a variable in the current scope.
     fn define_variable(&mut self, name: String) -> i32 {
         let scope = self.scopes.last_mut().unwrap();
-        let index = scope.locals.len() as i32;
+        let index = self.locals_count as i32;
         scope.locals.insert(name, index);
+        self.locals_count += 1;
         index
     }
 
@@ -134,7 +137,31 @@ impl<'a> Compiler<'a> {
                 self.compile_expression(*not_stmt.expr);
                 self.program.instructions.push(Instruction::Not);
             }
+            Expression::Block(stmts) => self.compile_block_expression(stmts),
         }
+    }
+
+    fn compile_block_expression(&mut self, stmts: Vec<Statement>) {
+        self.begin_scope();
+        let len = stmts.len();
+        for (i, stmt) in stmts.into_iter().enumerate() {
+            if i == len - 1 {
+                match stmt {
+                    Statement::Expression(e) => self.compile_expression(e),
+                    _ => {
+                        self.compile_statement(stmt);
+                        // Block must return a value, so push Null if the last statement is not an expression
+                        self.program.instructions.push(Instruction::Push(crate::value::Value::Null));
+                    }
+                }
+            } else {
+                self.compile_statement(stmt);
+            }
+        }
+        if len == 0 {
+             self.program.instructions.push(Instruction::Push(crate::value::Value::Null));
+        }
+        self.end_scope();
     }
 
     fn compile_literal(&mut self, lit: Literal) {
@@ -201,6 +228,9 @@ impl<'a> Compiler<'a> {
         let function_index = self.program.instructions.len() as i32;
         let narguments = fd.parameters.len();
         
+        let old_locals_count = self.locals_count;
+        self.locals_count = 0;
+
         for param in fd.parameters {
             self.define_variable(param);
         }
@@ -209,8 +239,9 @@ impl<'a> Compiler<'a> {
             self.compile_statement(stmt);
         }
         
-        let nlocals = self.scopes.last().unwrap().locals.len();
+        let nlocals = self.locals_count;
         self.end_scope();
+        self.locals_count = old_locals_count;
 
         self.program.syms.insert(
             format!("func_{}", fd.name),

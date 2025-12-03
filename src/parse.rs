@@ -137,10 +137,15 @@ pub fn parse_block(lines: &[Box<[Token]>], mut start_line: usize) -> Result<(usi
     let mut v = Vec::new();
     while start_line < lines.len() && lines[start_line][0] != Token::RBig {
         match &lines[start_line][0] {
+            Token::LBig => {
+                let (endline, stmts) = parse_block(lines, start_line + 1)?;
+                v.push(Statement::Expression(Expression::Block(stmts)));
+                start_line = endline + 1;
+            }
             Token::Keyword(Keyword::LET) => {
-                let var = parse_declare(&lines[start_line])?;
+                let (endline, var) = parse_declare(lines, start_line)?;
                 v.push(Statement::Local(var));
-                start_line += 1;
+                start_line = endline;
             }
             Token::Keyword(Keyword::FOR) => {
                 let var = parse_for(lines, start_line)?;
@@ -166,9 +171,9 @@ pub fn parse_block(lines: &[Box<[Token]>], mut start_line: usize) -> Result<(usi
             Token::Identifier(_)
                 if lines[start_line].get(1) == Some(&Token::Operator(Operator::Assign)) =>
             {
-                let var = parse_assign(&lines[start_line])?;
+                let (endline, var) = parse_assign(lines, start_line)?;
                 v.push(Statement::Assign(var));
-                start_line += 1;
+                start_line = endline;
             }
             // 函数调用
             Token::Identifier(_) if lines[start_line].get(1) == Some(&Token::LParen) => {
@@ -177,13 +182,13 @@ pub fn parse_block(lines: &[Box<[Token]>], mut start_line: usize) -> Result<(usi
                 start_line += 1;
             }
             // 返回值
-            Token::Identifier(_) if lines[start_line].get(1).is_none() => {
+            Token::Identifier(_) => {
                 let var = parse_expression(&lines[start_line])?;
                 v.push(Statement::Expression(var));
                 start_line += 1;
             }
             // 返回值
-            Token::Int(_) | Token::Float(_) | Token::Bool(_) if lines[start_line].get(1).is_none() => {
+            Token::Int(_) | Token::Float(_) | Token::Bool(_) | Token::String(_) | Token::LParen | Token::Operator(Operator::Not) | Token::Operator(Operator::Subtract) => {
                 let var = parse_expression(&lines[start_line])?;
                 v.push(Statement::Expression(var));
                 start_line += 1;
@@ -258,8 +263,8 @@ pub fn parse_return(line: &[Token]) -> Result<Return> {
 }
 
 /// 分析声明语句
-pub fn parse_declare(line: &[Token]) -> Result<Local> {
-
+pub fn parse_declare(lines: &[Box<[Token]>], mut start_line: usize) -> Result<(usize, Local)> {
+    let line = &lines[start_line];
     // let var_type = match &line[0] {
     //     Token::Keyword(Keyword::LET) => VarType::Let,
     //     Token::Keyword(Keyword::CONST) => VarType::Const,
@@ -283,11 +288,34 @@ pub fn parse_declare(line: &[Token]) -> Result<Local> {
         }
     }
 
+    let expr = if line[3] == Token::LBig {
+        if line.last() == Some(&Token::RBig) {
+             // Single line block
+             start_line += 1;
+             if line.len() == 5 {
+                 // Empty block: let x = { }
+                 Expression::Block(vec![])
+             } else {
+                 // Try to parse content as expression: let x = { expr }
+                 let content = &line[4..line.len()-1];
+                 let expr = parse_expression(content)?;
+                 Expression::Block(vec![Statement::Expression(expr)])
+             }
+        } else {
+            let (endline, stmts) = parse_block(lines, start_line + 1)?;
+            start_line = endline + 1;
+            Expression::Block(stmts)
+        }
+    } else {
+        start_line += 1;
+        parse_expression(&line[3..])?
+    };
+
     let var = Local {
         name: name.clone(),
-        expression: parse_expression(&line[3..])?,
+        expression: expr,
     };
-    Ok(var)
+    Ok((start_line, var))
 }
 
 fn parse_define_function(
@@ -320,24 +348,39 @@ fn parse_define_function(
 }
 
 /// 赋值语句分析
-pub fn parse_assign(line: &[Token]) -> Result<Assign> {
+pub fn parse_assign(lines: &[Box<[Token]>], mut start_line: usize) -> Result<(usize, Assign)> {
+    let line = &lines[start_line];
     debug!("{:?}", &line);
 
     match &line[0] {
             Token::Identifier(name) => {
                 assert_eq!(&line[1], &Token::Operator(Operator::Assign));
-                let expr: Expression = match &line[2] {
-                    Token::Identifier(_) if line.get(3) == Some(&Token::LParen) => {
-                        Expression::FunctionCall(parse_func_call(&line[2..])?)
+                
+                let expr = if line[2] == Token::LBig {
+                    if line.last() == Some(&Token::RBig) {
+                        start_line += 1;
+                        Expression::Block(if line.len() == 4 { vec![] } else { vec![Statement::Expression(parse_expression(&line[3..line.len()-1])?)] })
+                    } else {
+                        let (endline, stmts) = parse_block(lines, start_line + 1)?;
+                        start_line = endline + 1;
+                        Expression::Block(stmts)
                     }
-                    _ => parse_expression(&line[2..])?,
+                } else {
+                    let e = match &line[2] {
+                        Token::Identifier(_) if line.get(3) == Some(&Token::LParen) => {
+                            Expression::FunctionCall(parse_func_call(&line[2..])?)
+                        }
+                        _ => parse_expression(&line[2..])?,
+                    };
+                    start_line += 1;
+                    e
                 };
 
             let var = Assign {
                 name: name.clone(),
                 expr: Box::new(expr),
             };
-            Ok(var)
+            Ok((start_line, var))
         }
         _ => Err(err_msg(format!("赋值语句语法不对，{line:?}"))),
     }

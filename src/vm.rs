@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use tracing::debug;
+use std::io::Write;
 
 use crate::value::{Value, RuntimeError};
 
@@ -317,6 +318,7 @@ impl VM {
                                     for value in values.iter().rev() {
                                         print!("{}", value);
                                     }
+                                    std::io::stdout().flush().unwrap();
                                     self.stack.push(Value::null()); // 返回null
                                 }
                                 "println" => {

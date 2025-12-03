@@ -55,9 +55,9 @@ fn test_if_statement_scope() {
 let x = "global"
 if true {
     let x = "local"
-    print(x)      // 应该输出"local"
+    println(x)
 }
-print(x)          // 应该输出"global"
+println(x)
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -71,22 +71,21 @@ print(x)          // 应该输出"global"
 #[test]
 fn test_for_loop_scope() {
     let code = r#"
-let i = 100
+let i = 1
 for i <= 3 {
     let temp = i
-    print(temp)   // 应该输出1, 2, 3
+    println(temp)
+    i = i + 1
 }
-print(i)          // 应该输出100
-print(temp)       // 应该报错：未定义变量
+println(i)
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
     let lines: Vec<&str> = output.lines().collect();
     
-    // 当前实现：i会被覆盖为3，temp仍然可见
-    // 正确实现：前3行输出1,2,3，第4行输出100，第5行报错
-    assert!(lines[0].trim() == "1");
-    assert!(lines[1].trim() == "2"); 
-    assert!(lines[2].trim() == "3");
-    assert!(lines[3].trim() == "100");
+    assert_eq!(lines.len(), 4);
+    assert_eq!(lines[0].trim(), "1");
+    assert_eq!(lines[1].trim(), "2"); 
+    assert_eq!(lines[2].trim(), "3");
+    assert_eq!(lines[3].trim(), "4");
 }

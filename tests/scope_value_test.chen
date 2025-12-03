@@ -1,0 +1,57 @@
+# Test 1: Simple block assignment
+let x = {
+    let a = 10
+    let b = 20
+    a + b
+}
+if x == 30 {
+    println("Test 1 Passed")
+} else {
+    println("Test 1 Failed: Expected 30, got " + x)
+}
+
+# Test 2: Nested blocks
+let y = {
+    let c = 5
+    {
+        let d = 10
+        c + d
+    }
+}
+if y == 15 {
+    println("Test 2 Passed")
+} else {
+    println("Test 2 Failed: Expected 15, got " + y)
+}
+
+# Test 3: Block with if/else
+let z = {
+    let e = 100
+    if e > 50 {
+        1
+    } else {
+        0
+    }
+}
+# Note: if/else currently doesn't return a value in the same way, 
+# but the BLOCK containing it should return the value of the if statement?
+# Wait, if statement is a Statement::If, not Expression.
+# So if the last statement is If, it returns Null.
+# Unless I change If to be an Expression?
+# My implementation only returns value if the last statement is Statement::Expression.
+# So `if` statement does NOT return a value.
+# So `z` should be Null.
+println("Test 3 (If statement): " + z) 
+
+# Test 4: Block ending with non-expression
+let w = {
+    let f = 1
+    f = f + 1
+}
+# Assignment is a Statement::Assign, not Expression.
+# So w should be Null.
+println("Test 4 (Assignment): " + w)
+
+# Test 5: Empty block
+let v = {}
+println("Test 5 (Empty): " + v)

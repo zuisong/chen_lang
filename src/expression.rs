@@ -29,6 +29,7 @@ pub enum Expression {
     BinaryOperation(BinaryOperation),
     Literal(Literal),
     NotStatement(NotStatement),
+    Block(Vec<Statement>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
