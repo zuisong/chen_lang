@@ -6,39 +6,33 @@ name = "chen_lang"
 version = "0.1.0"
 description = "A tiny programming language written in rust"
 rust-version = "1.90"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+binaries = ["dep:clap", "dep:clap_complete", "dep:tracing-subscriber"]
+wasm = ["dep:wasm-bindgen"]
+default = ["binaries", "wasm"]
+
 [dependencies]
 anyhow = "1"
 thiserror = "2"
 winnow = "0.7"
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", optional = true }
-
+wasm-bindgen = { version = "0.2", optional = true }
 clap = { version = "4", optional = true, features = ["derive"] }
 clap_complete = { version = "4", optional = true }
-
-[build-dependencies]
 
 [dev-dependencies]
 assert_cmd = "2"
 escargot = "0.5"
 pretty_assertions = { version = "1", features = ["unstable"] }
 tempfile = "3"
-
-[[bin]]
-name = "chen_lang"
-path = "src/bin/chen_lang.rs"
-required-features = ["binaries"]
-
-[[bin]]
-name = "wasm"
-path = "src/wasm/main.rs"
-required-features = ["wasm"]
-
-[features]
-binaries = ["dep:clap", "dep:clap_complete", "dep:tracing-subscriber"]
-wasm = []
-
-default = ["binaries"]
 
 
 [profile.release]

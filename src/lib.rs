@@ -8,9 +8,25 @@
 // #![deny(unreachable_code)]
 
 use std::fmt::{Debug, Display};
+use std::io::Write;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use tracing::debug;
+#[cfg(feature = "wasm")]
+use wasm_bindgen::prelude::*;
+
+#[derive(Clone)]
+struct SharedWriter(Arc<Mutex<Vec<u8>>>);
+
+impl Write for SharedWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().write(buf)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
 
 use crate::expression::*;
 use crate::token::*;
@@ -31,6 +47,13 @@ pub mod vm;
 /// 测试模块
 #[cfg(test)]
 mod tests;
+
+#[test]
+fn test_run_captured() {
+    let code = r#"print("Hello World")"#;
+    let output = run_captured(code.to_string()).unwrap();
+    assert_eq!(output, "Hello World");
+}
 
 #[inline]
 pub(crate) fn err_msg<M>(msg: M) -> anyhow::Error
@@ -59,4 +82,41 @@ pub fn run(code: String) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// 运行代码并捕获输出
+pub fn run_captured(code: String) -> Result<String> {
+    let tokens = tokenlizer(code.clone())?;
+    let ast = parse::parse(tokens)?;
+
+    let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
+
+    let output = Arc::new(Mutex::new(Vec::new()));
+    let writer = SharedWriter(output.clone());
+
+    {
+        let mut vm = vm::VM::with_writer(Box::new(writer));
+        let result = vm.execute(&program);
+        match result {
+            vm::VMResult::Ok(value) => {
+                debug!("Execution result: {:?}", value);
+            }
+            vm::VMResult::Error(error) => {
+                let mut guard = output.lock().unwrap();
+                writeln!(guard, "Runtime error: {:?}", error)?;
+            }
+        }
+    }
+
+    let output_vec = output.lock().unwrap().clone();
+    Ok(String::from_utf8(output_vec)?)
+}
+
+#[cfg(feature = "wasm")]
+#[wasm_bindgen]
+pub fn run_wasm(code: String) -> String {
+    match run_captured(code) {
+        Ok(output) => output,
+        Err(e) => format!("Error: {}", e),
+    }
 }

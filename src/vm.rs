@@ -82,6 +82,7 @@ pub struct VM {
     pc: usize,                         // 程序计数器
     fp: usize,                         // 帧指针
     call_stack: Vec<(usize, usize)>,   // 调用栈（保存返回地址, 旧fp）
+    stdout: Box<dyn Write>,            // 标准输出
 }
 
 impl VM {
@@ -92,6 +93,18 @@ impl VM {
             pc: 0,
             fp: 0,
             call_stack: Vec::new(),
+            stdout: Box::new(std::io::stdout()),
+        }
+    }
+
+    pub fn with_writer(writer: Box<dyn Write>) -> Self {
+        VM {
+            stack: Vec::new(),
+            variables: HashMap::new(),
+            pc: 0,
+            fp: 0,
+            call_stack: Vec::new(),
+            stdout: writer,
         }
     }
 
@@ -326,9 +339,9 @@ impl VM {
                         }
                         // 反向输出以保持正确顺序
                         for value in values.iter().rev() {
-                            print!("{}", value);
+                            write!(self.stdout, "{}", value).unwrap();
                         }
-                        std::io::stdout().flush().unwrap();
+                        self.stdout.flush().unwrap();
                         self.stack.push(Value::null()); // 返回null
                     }
                     "println" => {
@@ -340,9 +353,9 @@ impl VM {
                         }
                         // 反向输出以保持正确顺序
                         for value in values.iter().rev() {
-                            print!("{}", value);
+                            write!(self.stdout, "{}", value).unwrap();
                         }
-                        println!();
+                        writeln!(self.stdout).unwrap();
                         self.stack.push(Value::null());
                     }
                     _ => {
