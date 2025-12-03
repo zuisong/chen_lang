@@ -1,287 +1,147 @@
 // Value system tests - testing the new unified value system
 // including float operations, string operations, and type conversions
-use std::fs;
-
-use assert_cmd::cargo_bin_cmd;
-use tempfile::TempDir;
+mod common;
+use common::run_chen_lang_code;
 
 #[test]
 fn test_integer_arithmetic() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(&test_file, "let x = 5\nlet y = 3\nprint(x + y)\n").unwrap();
-
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout.trim(), "8");
+    let code = r#"
+let x = 5
+let y = 3
+print(x + y)
+"#;
+    let output = run_chen_lang_code(code).unwrap();
+    assert_eq!(output.trim(), "8");
 }
 
 #[test]
 fn test_float_arithmetic() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(&test_file, "let x = 3.14\nlet y = 2.0\nprint(x * y)\n").unwrap();
-
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout.trim(), "6.28");
+    let code = r#"
+let x = 3.14
+let y = 2.0
+print(x * y)
+"#;
+    let output = run_chen_lang_code(code).unwrap();
+    assert_eq!(output.trim(), "6.28");
 }
 
 #[test]
 fn test_string_concatenation() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        "let hello = \"Hello\"\nlet world = \" World\"\nprint(hello + world)\n",
-    )
-    .unwrap();
-
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout.trim(), "Hello World");
+    let code = r#"
+let hello = "Hello"
+let world = " World"
+print(hello + world)
+"#;
+    let output = run_chen_lang_code(code).unwrap();
+    assert_eq!(output.trim(), "Hello World");
 }
 
 #[test]
 fn test_mixed_type_arithmetic() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        "let int_val = 5\nlet float_val = 2.5\nlet result = int_val + float_val\nprint(result)\n",
-    )
-    .unwrap();
-
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout.trim(), "7.5");
+    let code = r#"
+let int_val = 5
+let float_val = 2.5
+let result = int_val + float_val
+print(result)
+"#;
+    let output = run_chen_lang_code(code).unwrap();
+    assert_eq!(output.trim(), "7.5");
 }
 
 #[test]
 fn test_float_division() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        "let x = 7.0\nlet y = 2.0\nlet result = x / y\nprint(result)\n",
-    )
-    .unwrap();
-
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout.trim(), "3.5");
+    let code = r#"
+let x = 7.0
+let y = 2.0
+let result = x / y
+print(result)
+"#;
+    let output = run_chen_lang_code(code).unwrap();
+    assert_eq!(output.trim(), "3.5");
 }
 
 #[test]
 fn test_negative_float() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        "let x = -3.14\nlet y = 2.0\nlet result = x * y\nprint(result)\n",
-    )
-    .unwrap();
-
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout.trim(), "-6.28");
+    let code = r#"
+let x = -3.14
+let y = 2.0
+let result = x * y
+print(result)
+"#;
+    let output = run_chen_lang_code(code).unwrap();
+    assert_eq!(output.trim(), "-6.28");
 }
 
 #[test]
 fn test_variable_assignment_with_float() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        "let pi = 3.14159\nlet radius = 2.0\nlet area = pi * radius * radius\nprint(area)\n",
-    )
-    .unwrap();
-
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout.trim(), "12.56636");
+    let code = r#"
+let pi = 3.14159
+let radius = 2.0
+let area = pi * radius * radius
+print(area)
+"#;
+    let output = run_chen_lang_code(code).unwrap();
+    assert_eq!(output.trim(), "12.56636");
 }
 
 #[test]
 fn test_string_with_numbers() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        "let prefix = \"Result: \"\nlet number = 42\nlet message = prefix + \"42\"\nprint(message)\n",
-    )
-    .unwrap();
-
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout.trim(), "Result: 42");
+    let code = r#"
+let prefix = "Result: "
+let number = 42
+let message = prefix + "42"
+print(message)
+"#;
+    let output = run_chen_lang_code(code).unwrap();
+    assert_eq!(output.trim(), "Result: 42");
 }
 
 #[test]
 fn test_complex_float_expression() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        "let a = 1.5\nlet b = 2.0\nlet c = 3.0\nlet result = a + b * c - 0.5\nprint(result)\n",
-    )
-    .unwrap();
-
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
+    let code = r#"
+let a = 1.5
+let b = 2.0
+let c = 3.0
+let result = a + b * c - 0.5
+print(result)
+"#;
+    let output = run_chen_lang_code(code).unwrap();
     // 1.5 + 2.0 * 3.0 - 0.5 = 1.5 + 6.0 - 0.5 = 7.0
-    assert_eq!(stdout.trim(), "7");
+    assert_eq!(output.trim(), "7");
 }
 
 #[test]
 fn test_zero_float() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        "let x = 0.0\nlet y = 5.0\nlet result = x + y\nprint(result)\n",
-    )
-    .unwrap();
-
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout.trim(), "5");
+    let code = r#"
+let x = 0.0
+let y = 5.0
+let result = x + y
+print(result)
+"#;
+    let output = run_chen_lang_code(code).unwrap();
+    assert_eq!(output.trim(), "5");
 }
 
 #[test]
 fn test_float_comparison() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        "let a = 3.14\nlet b = 3.14\nlet equal = a == b\nprint(equal)\n",
-    )
-    .unwrap();
-
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout.trim(), "true");
+    let code = r#"
+let a = 3.14
+let b = 3.14
+let equal = a == b
+print(equal)
+"#;
+    let output = run_chen_lang_code(code).unwrap();
+    assert_eq!(output.trim(), "true");
 }
 
 #[test]
 fn test_mixed_comparison() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        "let int_val = 5\nlet float_val = 5.0\nlet equal = int_val == float_val\nprint(equal)\n",
-    )
-    .unwrap();
-
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(stdout.trim(), "true");
+    let code = r#"
+let int_val = 5
+let float_val = 5.0
+let equal = int_val == float_val
+print(equal)
+"#;
+    let output = run_chen_lang_code(code).unwrap();
+    assert_eq!(output.trim(), "true");
 }

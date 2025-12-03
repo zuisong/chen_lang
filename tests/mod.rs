@@ -1,20 +1,2 @@
-// Arithmetic operations tests
-mod arithmetic_tests;
-
-// Complex logic and string operations tests
-mod complex_tests;
-
-// Control flow tests (if, for, etc.)
-mod control_flow_tests;
-
-// Function definition and call tests
-mod function_tests;
-
-// Boolean and comparison operations tests
-mod logic_tests;
-
-// Value system tests (float, string, type conversion)
-mod value_tests;
-
-// Scope and variable lifetime tests
-mod scope_tests;
+// This file is intentionally left empty to allow other test files in this directory
+// to be compiled as standalone integration tests.

@@ -1,47 +1,23 @@
-use std::fs;
-
-use assert_cmd::cargo_bin_cmd;
-use tempfile::TempDir;
+mod common;
+use common::run_chen_lang_code;
 
 #[test]
 fn test_string_operations() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        r#"
+    let code = r#"
 let hello = "Hello"
 let world = "World"
 let result = hello + " " + world
 print(result)
-"#,
-    )
-    .unwrap();
+"#;
 
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
+    let output = run_chen_lang_code(code).unwrap();
     // 字符串被转换为哈希值，但应该有输出
-    assert!(!stdout.trim().is_empty());
+    assert!(!output.trim().is_empty());
 }
 
 #[test]
 fn test_nine_nine_multiply_table() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        r#"
+    let code = r#"
 let i=1
 for i<=9 {
     let j = 1
@@ -53,38 +29,18 @@ for i<=9 {
     println("")
     i=i+1
 }
-"#,
-    )
-    .unwrap();
+"#;
 
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-
-    if !output.status.success() {
-        println!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-    }
-    assert!(output.status.success());
-
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    println!("{}", stdout);
-    let lines: Vec<&str> = stdout.lines().collect();
+    let output = run_chen_lang_code(code).unwrap();
+    println!("{}", output);
+    let lines: Vec<&str> = output.lines().collect();
     assert!(lines[0].contains("1x1=1"));
     assert!(lines[8].contains("9x9=81"));
 }
 
 #[test]
 fn test_sum_example() {
-    let mut cmd = cargo_bin_cmd!();
-
-    let temp_dir = TempDir::new().unwrap();
-    let test_file = temp_dir.path().join("test.ch");
-    fs::write(
-        &test_file,
-        r#"
+    let code = r#"
 def aaa(n){
     let i = 100
     let sum = 0
@@ -102,19 +58,9 @@ def aaa(n){
 let sum = 0
 sum = aaa(100)
 println(sum)
-"#,
-    )
-    .unwrap();
+"#;
 
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()
-        .unwrap();
-    dbg!(&output);
-    assert!(output.status.success());
-    let stdout = String::from_utf8(output.stdout).unwrap();
-    assert!(stdout.contains("100以内的 奇数或者是能被三整除的偶数 之和是"));
-    assert!(stdout.contains("3316"));
+    let output = run_chen_lang_code(code).unwrap();
+    assert!(output.contains("100以内的 奇数或者是能被三整除的偶数 之和是"));
+    assert!(output.contains("3316"));
 }
