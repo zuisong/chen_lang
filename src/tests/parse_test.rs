@@ -43,31 +43,28 @@ fn parse() {
             Statement::Loop(Loop {
                 test: Expression::BinaryOperation(BinaryOperation {
                     operator: Operator::Lt,
-                    left: Expression::Literal(Literal::Identifier("i".to_string(),),).into(),
+                    left: Expression::Identifier("i".to_string()).into(),
                     right: Expression::Literal(Literal::Value(Value::Int(100,),),).into(),
                 },),
                 body: vec![
-                    Statement::If(If {
+                    Statement::Expression(Expression::If(If {
                         test: Expression::BinaryOperation(BinaryOperation {
                             operator: Operator::Equals,
                             left: Expression::BinaryOperation(BinaryOperation {
                                 operator: Operator::Mod,
-                                left: Expression::Literal(Literal::Identifier("i".to_string(),),)
-                                    .into(),
+                                left: Expression::Identifier("i".to_string()).into(),
                                 right: Expression::Literal(Literal::Value(Value::Int(2,),),).into(),
                             },)
                             .into(),
                             right: Expression::Literal(Literal::Value(Value::Int(0,),),).into(),
-                        },),
+                        },)
+                        .into(),
                         body: vec![Statement::Expression(Expression::FunctionCall(
                             FunctionCall {
                                 name: "println".to_string(),
                                 arguments: vec![Expression::BinaryOperation(BinaryOperation {
                                     operator: Operator::Add,
-                                    left: Expression::Literal(
-                                        Literal::Identifier("i".to_string(),),
-                                    )
-                                    .into(),
+                                    left: Expression::Identifier("i".to_string()).into(),
                                     right: Expression::Literal(Literal::Value(Value::string(
                                         " 是偶数".to_string(),
                                     ),),)
@@ -80,10 +77,7 @@ fn parse() {
                                 name: "println".to_string(),
                                 arguments: vec![Expression::BinaryOperation(BinaryOperation {
                                     operator: Operator::Add,
-                                    left: Expression::Literal(
-                                        Literal::Identifier("i".to_string(),),
-                                    )
-                                    .into(),
+                                    left: Expression::Identifier("i".to_string()).into(),
                                     right: Expression::Literal(Literal::Value(Value::string(
                                         " 是奇数".to_string(),
                                     ),),)
@@ -91,13 +85,12 @@ fn parse() {
                                 },),],
                             },
                         ),),],
-                    },),
+                    },)),
                     Statement::Assign(Assign {
                         name: "i".to_string(),
                         expr: Expression::BinaryOperation(BinaryOperation {
                             operator: Operator::Add,
-                            left: Expression::Literal(Literal::Identifier("i".to_string(),),)
-                                .into(),
+                            left: Expression::Identifier("i".to_string()).into(),
                             right: Expression::Literal(Literal::Value(Value::Int(1,),),).into(),
                         },)
                         .into(),

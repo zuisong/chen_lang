@@ -122,7 +122,6 @@ impl<'a> Compiler<'a> {
                 // This is handled in compile_program, so we can ignore it here.
             }
             Statement::Return(r) => self.compile_return(r),
-            Statement::If(if_) => self.compile_if(if_),
             Statement::Local(loc) => self.compile_local(loc),
             Statement::Expression(e) => {
                 self.compile_expression(e);
@@ -138,11 +137,21 @@ impl<'a> Compiler<'a> {
             Expression::BinaryOperation(bop) => self.compile_binary_operation(bop),
             Expression::FunctionCall(fc) => self.compile_function_call(fc),
             Expression::Literal(lit) => self.compile_literal(lit),
-            Expression::NotStatement(not_stmt) => {
-                self.compile_expression(*not_stmt.expr);
-                self.program.instructions.push(Instruction::Not);
+            Expression::Identifier(ident) => {
+                let offset = self.resolve_variable(&ident).expect("Undefined variable");
+                self.program
+                    .instructions
+                    .push(Instruction::DupPlusFP(offset));
+            }
+            Expression::Unary(unary) => {
+                self.compile_expression(*unary.expr);
+                match unary.operator {
+                    Operator::Not => self.program.instructions.push(Instruction::Not),
+                    _ => panic!("Unsupported unary operator"),
+                }
             }
             Expression::Block(stmts) => self.compile_block_expression(stmts),
+            Expression::If(if_expr) => self.compile_if(if_expr),
         }
     }
 
@@ -175,14 +184,8 @@ impl<'a> Compiler<'a> {
 
     fn compile_literal(&mut self, lit: Literal) {
         match lit {
-            Literal::Value(value) => {
-                self.program.instructions.push(Instruction::Push(value));
-            }
-            Literal::Identifier(ident) => {
-                let offset = self.resolve_variable(&ident).expect("Undefined variable");
-                self.program
-                    .instructions
-                    .push(Instruction::DupPlusFP(offset));
+            Literal::Value(val) => {
+                self.program.instructions.push(Instruction::Push(val));
             }
         }
     }
@@ -254,47 +257,68 @@ impl<'a> Compiler<'a> {
             self.define_variable(param);
         }
 
-        for stmt in fd.body {
-            self.compile_statement(stmt);
+        let len = fd.body.len();
+        if len > 0 {
+            for (i, stmt) in fd.body.into_iter().enumerate() {
+                if i == len - 1 {
+                    match stmt {
+                        Statement::Expression(expr) => {
+                            self.compile_expression(expr);
+                        }
+                        _ => {
+                            self.compile_statement(stmt);
+                            self.program
+                                .instructions
+                                .push(Instruction::Push(crate::value::Value::Null));
+                        }
+                    }
+                } else {
+                    self.compile_statement(stmt);
+                }
+            }
+        } else {
+            self.program
+                .instructions
+                .push(Instruction::Push(crate::value::Value::Null));
         }
 
         let nlocals = self.locals_count;
         self.end_scope();
         self.locals_count = old_locals_count;
 
+        // Implicit return: return the value on top of the stack
+        self.program.instructions.push(Instruction::Return);
+
         self.program.syms.insert(
             format!("func_{}", fd.name),
             Symbol {
                 location: function_index,
-                narguments,
                 nlocals,
+                narguments,
             },
         );
     }
 
-    fn compile_if(&mut self, if_: If) {
-        self.compile_expression(if_.test);
-        let else_label = format!("if_else_{}", self.program.instructions.len());
-        let end_label = format!("if_end_{}", self.program.instructions.len());
+    fn compile_if(&mut self, if_stmt: If) {
+        self.compile_expression(*if_stmt.test);
+
+        let unique_id = self.program.instructions.len();
+        let else_label = format!("else_{}", unique_id);
+        let end_label = format!("end_{}", unique_id);
 
         self.program
             .instructions
             .push(Instruction::JumpIfFalse(else_label.clone()));
 
-        self.begin_scope();
-        for stmt in if_.body {
-            self.compile_statement(stmt);
-        }
-        self.end_scope();
+        self.compile_block_expression(if_stmt.body);
 
-        if !if_.else_body.is_empty() {
-            self.program
-                .instructions
-                .push(Instruction::Jump(end_label.clone()));
-        }
+        self.program
+            .instructions
+            .push(Instruction::Jump(end_label.clone()));
 
+        // Else label location
         self.program.syms.insert(
-            else_label,
+            else_label.clone(),
             Symbol {
                 location: self.program.instructions.len() as i32,
                 nlocals: 0,
@@ -302,12 +326,16 @@ impl<'a> Compiler<'a> {
             },
         );
 
-        self.begin_scope();
-        for stmt in if_.else_body {
-            self.compile_statement(stmt);
+        if !if_stmt.else_body.is_empty() {
+            self.compile_block_expression(if_stmt.else_body);
+        } else {
+            // If expression with no else branch must return Null
+            self.program
+                .instructions
+                .push(Instruction::Push(crate::value::Value::Null));
         }
-        self.end_scope();
 
+        // End label location
         self.program.syms.insert(
             end_label,
             Symbol {

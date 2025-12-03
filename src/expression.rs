@@ -6,7 +6,6 @@ use crate::value::Value;
 
 #[derive(Debug, PartialEq, Clone)]
 pub enum Literal {
-    Identifier(String),
     Value(Value),
 }
 
@@ -28,8 +27,10 @@ pub enum Expression {
     FunctionCall(FunctionCall),
     BinaryOperation(BinaryOperation),
     Literal(Literal),
-    NotStatement(NotStatement),
+    Unary(Unary),
+    Identifier(String),
     Block(Vec<Statement>),
+    If(If),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -41,7 +42,7 @@ pub struct FunctionDeclaration {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct If {
-    pub test: Expression,
+    pub test: Box<Expression>,
     pub body: Vec<Statement>,
     pub else_body: Vec<Statement>,
 }
@@ -60,7 +61,6 @@ pub struct Return {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Statement {
     Expression(Expression),
-    If(If),
     Loop(Loop),
     FunctionDeclaration(FunctionDeclaration),
     Return(Return),
@@ -70,20 +70,11 @@ pub enum Statement {
 
 pub type Ast = Vec<Statement>;
 
-/// 取反
+/// 一元表达式
 #[derive(Debug, PartialEq, Clone)]
-pub struct NotStatement {
-    /// 要取反的表达式
+pub struct Unary {
+    pub operator: Operator,
     pub expr: Box<Expression>,
-}
-
-/// 打印
-#[derive(Debug, Clone)]
-pub struct PrintStatement {
-    /// 要打印的表达式对象
-    pub expression: Box<Expression>,
-    /// 是否换行
-    pub is_newline: bool,
 }
 
 /// 赋值语句

@@ -118,9 +118,7 @@ impl Parser {
         if self.match_token(&Token::Keyword(Keyword::FOR)) {
             return self.parse_for();
         }
-        if self.match_token(&Token::Keyword(Keyword::IF)) {
-            return self.parse_if();
-        }
+
         if self.match_token(&Token::Keyword(Keyword::DEF)) {
             return self.parse_function();
         }
@@ -176,7 +174,7 @@ impl Parser {
         Ok(Statement::Return(Return { expression: expr }))
     }
 
-    fn parse_if(&mut self) -> Result<Statement> {
+    fn parse_if(&mut self) -> Result<Expression> {
         // if condition { ... } else { ... }
         let condition = self.parse_expression_logic()?;
 
@@ -194,8 +192,8 @@ impl Parser {
             self.consume(&Token::RBig, "Expected '}' after else block")?;
         }
 
-        Ok(Statement::If(If {
-            test: condition,
+        Ok(Expression::If(If {
+            test: Box::new(condition),
             body: then_branch,
             else_body: else_branch,
         }))
@@ -390,7 +388,8 @@ impl Parser {
                 self.advance();
                 let right = self.parse_unary()?;
                 if op == Operator::Not {
-                    return Ok(Expression::NotStatement(NotStatement {
+                    return Ok(Expression::Unary(Unary {
+                        operator: Operator::Not,
                         expr: Box::new(right),
                     }));
                 } else {
@@ -441,9 +440,10 @@ impl Parser {
                         arguments: args,
                     }))
                 } else {
-                    Ok(Expression::Literal(Literal::Identifier(name)))
+                    Ok(Expression::Identifier(name))
                 }
             }
+            Token::Keyword(Keyword::IF) => self.parse_if(),
             Token::LParen => {
                 self.skip_newlines();
                 let expr = self.parse_expression_logic()?;
