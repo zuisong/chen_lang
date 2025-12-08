@@ -85,6 +85,12 @@ pub struct VM {
     stdout: Box<dyn Write>,            // 标准输出
 }
 
+impl Default for VM {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VM {
     pub fn new() -> Self {
         VM {

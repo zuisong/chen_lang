@@ -32,6 +32,16 @@ impl Parser {
     }
 
     /// Parse the tokens into an AST (list of statements).
+    ///
+    /// 此方法是 `Parser` 结构体的主要解析方法。它通过调用 `parse_block()` 方法
+    /// 来处理顶层的语句块，从而构建整个程序的抽象语法树 (AST)。
+    ///
+    /// **解析流程概览：**
+    /// 1.  从 Token 序列中逐个读取 Token。
+    /// 2.  根据 Token 的类型和上下文，递归地调用不同的 `parse_*` 方法。
+    /// 3.  每成功解析一个语法单元（如语句、表达式），就构建一个对应的 AST 节点。
+    /// 4.  将这些 AST 节点组织成最终的 AST 结构。
+    /// 5.  整个过程类似于一个"状态机"，通过 `current` 指针和函数调用栈维护解析状态。
     pub fn parse(&mut self) -> Result<Ast, ParseError> {
         self.parse_block()
     }
@@ -110,6 +120,21 @@ impl Parser {
 
     // --- Parsing Logic ---
 
+    /// 解析一个语句块（例如，函数体、`if` 或 `for` 语句后面的 `{...}` 部分）。
+    ///
+    /// **工作流程：**
+    /// 1.  创建一个空的 `statements` 列表，用于存放解析出的语句 AST 节点。
+    /// 2.  循环处理 Token，直到文件结束或遇到右大括号 `}`。
+    ///     *   首先跳过所有空行 (`skip_newlines`)。
+    ///     *   如果仍然没有结束且未遇到 `}`，则调用 `parse_statement()` 解析单个语句。
+    ///     *   将解析出的语句添加到 `statements` 列表。
+    ///     *   再次跳过空行。
+    /// 3.  返回包含所有语句 AST 节点的列表。
+    ///
+    /// **流程图简述：**
+    /// 开始 -> [初始化语句列表] -> 循环: [跳过空行] -> [判断是否结束或遇到 '}' ?]
+    /// -> 是: 结束循环 -> 否: [解析单个语句 (parse_statement)] -> [添加语句到列表]
+    /// -> [跳过空行] -> 返回语句列表 -> 结束
     fn parse_block(&mut self) -> Result<Ast, ParseError> {
         let mut statements = Vec::new();
 
@@ -125,6 +150,26 @@ impl Parser {
         Ok(statements)
     }
 
+    /// 解析一个单独的语句。
+    ///
+    /// **工作流程：**
+    /// 1.  **关键字识别**: 检查当前 Token 是否是 `let`, `for`, `def`, `return`, `break`, `continue` 等关键字。
+    ///     *   如果是，则根据关键字类型，调用对应的解析方法（如 `parse_declare`, `parse_for`, `parse_function` 等）。
+    ///     *   解析完成后，返回相应的 `Statement` AST 节点。
+    /// 2.  **赋值或表达式语句**: 如果不是关键字，则检查当前 Token 是否可能是赋值语句或纯表达式语句。
+    ///     *   通过 `peek()` 和 `peek_next()` 进行前瞻，判断是否为 `Identifier` 后跟 `Operator::Assign`。
+    ///     *   如果是赋值语句，解析右侧表达式并构建 `Statement::Assign` 节点。
+    ///     *   如果不是赋值语句，则将整个内容解析为一个表达式，构建 `Statement::Expression` 节点。
+    ///
+    /// **流程图简述：**
+    /// 开始 -> [匹配 'let' ?] -> 是: [parse_declare] -> 否
+    /// -> [匹配 'for' ?] -> 是: [parse_for] -> 否
+    /// -> [匹配 'def' ?] -> 是: [parse_function] -> 否
+    /// -> [匹配 'return' ?] -> 是: [parse_return] -> 否
+    /// -> [匹配 'break' ?] -> 是: [Statement::Break] -> 否
+    /// -> [匹配 'continue' ?] -> 是: [Statement::Continue] -> 否
+    /// -> [前瞻: Identifier + Assign ?] -> 是: [解析赋值语句] -> 否
+    /// -> [解析表达式 (parse_expression_logic)] -> 返回 Statement -> 结束
     fn parse_statement(&mut self) -> Result<Statement, ParseError> {
         if self.match_token(&Token::Keyword(Keyword::LET)) {
             return self.parse_declare();
@@ -151,17 +196,17 @@ impl Parser {
         // Or `func()` (Expression)
 
         // Simple heuristic: if it starts with Identifier and next is Assign, it's assignment.
-        if let Some(Token::Identifier(name)) = self.peek() {
-            if let Some(Token::Operator(Operator::Assign)) = self.peek_next() {
-                let name = name.clone();
-                self.advance(); // consume identifier
-                self.advance(); // consume =
-                let expr = self.parse_expression_logic()?;
-                return Ok(Statement::Assign(Assign {
-                    name,
-                    expr: Box::new(expr),
-                }));
-            }
+        if let Some(Token::Identifier(name)) = self.peek()
+            && let Some(Token::Operator(Operator::Assign)) = self.peek_next()
+        {
+            let name = name.clone();
+            self.advance(); // consume identifier
+            self.advance(); // consume =
+            let expr = self.parse_expression_logic()?;
+            return Ok(Statement::Assign(Assign {
+                name,
+                expr: Box::new(expr),
+            }));
         }
 
         let expr = self.parse_expression_logic()?;
@@ -282,6 +327,21 @@ impl Parser {
     // Actually, the existing `parse_expression` was shunting-yard on a single line.
     // We should implement a proper recursive descent or precedence climbing here.
 
+    /// 解析各种表达式，这是表达式解析的入口点。
+    /// 该方法通过递归下降和运算符优先级解析（Precedence Climbing 或类似 Pratt 解析器的思想）来处理。
+    ///
+    /// **工作流程：**
+    /// 1.  **块表达式**: 首先检查是否为 `{ ... }` 形式的块表达式，如果是则直接解析为 `Expression::Block`。
+    /// 2.  **运算符优先级**: 按照运算符的优先级，从最低优先级（逻辑或 `||`）开始，逐级调用对应的解析方法。
+    ///     *   `parse_logical_or` -> `parse_logical_and` -> `parse_equality` -> `parse_comparison` -> `parse_term` -> `parse_factor` -> `parse_unary` -> `parse_primary`。
+    ///     *   每个方法负责处理特定优先级的运算符，并通过循环和递归调用来构建二元/一元运算的 AST 节点。
+    ///
+    /// **流程图简述：**
+    /// 开始 -> [跳过空行] -> [匹配 '{' ?] -> 是: [parse_block] -> [匹配 '}' ] -> 返回 Block Expression -> 否:
+    /// -> [parse_logical_or (处理 ||)] -> [parse_logical_and (处理 &&)] -> [parse_equality (处理 ==, !=)]
+    /// -> [parse_comparison (处理 <, <=, >, >=)] -> [parse_term (处理 +, -)]
+    /// -> [parse_factor (处理 *, /, %)] -> [parse_unary (处理 !, -)] -> [parse_primary (处理原子表达式)]
+    /// -> 返回 Expression -> 结束
     fn parse_expression_logic(&mut self) -> Result<Expression, ParseError> {
         // Handle Block Expression first: { ... }
         self.skip_newlines();
@@ -406,29 +466,50 @@ impl Parser {
     }
 
     fn parse_unary(&mut self) -> Result<Expression, ParseError> {
-        if let Some(Token::Operator(op)) = self.peek() {
-            if matches!(op, Operator::Not | Operator::Subtract) {
-                let op = *op;
-                self.advance();
-                let right = self.parse_unary()?;
-                if op == Operator::Not {
-                    return Ok(Expression::Unary(Unary {
-                        operator: Operator::Not,
-                        expr: Box::new(right),
-                    }));
-                } else {
-                    // Unary minus is 0 - expr
-                    return Ok(Expression::BinaryOperation(BinaryOperation {
-                        left: Box::new(Expression::Literal(Literal::Value(Value::Int(0)))),
-                        operator: Operator::Subtract,
-                        right: Box::new(right),
-                    }));
-                }
+        if let Some(Token::Operator(op)) = self.peek()
+            && matches!(op, Operator::Not | Operator::Subtract)
+        {
+            let op = *op;
+            self.advance();
+            let right = self.parse_unary()?;
+            if op == Operator::Not {
+                return Ok(Expression::Unary(Unary {
+                    operator: Operator::Not,
+                    expr: Box::new(right),
+                }));
+            } else {
+                // Unary minus is 0 - expr
+                return Ok(Expression::BinaryOperation(BinaryOperation {
+                    left: Box::new(Expression::Literal(Literal::Value(Value::Int(0)))),
+                    operator: Operator::Subtract,
+                    right: Box::new(right),
+                }));
             }
         }
         self.parse_primary()
     }
 
+    /// 解析最基本的表达式单元，即原子表达式。
+    ///
+    /// **工作流程：**
+    /// 1.  跳过空行。
+    /// 2.  消费当前 Token。
+    /// 3.  根据 Token 的类型进行匹配：
+    ///     *   **字面量**: 如果是 `Int`, `Float`, `Bool`, `String`，直接创建 `Expression::Literal`。
+    ///     *   **标识符**: 如果是 `Identifier`，则进一步判断：
+    ///         *   如果后面紧跟 `(`，则解析为函数调用 `Expression::FunctionCall`。
+    ///         *   否则，解析为变量引用 `Expression::Identifier`。
+    ///     *   **`if` 表达式**: 如果是 `Keyword::IF`，则调用 `parse_if()` 解析 `if` 表达式。
+    ///     *   **括号表达式**: 如果是 `LParen` (左括号 `(`)，则递归调用 `parse_expression_logic()` 解析括号内的表达式，然后消费 `RParen` (右括号 `)`)。
+    ///     *   **其他**: 遇到无法识别的 Token 则报错 `ParseError::UnexpectedToken`。
+    ///
+    /// **流程图简述：**
+    /// 开始 -> [跳过空行] -> [消费当前 Token] -> [根据 Token 类型分支]
+    /// -> [Int | Float | Bool | String] -> 返回 Literal Expression
+    /// -> [Identifier] -> [前瞻: '(' ?] -> 是: [解析函数调用] -> 否: 返回 Identifier Expression
+    /// -> [Keyword::IF] -> [parse_if()] -> 返回 If Expression
+    /// -> [LParen] -> [parse_expression_logic()] -> [消费 RParen] -> 返回括号内表达式
+    /// -> [其他] -> 抛出 UnexpectedToken 错误 -> 结束
     fn parse_primary(&mut self) -> Result<Expression, ParseError> {
         self.skip_newlines();
         let token = self
@@ -487,6 +568,10 @@ impl Parser {
 // But for now, let's provide a `parse` function that takes tokens.
 
 /// Parse a vector of tokens into an AST.
+///
+/// 这是整个语法分析过程的入口函数。它首先创建一个 `Parser` 实例，
+/// 然后调用 `Parser` 实例的 `parse` 方法来启动递归下降解析过程。
+/// 最终将 Token 序列转换为抽象语法树 (AST)。
 pub fn parse(tokens: Vec<Token>) -> Result<Ast, ParseError> {
     let mut parser = Parser::new(tokens);
     parser.parse()

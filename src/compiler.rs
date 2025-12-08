@@ -41,8 +41,7 @@ pub fn compile(raw: &[char], ast: Ast) -> Program {
 impl<'a> Compiler<'a> {
     fn new(raw: &'a [char]) -> Self {
         // Start with one scope for the global-like top-level script.
-        let mut scopes = Vec::new();
-        scopes.push(Scope::new());
+        let scopes = vec![Scope::new()];
 
         Self {
             raw,

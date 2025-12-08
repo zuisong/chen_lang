@@ -36,6 +36,8 @@ pub mod compiler;
 pub mod expression;
 /// 语法分析模块
 pub mod parse;
+/// Pest 解析模块
+pub mod parse_pest;
 /// 词法分析模块
 pub mod token;
 /// 值系统模块

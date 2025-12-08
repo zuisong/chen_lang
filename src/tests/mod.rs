@@ -1,6 +1,7 @@
 mod cli_test;
 mod expression_test;
 mod parse_test;
+mod parser_comprehensive_test;
 mod token_test;
 #[cfg(test)]
 mod tests_1 {

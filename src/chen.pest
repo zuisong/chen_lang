@@ -1,0 +1,97 @@
+// 隐式规则：自动忽略空格和注释
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
+
+// 关键字
+LET = { "let" }
+FOR = { "for" }
+DEF = { "def" }
+RETURN = { "return" }
+IF = { "if" }
+ELSE = { "else" }
+TRUE = { "true" }
+FALSE = { "false" }
+BREAK = { "break" }
+CONTINUE = { "continue" }
+NULL = { "null" }
+
+// 标识符 (不能是关键字)
+identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+keyword = { LET | FOR | DEF | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | NULL }
+
+// 字面量
+integer = @{ "-"? ~ ASCII_DIGIT+ }
+float = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
+bool = { TRUE | FALSE }
+
+// 操作符
+add = { "+" }
+subtract = { "-" }
+multiply = { "*" }
+divide = { "/" }
+modulo = { "%" }
+assign = { "=" }
+eq = { "==" }
+neq = { "!=" }
+lt = { "<" }
+lte = { "<=" }
+gt = { ">" }
+gte = { ">=" }
+and = { "&&" }
+or = { "||" }
+not = { "!" }
+
+// 表达式优先级处理 (Pest 需要使用 Pratt Parser，或者我们手动分层)
+// 为了简单，这里我们手动分层，模拟递归下降的优先级
+expression = { logical_or }
+
+logical_or = { logical_and ~ (or ~ logical_and)* }
+logical_and = { equality ~ (and ~ equality)* }
+equality = { comparison ~ ((eq | neq) ~ comparison)* }
+comparison = { term ~ ((lte | lt | gte | gt) ~ term)* }
+term = { factor ~ ((add | subtract) ~ factor)* }
+factor = { unary ~ ((multiply | divide | modulo) ~ unary)* }
+unary = { (not | subtract) ~ unary | primary }
+
+primary = {
+    float |
+    integer |
+    bool |
+    string |
+    function_call |
+    identifier |
+    "(" ~ expression ~ ")" |
+    if_expr |
+    block
+}
+
+// 语句
+statement = {
+    declaration |
+    for_loop |
+    function_def |
+    return_stmt |
+    break_stmt |
+    continue_stmt |
+    assignment |
+    expression
+}
+
+declaration = { LET ~ identifier ~ assign ~ expression }
+assignment = { identifier ~ assign ~ expression }
+for_loop = { FOR ~ expression ~ block }
+function_def = { DEF ~ identifier ~ "(" ~ parameters? ~ ")" ~ block }
+return_stmt = { RETURN ~ expression }
+break_stmt = { BREAK }
+continue_stmt = { CONTINUE }
+
+// 复合结构
+block = { "{" ~ statement* ~ "}" }
+if_expr = { IF ~ expression ~ block ~ (ELSE ~ block)? }
+function_call = { identifier ~ "(" ~ arguments? ~ ")" }
+parameters = { identifier ~ ("," ~ identifier)* }
+arguments = { expression ~ ("," ~ expression)* }
+
+// 程序入口
+program = { SOI ~ statement* ~ EOI }
