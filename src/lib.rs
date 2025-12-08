@@ -7,11 +7,10 @@
 // #![deny(unused_mut)]
 // #![deny(unreachable_code)]
 
-use std::fmt::{Debug, Display};
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
-use anyhow::Result;
+use thiserror::Error;
 use tracing::debug;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
@@ -48,6 +47,20 @@ pub mod vm;
 #[cfg(test)]
 mod tests;
 
+#[derive(Error, Debug)]
+pub enum ChenError {
+    #[error(transparent)]
+    Token(#[from] token::TokenError),
+    #[error(transparent)]
+    Parse(#[from] parse::ParseError),
+    #[error(transparent)]
+    Runtime(#[from] value::RuntimeError),
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+    #[error(transparent)]
+    Utf8(#[from] std::string::FromUtf8Error),
+}
+
 #[test]
 fn test_run_captured() {
     let code = r#"print("Hello World")"#;
@@ -55,17 +68,9 @@ fn test_run_captured() {
     assert_eq!(output, "Hello World");
 }
 
-#[inline]
-pub(crate) fn err_msg<M>(msg: M) -> anyhow::Error
-where
-    M: Display + Debug + Send + Sync + 'static,
-{
-    anyhow::Error::msg(msg)
-}
-
 /// 运行代码
 #[unsafe(no_mangle)]
-pub fn run(code: String) -> Result<()> {
+pub fn run(code: String) -> Result<(), ChenError> {
     let tokens = tokenlizer(code.clone())?;
     let ast = parse::parse(tokens)?;
 
@@ -85,7 +90,7 @@ pub fn run(code: String) -> Result<()> {
 }
 
 /// 运行代码并捕获输出
-pub fn run_captured(code: String) -> Result<String> {
+pub fn run_captured(code: String) -> Result<String, ChenError> {
     let tokens = tokenlizer(code.clone())?;
     let ast = parse::parse(tokens)?;
 

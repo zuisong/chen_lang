@@ -1,6 +1,5 @@
 use std::{char, num::ParseIntError};
 
-use anyhow::anyhow;
 use thiserror::Error;
 use tracing::debug;
 use winnow::{
@@ -16,6 +15,8 @@ pub enum TokenError {
     UnknownToken { token: char },
     #[error("parse int error")]
     Disconnect(#[from] ParseIntError),
+    #[error("Parse error: {0}")]
+    ParseError(String),
     #[error("unknown error")]
     Unknown,
 }
@@ -311,14 +312,15 @@ fn parse_token(input: &str, loc: &Location) -> Result<(Token, Location), TokenEr
 }
 
 /// 代码转成token串
-pub fn tokenlizer(code: String) -> anyhow::Result<Vec<Token>> {
+pub fn tokenlizer(code: String) -> Result<Vec<Token>, TokenError> {
     let mut input = code.as_str();
 
     let mut tokens = vec![];
 
     loop {
         debug!(?input);
-        let (remain_input, token) = parse_with_winnow(input).map_err(|e| anyhow!(e.to_string()))?;
+        let (remain_input, token) =
+            parse_with_winnow(input).map_err(|e| TokenError::ParseError(e.to_string()))?;
         if !matches!(token, Token::Comment | Token::Space) {
             tokens.push(token);
         }

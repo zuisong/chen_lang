@@ -3,7 +3,6 @@ use std::{
     io::{self, Read},
 };
 
-use anyhow::{Ok, Result};
 use clap::{
     Command, CommandFactory, Parser,
     builder::{PossibleValuesParser, TypedValueParser, ValueParser},
@@ -43,7 +42,7 @@ enum SubCommand {
     },
 }
 
-fn main() -> Result<()> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = Args::parse();
     let _ = tracing_subscriber::registry()
         .with(
@@ -68,7 +67,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn run_file(code_file: String) -> Result<()> {
+fn run_file(code_file: String) -> Result<(), chen_lang::ChenError> {
     let s = std::env::current_dir()?.join(code_file);
 
     debug!(?s);

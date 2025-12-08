@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use tracing::debug;
-
 use crate::expression::*;
 use crate::token::Operator;
 use crate::vm::{Instruction, Program, Symbol};

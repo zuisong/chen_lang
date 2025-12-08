@@ -19,7 +19,6 @@ wasm = ["dep:wasm-bindgen"]
 default = ["binaries", "wasm"]
 
 [dependencies]
-anyhow = "1"
 thiserror = "2"
 winnow = "0.7"
 tracing = { version = "0.1" }

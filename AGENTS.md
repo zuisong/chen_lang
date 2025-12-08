@@ -106,9 +106,9 @@ echo 'let x = 5; let y = 3; print(x + y)' | cargo run --bin chen_lang -- run -
 ### 代码规范
 
 #### 错误处理
-- 使用 `anyhow::Result` 进行错误处理
+- 使用 `thiserror` 定义自定义错误类型
 - 运行时错误使用 `RuntimeError` 枚举
-- 编译时错误使用 `CompileError` 枚举
+- 编译时错误使用 `ParseError` 和 `TokenError` 枚举
 
 #### 测试
 - 单元测试放在相应模块的 `tests` 模块中

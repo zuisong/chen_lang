@@ -1,9 +1,23 @@
 #![deny(missing_docs)]
 
-use anyhow::{Result, anyhow};
+use thiserror::Error;
 
 use crate::value::Value;
 use crate::*;
+
+#[derive(Error, Debug)]
+/// 语法分析错误
+pub enum ParseError {
+    /// 通用错误消息
+    #[error("{0}")]
+    Message(String),
+    /// 遇到意外的 Token
+    #[error("Unexpected token: {0:?}")]
+    UnexpectedToken(Token),
+    /// 意外的输入结束
+    #[error("Unexpected end of input")]
+    UnexpectedEndOfInput,
+}
 
 /// The Parser struct manages the state of parsing a stream of tokens.
 pub struct Parser {
@@ -18,7 +32,7 @@ impl Parser {
     }
 
     /// Parse the tokens into an AST (list of statements).
-    pub fn parse(&mut self) -> Result<Ast> {
+    pub fn parse(&mut self) -> Result<Ast, ParseError> {
         self.parse_block()
     }
 
@@ -82,11 +96,11 @@ impl Parser {
         }
     }
 
-    fn consume(&mut self, token_type: &Token, message: &str) -> Result<&Token> {
+    fn consume(&mut self, token_type: &Token, message: &str) -> Result<&Token, ParseError> {
         if self.check(token_type) {
             Ok(self.advance().unwrap())
         } else {
-            Err(anyhow!(message.to_string()))
+            Err(ParseError::Message(message.to_string()))
         }
     }
 
@@ -96,7 +110,7 @@ impl Parser {
 
     // --- Parsing Logic ---
 
-    fn parse_block(&mut self) -> Result<Ast> {
+    fn parse_block(&mut self) -> Result<Ast, ParseError> {
         let mut statements = Vec::new();
 
         while !self.is_at_end() && !self.check(&Token::RBig) {
@@ -111,7 +125,7 @@ impl Parser {
         Ok(statements)
     }
 
-    fn parse_statement(&mut self) -> Result<Statement> {
+    fn parse_statement(&mut self) -> Result<Statement, ParseError> {
         if self.match_token(&Token::Keyword(Keyword::LET)) {
             return self.parse_declare();
         }
@@ -154,12 +168,14 @@ impl Parser {
         Ok(Statement::Expression(expr))
     }
 
-    fn parse_declare(&mut self) -> Result<Statement> {
+    fn parse_declare(&mut self) -> Result<Statement, ParseError> {
         // let x = ...
         let name = if let Some(Token::Identifier(name)) = self.advance() {
             name.clone()
         } else {
-            return Err(anyhow!("Expected variable name after 'let'"));
+            return Err(ParseError::Message(
+                "Expected variable name after 'let'".to_string(),
+            ));
         };
 
         self.consume(
@@ -175,12 +191,12 @@ impl Parser {
         }))
     }
 
-    fn parse_return(&mut self) -> Result<Statement> {
+    fn parse_return(&mut self) -> Result<Statement, ParseError> {
         let expr = self.parse_expression_logic()?;
         Ok(Statement::Return(Return { expression: expr }))
     }
 
-    fn parse_if(&mut self) -> Result<Expression> {
+    fn parse_if(&mut self) -> Result<Expression, ParseError> {
         // if condition { ... } else { ... }
         let condition = self.parse_expression_logic()?;
 
@@ -205,7 +221,7 @@ impl Parser {
         }))
     }
 
-    fn parse_for(&mut self) -> Result<Statement> {
+    fn parse_for(&mut self) -> Result<Statement, ParseError> {
         // for condition { ... }
         let condition = self.parse_expression_logic()?;
 
@@ -220,12 +236,14 @@ impl Parser {
         }))
     }
 
-    fn parse_function(&mut self) -> Result<Statement> {
+    fn parse_function(&mut self) -> Result<Statement, ParseError> {
         // def name(arg1, arg2) { ... }
         let name = if let Some(Token::Identifier(name)) = self.advance() {
             name.clone()
         } else {
-            return Err(anyhow!("Expected function name after 'def'"));
+            return Err(ParseError::Message(
+                "Expected function name after 'def'".to_string(),
+            ));
         };
 
         self.consume(&Token::LParen, "Expected '(' after function name")?;
@@ -236,7 +254,7 @@ impl Parser {
                 if let Some(Token::Identifier(param)) = self.advance() {
                     parameters.push(param.clone());
                 } else {
-                    return Err(anyhow!("Expected parameter name"));
+                    return Err(ParseError::Message("Expected parameter name".to_string()));
                 }
 
                 if !self.match_token(&Token::COMMA) {
@@ -264,7 +282,7 @@ impl Parser {
     // Actually, the existing `parse_expression` was shunting-yard on a single line.
     // We should implement a proper recursive descent or precedence climbing here.
 
-    fn parse_expression_logic(&mut self) -> Result<Expression> {
+    fn parse_expression_logic(&mut self) -> Result<Expression, ParseError> {
         // Handle Block Expression first: { ... }
         self.skip_newlines();
         if self.match_token(&Token::LBig) {
@@ -276,7 +294,7 @@ impl Parser {
         self.parse_logical_or()
     }
 
-    fn parse_logical_or(&mut self) -> Result<Expression> {
+    fn parse_logical_or(&mut self) -> Result<Expression, ParseError> {
         let mut left = self.parse_logical_and()?;
 
         while self.match_token(&Token::Operator(Operator::Or)) {
@@ -290,7 +308,7 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_logical_and(&mut self) -> Result<Expression> {
+    fn parse_logical_and(&mut self) -> Result<Expression, ParseError> {
         let mut left = self.parse_equality()?;
 
         while self.match_token(&Token::Operator(Operator::And)) {
@@ -304,7 +322,7 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_equality(&mut self) -> Result<Expression> {
+    fn parse_equality(&mut self) -> Result<Expression, ParseError> {
         let mut left = self.parse_comparison()?;
 
         while let Some(Token::Operator(op)) = self.peek() {
@@ -324,7 +342,7 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_comparison(&mut self) -> Result<Expression> {
+    fn parse_comparison(&mut self) -> Result<Expression, ParseError> {
         let mut left = self.parse_term()?;
 
         while let Some(Token::Operator(op)) = self.peek() {
@@ -347,7 +365,7 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_term(&mut self) -> Result<Expression> {
+    fn parse_term(&mut self) -> Result<Expression, ParseError> {
         let mut left = self.parse_factor()?;
 
         while let Some(Token::Operator(op)) = self.peek() {
@@ -367,7 +385,7 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_factor(&mut self) -> Result<Expression> {
+    fn parse_factor(&mut self) -> Result<Expression, ParseError> {
         let mut left = self.parse_unary()?;
 
         while let Some(Token::Operator(op)) = self.peek() {
@@ -387,7 +405,7 @@ impl Parser {
         Ok(left)
     }
 
-    fn parse_unary(&mut self) -> Result<Expression> {
+    fn parse_unary(&mut self) -> Result<Expression, ParseError> {
         if let Some(Token::Operator(op)) = self.peek() {
             if matches!(op, Operator::Not | Operator::Subtract) {
                 let op = *op;
@@ -411,11 +429,11 @@ impl Parser {
         self.parse_primary()
     }
 
-    fn parse_primary(&mut self) -> Result<Expression> {
+    fn parse_primary(&mut self) -> Result<Expression, ParseError> {
         self.skip_newlines();
         let token = self
             .advance()
-            .ok_or(anyhow!("Unexpected end of input"))?
+            .ok_or(ParseError::UnexpectedEndOfInput)?
             .clone();
 
         match token {
@@ -457,7 +475,7 @@ impl Parser {
                 self.consume(&Token::RParen, "Expected ')' after expression")?;
                 Ok(expr)
             }
-            _ => Err(anyhow!("Unexpected token: {:?}", token)),
+            _ => Err(ParseError::UnexpectedToken(token)),
         }
     }
 }
@@ -469,7 +487,7 @@ impl Parser {
 // But for now, let's provide a `parse` function that takes tokens.
 
 /// Parse a vector of tokens into an AST.
-pub fn parse(tokens: Vec<Token>) -> Result<Ast> {
+pub fn parse(tokens: Vec<Token>) -> Result<Ast, ParseError> {
     let mut parser = Parser::new(tokens);
     parser.parse()
 }
