@@ -31,6 +31,18 @@ pub enum Expression {
     Identifier(String),
     Block(Vec<Statement>),
     If(If),
+    /// 对象字面量: #{ k: v, ... }
+    ObjectLiteral(Vec<(String, Expression)>),
+    /// 属性访问: obj.field
+    GetField {
+        object: Box<Expression>,
+        field: String,
+    },
+    /// 索引访问: obj[expr]
+    Index {
+        object: Box<Expression>,
+        index: Box<Expression>,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -66,6 +78,18 @@ pub enum Statement {
     Return(Return),
     Local(Local),
     Assign(Assign),
+    /// 设置属性: obj.field = value
+    SetField {
+        object: Expression,
+        field: String,
+        value: Expression,
+    },
+    /// 设置索引: obj[index] = value
+    SetIndex {
+        object: Expression,
+        index: Expression,
+        value: Expression,
+    },
     Break,
     Continue,
 }

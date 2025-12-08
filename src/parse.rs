@@ -90,6 +90,11 @@ impl Parser {
             (Token::RBig, Token::RBig) => true,
             (Token::LParen, Token::LParen) => true,
             (Token::RParen, Token::RParen) => true,
+            (Token::LSquare, Token::LSquare) => true,
+            (Token::RSquare, Token::RSquare) => true,
+            (Token::Colon, Token::Colon) => true,
+            (Token::Dot, Token::Dot) => true,
+            (Token::HashLBig, Token::HashLBig) => true,
             (Token::NewLine, Token::NewLine) => true,
             (Token::COMMA, Token::COMMA) => true,
             // Add more as needed
@@ -192,24 +197,37 @@ impl Parser {
         }
 
         // Assignment or Expression
-        // We need to look ahead to distinguish `x = 1` (Assign) from `x + 1` (Expression)
-        // Or `func()` (Expression)
+        // Parse the expression first (which could be an l-value)
+        let expr = self.parse_expression_logic()?;
 
-        // Simple heuristic: if it starts with Identifier and next is Assign, it's assignment.
-        if let Some(Token::Identifier(name)) = self.peek()
-            && let Some(Token::Operator(Operator::Assign)) = self.peek_next()
-        {
-            let name = name.clone();
-            self.advance(); // consume identifier
-            self.advance(); // consume =
-            let expr = self.parse_expression_logic()?;
-            return Ok(Statement::Assign(Assign {
-                name,
-                expr: Box::new(expr),
-            }));
+        // Check if it is an assignment
+        if self.match_token(&Token::Operator(Operator::Assign)) {
+            let value = self.parse_expression_logic()?;
+            match expr {
+                Expression::Identifier(name) => {
+                    return Ok(Statement::Assign(Assign {
+                        name,
+                        expr: Box::new(value),
+                    }));
+                }
+                Expression::GetField { object, field } => {
+                    return Ok(Statement::SetField {
+                        object: *object,
+                        field,
+                        value,
+                    });
+                }
+                Expression::Index { object, index } => {
+                    return Ok(Statement::SetIndex {
+                        object: *object,
+                        index: *index,
+                        value,
+                    });
+                }
+                _ => return Err(ParseError::Message("Invalid assignment target".to_string())),
+            }
         }
 
-        let expr = self.parse_expression_logic()?;
         Ok(Statement::Expression(expr))
     }
 
@@ -466,50 +484,90 @@ impl Parser {
     }
 
     fn parse_unary(&mut self) -> Result<Expression, ParseError> {
-        if let Some(Token::Operator(op)) = self.peek()
-            && matches!(op, Operator::Not | Operator::Subtract)
-        {
-            let op = *op;
-            self.advance();
-            let right = self.parse_unary()?;
-            if op == Operator::Not {
-                return Ok(Expression::Unary(Unary {
-                    operator: Operator::Not,
-                    expr: Box::new(right),
-                }));
-            } else {
-                // Unary minus is 0 - expr
-                return Ok(Expression::BinaryOperation(BinaryOperation {
-                    left: Box::new(Expression::Literal(Literal::Value(Value::Int(0)))),
-                    operator: Operator::Subtract,
-                    right: Box::new(right),
-                }));
+        if let Some(Token::Operator(op)) = self.peek() {
+            if matches!(op, Operator::Not | Operator::Subtract) {
+                let op = *op;
+                self.advance();
+                let right = self.parse_unary()?;
+                if op == Operator::Not {
+                    return Ok(Expression::Unary(Unary {
+                        operator: Operator::Not,
+                        expr: Box::new(right),
+                    }));
+                } else {
+                    // Unary minus is 0 - expr
+                    return Ok(Expression::BinaryOperation(BinaryOperation {
+                        left: Box::new(Expression::Literal(Literal::Value(Value::Int(0)))),
+                        operator: Operator::Subtract,
+                        right: Box::new(right),
+                    }));
+                }
             }
         }
-        self.parse_primary()
+        self.parse_postfix_expr()
     }
 
-    /// 解析最基本的表达式单元，即原子表达式。
-    ///
-    /// **工作流程：**
-    /// 1.  跳过空行。
-    /// 2.  消费当前 Token。
-    /// 3.  根据 Token 的类型进行匹配：
-    ///     *   **字面量**: 如果是 `Int`, `Float`, `Bool`, `String`，直接创建 `Expression::Literal`。
-    ///     *   **标识符**: 如果是 `Identifier`，则进一步判断：
-    ///         *   如果后面紧跟 `(`，则解析为函数调用 `Expression::FunctionCall`。
-    ///         *   否则，解析为变量引用 `Expression::Identifier`。
-    ///     *   **`if` 表达式**: 如果是 `Keyword::IF`，则调用 `parse_if()` 解析 `if` 表达式。
-    ///     *   **括号表达式**: 如果是 `LParen` (左括号 `(`)，则递归调用 `parse_expression_logic()` 解析括号内的表达式，然后消费 `RParen` (右括号 `)`)。
-    ///     *   **其他**: 遇到无法识别的 Token 则报错 `ParseError::UnexpectedToken`。
-    ///
-    /// **流程图简述：**
-    /// 开始 -> [跳过空行] -> [消费当前 Token] -> [根据 Token 类型分支]
-    /// -> [Int | Float | Bool | String] -> 返回 Literal Expression
-    /// -> [Identifier] -> [前瞻: '(' ?] -> 是: [解析函数调用] -> 否: 返回 Identifier Expression
-    /// -> [Keyword::IF] -> [parse_if()] -> 返回 If Expression
-    /// -> [LParen] -> [parse_expression_logic()] -> [消费 RParen] -> 返回括号内表达式
-    /// -> [其他] -> 抛出 UnexpectedToken 错误 -> 结束
+    fn parse_postfix_expr(&mut self) -> Result<Expression, ParseError> {
+        let mut expr = self.parse_primary()?;
+
+        loop {
+            if self.match_token(&Token::LParen) {
+                // Function Call: expr(...)
+                let mut args = Vec::new();
+                self.skip_newlines();
+                if !self.check(&Token::RParen) {
+                    loop {
+                        self.skip_newlines();
+                        args.push(self.parse_expression_logic()?);
+                        self.skip_newlines();
+                        if !self.match_token(&Token::COMMA) {
+                            break;
+                        }
+                    }
+                }
+                self.skip_newlines();
+                self.consume(&Token::RParen, "Expected ')' after arguments")?;
+
+                if let Expression::Identifier(name) = expr {
+                    expr = Expression::FunctionCall(FunctionCall {
+                        name,
+                        arguments: args,
+                    });
+                } else {
+                    return Err(ParseError::Message(
+                        "Complex function calls (e.g. obj.method()) not fully supported in AST yet"
+                            .to_string(),
+                    ));
+                }
+            } else if self.match_token(&Token::Dot) {
+                // GetField: expr.field
+                if let Some(Token::Identifier(field)) = self.advance() {
+                    expr = Expression::GetField {
+                        object: Box::new(expr),
+                        field: field.clone(),
+                    };
+                } else {
+                    return Err(ParseError::Message(
+                        "Expected identifier after '.'".to_string(),
+                    ));
+                }
+            } else if self.match_token(&Token::LSquare) {
+                // Index: expr[index]
+                self.skip_newlines();
+                let index = self.parse_expression_logic()?;
+                self.skip_newlines();
+                self.consume(&Token::RSquare, "Expected ']' after index")?;
+                expr = Expression::Index {
+                    object: Box::new(expr),
+                    index: Box::new(index),
+                };
+            } else {
+                break;
+            }
+        }
+        Ok(expr)
+    }
+
     fn parse_primary(&mut self) -> Result<Expression, ParseError> {
         self.skip_newlines();
         let token = self
@@ -522,32 +580,8 @@ impl Parser {
             Token::Float(f) => Ok(Expression::Literal(Literal::Value(Value::Float(f)))),
             Token::Bool(b) => Ok(Expression::Literal(Literal::Value(Value::Bool(b)))),
             Token::String(s) => Ok(Expression::Literal(Literal::Value(Value::string(s)))),
-            Token::Identifier(name) => {
-                // Check for function call
-                if self.check(&Token::LParen) {
-                    self.advance(); // consume '('
-                    let mut args = Vec::new();
-                    self.skip_newlines();
-                    if !self.check(&Token::RParen) {
-                        loop {
-                            self.skip_newlines();
-                            args.push(self.parse_expression_logic()?);
-                            self.skip_newlines();
-                            if !self.match_token(&Token::COMMA) {
-                                break;
-                            }
-                        }
-                    }
-                    self.skip_newlines();
-                    self.consume(&Token::RParen, "Expected ')' after arguments")?;
-                    Ok(Expression::FunctionCall(FunctionCall {
-                        name,
-                        arguments: args,
-                    }))
-                } else {
-                    Ok(Expression::Identifier(name))
-                }
-            }
+            Token::Identifier(name) => Ok(Expression::Identifier(name)),
+            Token::HashLBig => self.parse_object_literal(),
             Token::Keyword(Keyword::IF) => self.parse_if(),
             Token::LParen => {
                 self.skip_newlines();
@@ -559,6 +593,34 @@ impl Parser {
             _ => Err(ParseError::UnexpectedToken(token)),
         }
     }
+
+    fn parse_object_literal(&mut self) -> Result<Expression, ParseError> {
+        // #{ key: val, key2: val2 }
+        let mut fields = Vec::new();
+        self.skip_newlines();
+        if !self.check(&Token::RBig) {
+            loop {
+                self.skip_newlines();
+                let key = if let Some(Token::Identifier(name)) = self.advance() {
+                    name.clone()
+                } else {
+                    return Err(ParseError::Message("Expected field name".to_string()));
+                };
+
+                self.consume(&Token::Colon, "Expected ':' after field name")?;
+                let val = self.parse_expression_logic()?;
+                fields.push((key, val));
+
+                self.skip_newlines();
+                if !self.match_token(&Token::COMMA) {
+                    break;
+                }
+            }
+        }
+        self.consume(&Token::RBig, "Expected '}' after object literal")?;
+        Ok(Expression::ObjectLiteral(fields))
+    }
+
 }
 
 // Keep the old function signature for compatibility with lib.rs for now,

@@ -155,3 +155,58 @@ fn test_function_call_with_args() {
         panic!("Expected FunctionCall");
     }
 }
+
+#[test]
+fn test_object_literal() {
+    // #{ x: 1, y: 2 }
+    let expr = parse_expr_str("#{ x: 1, y: 2 }");
+    if let Expression::ObjectLiteral(fields) = expr {
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields[0].0, "x");
+        assert_eq!(fields[1].0, "y");
+    } else {
+        panic!("Expected ObjectLiteral");
+    }
+}
+
+#[test]
+fn test_get_field() {
+    let expr = parse_expr_str("obj.x");
+    if let Expression::GetField { object, field } = expr {
+        assert_eq!(field, "x");
+        if let Expression::Identifier(name) = *object {
+            assert_eq!(name, "obj");
+        } else {
+            panic!("Object base should be identifier");
+        }
+    } else {
+        panic!("Expected GetField");
+    }
+}
+
+#[test]
+fn test_set_field() {
+    let stmts = parse_code("obj.x = 1").unwrap();
+    if let Statement::SetField { object, field, value: _ } = &stmts[0] {
+        if let Expression::Identifier(name) = object {
+            assert_eq!(name, "obj");
+        } else {
+            panic!("Object base should be identifier");
+        }
+        assert_eq!(field, "x");
+    } else {
+        panic!("Expected SetField statement");
+    }
+}
+
+#[test]
+fn test_index_access() {
+    let expr = parse_expr_str("arr[0]");
+    if let Expression::Index { object, index: _ } = expr {
+        if let Expression::Identifier(name) = *object {
+            assert_eq!(name, "arr");
+        }
+    } else {
+        panic!("Expected Index");
+    }
+}

@@ -1,5 +1,14 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
+
+/// Table 结构，用于实现对象和 Map
+#[derive(Debug, Clone, PartialEq)]
+pub struct Table {
+    pub data: HashMap<String, Value>,
+    pub metatable: Option<Rc<RefCell<Table>>>,
+}
 
 /// 运行时值类型 - 统一表示所有数据类型
 #[derive(Debug, Clone)]
@@ -8,6 +17,8 @@ pub enum Value {
     Float(f32),
     Bool(bool),
     String(Rc<String>),
+    /// 对象类型 (Table)
+    Object(Rc<RefCell<Table>>),
     Null,
 }
 
@@ -30,6 +41,14 @@ impl Value {
     /// 创建字符串值
     pub fn string(s: String) -> Self {
         Value::String(Rc::new(s))
+    }
+
+    /// 创建空对象
+    pub fn object() -> Self {
+        Value::Object(Rc::new(RefCell::new(Table {
+            data: HashMap::new(),
+            metatable: None,
+        })))
     }
 
     /// 创建空值
@@ -87,6 +106,7 @@ impl Value {
             Value::Float(_) => ValueType::Float,
             Value::Bool(_) => ValueType::Bool,
             Value::String(_) => ValueType::String,
+            Value::Object(_) => ValueType::Object,
             Value::Null => ValueType::Null,
         }
     }
@@ -118,6 +138,8 @@ impl PartialEq for Value {
             (Value::Bool(a), Value::Bool(b)) => a == b,
             (Value::String(a), Value::String(b)) => a == b,
             (Value::Null, Value::Null) => true,
+            // 对象比较：引用比较
+            (Value::Object(a), Value::Object(b)) => Rc::ptr_eq(a, b),
             // 混合类型比较：int和float可以比较
             (Value::Int(a), Value::Float(b)) => (*a as f32 - b).abs() < f32::EPSILON,
             (Value::Float(a), Value::Int(b)) => (a - *b as f32).abs() < f32::EPSILON,
@@ -133,6 +155,19 @@ impl fmt::Display for Value {
             Value::Float(fl) => write!(f, "{}", fl),
             Value::Bool(b) => write!(f, "{}", b),
             Value::String(s) => write!(f, "{}", s),
+            Value::Object(obj) => {
+                let table = obj.borrow();
+                write!(f, "{{")?;
+                let mut first = true;
+                for (k, v) in &table.data {
+                    if !first {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{}: {}", k, v)?;
+                    first = false;
+                }
+                write!(f, "}}")
+            }
             Value::Null => write!(f, "null"),
         }
     }
@@ -145,6 +180,7 @@ pub enum ValueType {
     Float,
     Bool,
     String,
+    Object,
     Null,
 }
 

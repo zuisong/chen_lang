@@ -100,6 +100,10 @@ pub enum Token {
     String(String),
     /// 标识符
     Identifier(String),
+    /// #{
+    HashLBig,
+    /// .
+    Dot,
     /// 左大括号
     LBig,
     /// 右大括号
@@ -125,6 +129,7 @@ pub enum Token {
 }
 fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
     alt((
+        literal("#{").value(Token::HashLBig),
         separated_pair(literal("#"), till_line_ending, line_ending).map(|_| Token::Comment),
         alt((
             line_ending.value(Token::NewLine),
@@ -136,6 +141,7 @@ fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
             literal("(").value(Token::LParen),
             literal(")").value(Token::RParen),
             literal(":").value(Token::Colon),
+            literal(".").value(Token::Dot),
             literal(",").value(Token::COMMA),
         )),
         alt((

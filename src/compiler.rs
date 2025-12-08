@@ -145,6 +145,7 @@ impl<'a> Compiler<'a> {
                     .instructions
                     .push(Instruction::Jump(labels.start.clone()));
             }
+            Statement::SetField { .. } | Statement::SetIndex { .. } => todo!("Implement SetField/SetIndex compilation"),
         }
     }
 
@@ -168,6 +169,7 @@ impl<'a> Compiler<'a> {
             }
             Expression::Block(stmts) => self.compile_block_expression(stmts),
             Expression::If(if_expr) => self.compile_if(if_expr),
+            Expression::ObjectLiteral(_) | Expression::GetField { .. } | Expression::Index { .. } => todo!("Implement Object compilation"),
         }
     }
 
