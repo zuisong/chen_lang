@@ -69,7 +69,8 @@ atom = {
     "(" ~ NEWLINE* ~ expression ~ NEWLINE* ~ ")" |
     if_expr |
     block |
-    object_literal
+    object_literal |
+    function_def
 }
 
 postfix = { call_suffix | dot_suffix | index_suffix }
@@ -100,7 +101,7 @@ assignment_target = { identifier ~ postfix* }
 assignment = { assignment_target ~ assign ~ NEWLINE* ~ expression }
 
 for_loop = { FOR ~ NEWLINE* ~ expression ~ block }
-function_def = { DEF ~ identifier ~ "(" ~ NEWLINE* ~ parameters? ~ NEWLINE* ~ ")" ~ block }
+function_def = { DEF ~ identifier? ~ "(" ~ NEWLINE* ~ parameters? ~ NEWLINE* ~ ")" ~ block }
 return_stmt = { RETURN ~ NEWLINE* ~ expression }
 break_stmt = { BREAK }
 continue_stmt = { CONTINUE }

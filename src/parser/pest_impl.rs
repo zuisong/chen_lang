@@ -126,15 +126,15 @@ fn parse_for_loop(pair: Pair<Rule>) -> Statement {
     Statement::Loop(Loop { test, body })
 }
 
-fn parse_function_def(pair: Pair<Rule>) -> Statement {
+fn build_function_declaration(pair: Pair<Rule>) -> FunctionDeclaration {
     let inner = pair.into_inner();
-    let mut name = String::new();
+    let mut name = None;
     let mut parameters = Vec::new();
     let mut body = Vec::new();
 
     for p in inner {
         match p.as_rule() {
-            Rule::identifier => name = p.as_str().to_string(),
+            Rule::identifier => name = Some(p.as_str().to_string()),
             Rule::parameters => {
                 for param in p.into_inner() {
                     parameters.push(param.as_str().to_string());
@@ -146,11 +146,16 @@ fn parse_function_def(pair: Pair<Rule>) -> Statement {
         }
     }
 
-    Statement::FunctionDeclaration(FunctionDeclaration {
+    FunctionDeclaration {
         name,
         parameters,
         body,
-    })
+    }
+}
+
+fn parse_function_def(pair: Pair<Rule>) -> Statement {
+    let decl = build_function_declaration(pair);
+    Statement::FunctionDeclaration(decl)
 }
 
 fn parse_return_stmt(pair: Pair<Rule>) -> Statement {
@@ -300,6 +305,7 @@ fn parse_atom(pair: Pair<Rule>) -> Expression {
         Rule::if_expr => parse_if_expr(inner),
         Rule::block => Expression::Block(parse_block(inner)),
         Rule::object_literal => parse_object_literal(inner),
+        Rule::function_def => Expression::Function(build_function_declaration(inner)),
         _ => unreachable!("Unexpected rule in atom: {:?}", inner.as_rule()),
     }
 }

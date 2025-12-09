@@ -416,7 +416,18 @@ impl VM {
                             "Calling function {} (label: {}), arg_count: {}",
                             func_name, func_label, *arg_count
                         );
-                        if let Some(target_symbol) = program.syms.get(&func_label) {
+
+                        // Try direct symbol lookup, then variable lookup
+                        let target_symbol = if let Some(sym) = program.syms.get(&func_label) {
+                            Some(sym)
+                        } else if let Some(Value::Function(real_name)) = self.variables.get(func_name) {
+                             let real_label = format!("func_{}", real_name);
+                             program.syms.get(&real_label)
+                        } else {
+                             None
+                        };
+
+                        if let Some(target_symbol) = target_symbol {
                             if *arg_count != target_symbol.narguments {
                                 return Err(RuntimeError::InvalidOperation {
                                     operator: "call".to_string(),

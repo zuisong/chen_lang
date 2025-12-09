@@ -122,8 +122,31 @@ impl<'a> Compiler<'a> {
 
     fn compile_statement(&mut self, stmt: Statement) {
         match stmt {
-            Statement::FunctionDeclaration(_) => {
-                // This is handled in compile_program, so we can ignore it here.
+            Statement::FunctionDeclaration(fd) => {
+                let func_name = fd.name.clone().expect("Statement function must have a name");
+                let unique_id = self.program.instructions.len();
+                let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
+                
+                // 1. Jump over the function definition
+                self.program.instructions.push(Instruction::Jump(skip_label.clone()));
+                
+                // 2. Compile the function body
+                self.compile_declaration(fd);
+                
+                // 3. Define label target
+                self.program.syms.insert(
+                    skip_label,
+                    Symbol {
+                        location: self.program.instructions.len() as i32,
+                        narguments: 0,
+                        nlocals: 0,
+                    },
+                );
+
+                // 4. Define local variable for the function
+                let index = self.define_variable(func_name.clone());
+                self.program.instructions.push(Instruction::Push(crate::value::Value::Function(func_name)));
+                self.program.instructions.push(Instruction::MovePlusFP(index as usize));
             }
             Statement::Return(r) => self.compile_return(r),
             Statement::Local(loc) => self.compile_local(loc),
@@ -202,6 +225,27 @@ impl<'a> Compiler<'a> {
                 self.compile_expression(*object);
                 self.compile_expression(*index);
                 self.program.instructions.push(Instruction::GetIndex);
+            }
+            Expression::Function(mut fd) => {
+                 let func_name = fd.name.take().unwrap_or_else(|| format!("anon_{}", self.program.instructions.len()));
+                 fd.name = Some(func_name.clone());
+                 
+                 let unique_id = self.program.instructions.len();
+                 let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
+                 
+                 self.program.instructions.push(Instruction::Jump(skip_label.clone()));
+                 self.compile_declaration(fd);
+                 
+                 self.program.syms.insert(
+                     skip_label,
+                     Symbol {
+                         location: self.program.instructions.len() as i32,
+                         narguments: 0,
+                         nlocals: 0, 
+                     }
+                 );
+                 
+                 self.program.instructions.push(Instruction::Push(crate::value::Value::Function(func_name)));
             }
         }
     }
@@ -283,25 +327,31 @@ impl<'a> Compiler<'a> {
 
     fn compile_function_call(&mut self, fc: FunctionCall) {
         let len = fc.arguments.len();
-        
-        // Optimization: If callee is an identifier, use direct Call instruction
-        // This also handles built-in functions which are currently matched by name in Call
-        if let Expression::Identifier(name) = *fc.callee {
-            for arg in fc.arguments {
-                self.compile_expression(arg);
-            }
-            self.program
-                .instructions
-                .push(Instruction::Call(name, len));
+        let callee = *fc.callee;
+        let arguments = fc.arguments;
+
+        // Check if we can optimize to direct Call (Identifier referring to Global/Builtin)
+        let is_optimized_call = if let Expression::Identifier(ref name) = callee {
+            self.resolve_variable(name).is_none()
         } else {
-            // General case: Compile callee (pushes function value), then arguments
-            self.compile_expression(*fc.callee);
-            for arg in fc.arguments {
-                self.compile_expression(arg);
-            }
-            self.program
-                .instructions
-                .push(Instruction::CallStack(len));
+            false
+        };
+
+        if is_optimized_call {
+             if let Expression::Identifier(name) = callee {
+                 for arg in arguments {
+                     self.compile_expression(arg);
+                 }
+                 self.program.instructions.push(Instruction::Call(name, len));
+             } else {
+                 unreachable!("Logic error: is_optimized_call implies Identifier");
+             }
+        } else {
+             self.compile_expression(callee);
+             for arg in arguments {
+                 self.compile_expression(arg);
+             }
+             self.program.instructions.push(Instruction::CallStack(len));
         }
     }
 
@@ -354,8 +404,10 @@ impl<'a> Compiler<'a> {
         // Implicit return: return the value on top of the stack
         self.program.instructions.push(Instruction::Return);
 
+        self.program.instructions.push(Instruction::Return);
+
         self.program.syms.insert(
-            format!("func_{}", fd.name),
+            format!("func_{}", fd.name.as_ref().expect("Function must have a name")),
             Symbol {
                 location: function_index,
                 nlocals,

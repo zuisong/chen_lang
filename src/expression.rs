@@ -43,11 +43,13 @@ pub enum Expression {
         object: Box<Expression>,
         index: Box<Expression>,
     },
+    /// 函数定义表达式 (匿名函数/Lambda)
+    Function(FunctionDeclaration),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionDeclaration {
-    pub name: String,
+    pub name: Option<String>,
     pub parameters: Vec<String>,
     pub body: Vec<Statement>,
 }

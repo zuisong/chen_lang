@@ -299,14 +299,13 @@ impl Parser {
         }))
     }
 
-    fn parse_function(&mut self) -> Result<Statement, ParseError> {
-        // def name(arg1, arg2) { ... }
-        let name = if let Some(Token::Identifier(name)) = self.advance() {
-            name.clone()
+    fn parse_function_definition(&mut self) -> Result<FunctionDeclaration, ParseError> {
+        let name = if let Some(Token::Identifier(name)) = self.peek() {
+            let n = name.clone();
+            self.advance();
+            Some(n)
         } else {
-            return Err(ParseError::Message(
-                "Expected function name after 'def'".to_string(),
-            ));
+            None
         };
 
         self.consume(&Token::LParen, "Expected '(' after function name")?;
@@ -332,11 +331,21 @@ impl Parser {
         let body = self.parse_block()?;
         self.consume(&Token::RBig, "Expected '}' after function body")?;
 
-        Ok(Statement::FunctionDeclaration(FunctionDeclaration {
+        Ok(FunctionDeclaration {
             name,
             parameters,
             body,
-        }))
+        })
+    }
+
+    fn parse_function(&mut self) -> Result<Statement, ParseError> {
+        let decl = self.parse_function_definition()?;
+        if decl.name.is_none() {
+            return Err(ParseError::Message(
+                "Function declaration as statement must have a name".to_string(),
+            ));
+        }
+        Ok(Statement::FunctionDeclaration(decl))
     }
 
     // --- Expression Parsing ---
@@ -578,6 +587,10 @@ impl Parser {
             Token::Identifier(name) => Ok(Expression::Identifier(name)),
             Token::HashLBig => self.parse_object_literal(),
             Token::Keyword(Keyword::IF) => self.parse_if(),
+            Token::Keyword(Keyword::DEF) => {
+                let decl = self.parse_function_definition()?;
+                Ok(Expression::Function(decl))
+            }
             Token::LParen => {
                 self.skip_newlines();
                 let expr = self.parse_expression_logic()?;

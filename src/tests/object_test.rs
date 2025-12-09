@@ -474,4 +474,34 @@ println(person.city)"#;
         let output = result.unwrap();
         assert!(output.contains("(10,20)"));
     }
-}
+    }
+
+    /// 测试嵌套函数定义 (Nested Functions)
+    #[test]
+    fn test_nested_function_class() {
+        let code = r#"
+        def NewPoint(x, y) {
+            # 嵌套定义函数
+            def point_str(self) {
+                return "(" + self.x + "," + self.y + ")"
+            }
+
+            let methods = #{
+                str: point_str
+            }
+            
+            let instance = #{ x: x, y: y }
+            set_meta(instance, #{ __index: methods })
+            
+            return instance
+        }
+
+        let p = NewPoint(10, 20)
+        println(p.str(p))
+        "#;
+        
+        let result = crate::run_captured(code.to_string());
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("(10,20)"));
+    }
