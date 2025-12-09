@@ -438,4 +438,40 @@ println(person.city)"#;
         assert!(output.contains("1"));
         assert!(output.contains("2"));
     }
+
+    /// 模拟 Class 的行为 (构造函数 + 原型链方法)
+    #[test]
+    fn test_class_simulation() {
+        let code = r#"
+
+
+        def point_str(self) {
+            return "(" + self.x + "," + self.y + ")"
+        }
+        def NewPoint(x, y) {
+
+
+            # 1. 定义方法 (通常这些放在外面作为公共原型)
+            let methods = #{
+                str: point_str
+            }
+            
+            # 2. 创建实例
+            let instance = #{ x: x, y: y }
+            
+            # 3. 建立继承关系
+            set_meta(instance, #{ __index: methods })
+            
+            return instance
+        }
+
+        let p = NewPoint(10, 20)
+        println(p.str(p)) # 像调用对象方法一样
+        "#;
+        
+        let result = crate::run_captured(code.to_string());
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("(10,20)"));
+    }
 }
