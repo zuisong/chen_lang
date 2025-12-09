@@ -145,7 +145,17 @@ impl<'a> Compiler<'a> {
                     .instructions
                     .push(Instruction::Jump(labels.start.clone()));
             }
-            Statement::SetField { .. } | Statement::SetIndex { .. } => todo!("Implement SetField/SetIndex compilation"),
+            Statement::SetField { object, field, value } => {
+                self.compile_expression(object);
+                self.compile_expression(value);
+                self.program.instructions.push(Instruction::SetField(field));
+            }
+            Statement::SetIndex { object, index, value } => {
+                self.compile_expression(object);
+                self.compile_expression(index);
+                self.compile_expression(value);
+                self.program.instructions.push(Instruction::SetIndex);
+            }
         }
     }
 
@@ -169,7 +179,25 @@ impl<'a> Compiler<'a> {
             }
             Expression::Block(stmts) => self.compile_block_expression(stmts),
             Expression::If(if_expr) => self.compile_if(if_expr),
-            Expression::ObjectLiteral(_) | Expression::GetField { .. } | Expression::Index { .. } => todo!("Implement Object compilation"),
+            Expression::ObjectLiteral(fields) => {
+                // 创建空对象
+                self.program.instructions.push(Instruction::NewObject);
+                // 为每个字段设置值
+                for (key, val) in fields {
+                    self.program.instructions.push(Instruction::Dup); // 复制对象引用
+                    self.compile_expression(val); // 编译值
+                    self.program.instructions.push(Instruction::SetField(key)); // 设置字段
+                }
+            }
+            Expression::GetField { object, field } => {
+                self.compile_expression(*object);
+                self.program.instructions.push(Instruction::GetField(field));
+            }
+            Expression::Index { object, index } => {
+                self.compile_expression(*object);
+                self.compile_expression(*index);
+                self.program.instructions.push(Instruction::GetIndex);
+            }
         }
     }
 

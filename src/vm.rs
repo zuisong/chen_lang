@@ -59,6 +59,13 @@ pub enum Instruction {
     // New Scope-related Instructions
     DupPlusFP(i32),
     MovePlusFP(usize),
+
+    // Object operations
+    NewObject,         // 创建空对象
+    SetField(String),  // 设置对象字段: obj[field] = value (弹出 value, obj)
+    GetField(String),  // 获取对象字段: obj[field] (弹出 obj, 压入 value)
+    SetIndex,          // 设置对象索引: obj[index] = value (弹出 value, index, obj)
+    GetIndex,          // 获取对象索引: obj[index] (弹出 index, obj, 压入 value)
 }
 
 /// 程序表示
@@ -451,6 +458,87 @@ impl VM {
                 let value = self.stack.get(index).cloned().unwrap_or(Value::null());
                 self.stack.push(value);
             }
+
+            // Object operations
+            Instruction::NewObject => {
+                self.stack.push(Value::object());
+            }
+
+            Instruction::GetField(field) => {
+                let obj = self.stack.pop().unwrap_or(Value::null());
+                match obj {
+                    Value::Object(table_ref) => {
+                        let table = table_ref.borrow();
+                        let value = table.data.get(field).cloned().unwrap_or(Value::null());
+                        self.stack.push(value);
+                    }
+                    _ => {
+                        return Err(RuntimeError::InvalidOperation {
+                            operator: "get_field".to_string(),
+                            left_type: obj.get_type(),
+                            right_type: crate::value::ValueType::Null,
+                        });
+                    }
+                }
+            }
+
+            Instruction::SetField(field) => {
+                let value = self.stack.pop().unwrap_or(Value::null());
+                let obj = self.stack.pop().unwrap_or(Value::null());
+                match obj {
+                    Value::Object(table_ref) => {
+                        table_ref.borrow_mut().data.insert(field.clone(), value);
+                        // SetField 不产生返回值（或者压入 obj 以支持链式调用）
+                    }
+                    _ => {
+                        return Err(RuntimeError::InvalidOperation {
+                            operator: "set_field".to_string(),
+                            left_type: obj.get_type(),
+                            right_type: crate::value::ValueType::Null,
+                        });
+                    }
+                }
+            }
+
+            Instruction::GetIndex => {
+                let index = self.stack.pop().unwrap_or(Value::null());
+                let obj = self.stack.pop().unwrap_or(Value::null());
+                match obj {
+                    Value::Object(table_ref) => {
+                        let key = index.to_string();
+                        let table = table_ref.borrow();
+                        let value = table.data.get(&key).cloned().unwrap_or(Value::null());
+                        self.stack.push(value);
+                    }
+                    _ => {
+                        return Err(RuntimeError::InvalidOperation {
+                            operator: "get_index".to_string(),
+                            left_type: obj.get_type(),
+                            right_type: crate::value::ValueType::Null,
+                        });
+                    }
+                }
+            }
+
+            Instruction::SetIndex => {
+                let value = self.stack.pop().unwrap_or(Value::null());
+                let index = self.stack.pop().unwrap_or(Value::null());
+                let obj = self.stack.pop().unwrap_or(Value::null());
+                match obj {
+                    Value::Object(table_ref) => {
+                        let key = index.to_string();
+                        table_ref.borrow_mut().data.insert(key, value);
+                    }
+                    _ => {
+                        return Err(RuntimeError::InvalidOperation {
+                            operator: "set_index".to_string(),
+                            left_type: obj.get_type(),
+                            right_type: crate::value::ValueType::Null,
+                        });
+                    }
+                }
+            }
+
         }
 
         Ok(true)

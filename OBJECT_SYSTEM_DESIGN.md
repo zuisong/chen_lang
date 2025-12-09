@@ -45,7 +45,7 @@ Chen Lang 的对象系统将模仿 Lua 的极简主义设计：
     *   **Pest Parser**: 更新 `src/chen.pest` 和 `src/parse_pest.rs`，重构 `primary` 规则以支持后缀表达式 (`atom ~ postfix*`)。
     *   **Handwritten Parser**: 更新 `src/parse.rs`，重构 `parse_primary` 并新增 `parse_postfix_expr` 以支持链式调用和成员访问。
 
-### 第三阶段：编译器与指令生成 (编译层) - [NEXT STEP]
+### 第三阶段：编译器与指令生成 (编译层) - [已完成 ✅]
 **目标**: 将新的 AST 节点编译为字节码指令。
 
 *   **设计**:
@@ -128,4 +128,4 @@ Chen Lang 的对象系统将模仿 Lua 的极简主义设计：
     ```
 
 ---
-**当前状态**: 第二阶段已完成，AST 和解析器已就绪。**下一步是第三阶段：修改 `src/compiler.rs` 和 `src/vm.rs` 定义新指令。**
+**当前状态**: 第三阶段已完成 ✅，VM 指令和编译器实现完成并通过测试。**下一步是第四阶段：实现 Metatable 元表机制以支持原型继承和运算符重载。**
