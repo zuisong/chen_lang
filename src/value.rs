@@ -1,12 +1,12 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::fmt;
 use std::rc::Rc;
 
 /// Table 结构，用于实现对象和 Map
 #[derive(Debug, Clone, PartialEq)]
 pub struct Table {
-    pub data: HashMap<String, Value>,
+    pub data: IndexMap<String, Value>,
     pub metatable: Option<Rc<RefCell<Table>>>,
 }
 
@@ -48,7 +48,7 @@ impl Value {
     /// 创建空对象
     pub fn object() -> Self {
         Value::Object(Rc::new(RefCell::new(Table {
-            data: HashMap::new(),
+            data: IndexMap::new(),
             metatable: None,
         })))
     }

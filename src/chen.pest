@@ -70,7 +70,8 @@ atom = {
     if_expr |
     block |
     object_literal |
-    function_def
+    function_def |
+    array_literal
 }
 
 postfix = { call_suffix | dot_suffix | index_suffix }
@@ -79,6 +80,7 @@ dot_suffix = { "." ~ identifier }
 index_suffix = { "[" ~ NEWLINE* ~ expression ~ NEWLINE* ~ "]" }
 
 object_literal = { "#{" ~ NEWLINE* ~ (pair ~ ("," ~ NEWLINE* ~ pair)*)? ~ NEWLINE* ~ "}" }
+array_literal = { "[" ~ NEWLINE* ~ (expression ~ ("," ~ NEWLINE* ~ expression)*)? ~ NEWLINE* ~ "]" }
 pair = { (identifier | integer) ~ ":" ~ NEWLINE* ~ expression }
 
 // 语句分隔符 - 使用换行

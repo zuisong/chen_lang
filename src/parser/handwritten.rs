@@ -586,6 +586,7 @@ impl Parser {
             Token::String(s) => Ok(Expression::Literal(Literal::Value(Value::string(s)))),
             Token::Identifier(name) => Ok(Expression::Identifier(name)),
             Token::HashLBig => self.parse_object_literal(),
+            Token::LSquare => self.parse_array_literal(),
             Token::Keyword(Keyword::IF) => self.parse_if(),
             Token::Keyword(Keyword::DEF) => {
                 let decl = self.parse_function_definition()?;
@@ -638,8 +639,30 @@ impl Parser {
                 }
             }
         }
-        self.consume(&Token::RBig, "Expected '}' after object literal")?;
+        self.skip_newlines();
+        self.consume(&Token::RBig, "Expected '}' after object fields")?;
         Ok(Expression::ObjectLiteral(fields))
+    }
+
+    fn parse_array_literal(&mut self) -> Result<Expression, ParseError> {
+        // [ expr1, expr2 ]
+        let mut elements = Vec::new();
+        self.skip_newlines();
+        if !self.check(&Token::RSquare) {
+            loop {
+                self.skip_newlines();
+                let expr = self.parse_expression_logic()?;
+                elements.push(expr);
+
+                self.skip_newlines();
+                if !self.match_token(&Token::COMMA) {
+                    break;
+                }
+            }
+        }
+        self.skip_newlines();
+        self.consume(&Token::RSquare, "Expected ']' after array elements")?;
+        Ok(Expression::ArrayLiteral(elements))
     }
 
 }

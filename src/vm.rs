@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::io::Write;
 
 use tracing::debug;
@@ -69,13 +69,16 @@ pub enum Instruction {
     
     // Call function from stack
     CallStack(usize),  // Call function at stack[top-n-1], with n args
+    
+    // Array creation (Syntactic sugar for object with numeric keys)
+    BuildArray(usize), 
 }
 
 /// 程序表示
 #[derive(Debug, Default)]
 pub struct Program {
     pub instructions: Vec<Instruction>,
-    pub syms: HashMap<String, Symbol>, // 符号表
+    pub syms: IndexMap<String, Symbol>, // 符号表
 }
 
 /// VM执行结果
@@ -88,7 +91,7 @@ pub enum VMResult {
 /// 虚拟机实现
 pub struct VM {
     stack: Vec<Value>,                 // 操作数栈
-    variables: HashMap<String, Value>, // 全局变量存储
+    variables: IndexMap<String, Value>, // 全局变量存储
     pc: usize,                         // 程序计数器
     fp: usize,                         // 帧指针
     call_stack: Vec<(usize, usize)>,   // 调用栈（保存返回地址, 旧fp）
@@ -103,7 +106,7 @@ impl Default for VM {
 
 impl VM {
     pub fn new() -> Self {
-        let mut variables = HashMap::new();
+        let mut variables = IndexMap::new();
         variables.insert("null".to_string(), Value::null());
         VM {
             stack: Vec::new(),
@@ -116,7 +119,7 @@ impl VM {
     }
 
     pub fn with_writer(writer: Box<dyn Write>) -> Self {
-        let mut variables = HashMap::new();
+        let mut variables = IndexMap::new();
         variables.insert("null".to_string(), Value::null());
         VM {
             stack: Vec::new(),
@@ -171,6 +174,29 @@ impl VM {
         match instruction {
             Instruction::Push(value) => {
                 self.stack.push(value.clone());
+            }
+
+            Instruction::BuildArray(count) => {
+                let mut table = crate::value::Table {
+                    data: IndexMap::new(),
+                    metatable: None,
+                };
+                
+                // Pop count elements
+                let start_index = self.stack.len().checked_sub(*count).ok_or(
+                    RuntimeError::StackUnderflow("Stack underflow during array creation".to_string())
+                )?;
+                
+                for i in 0..*count {
+                     // Stack: [..., e0, e1, e2]
+                     // start_index points to e0 (e.g. len - 3, i=0 gives index len-3)
+                     let val = self.stack[start_index + i].clone();
+                     // Use numeric strings keys "0", "1", ...
+                     table.data.insert(i.to_string(), val);
+                }
+                
+                self.stack.truncate(start_index);
+                self.stack.push(Value::Object(std::rc::Rc::new(std::cell::RefCell::new(table))));
             }
 
             Instruction::Pop => {
@@ -637,7 +663,7 @@ impl VM {
     }
 
     /// 获取变量状态（用于调试）
-    pub fn get_variables(&self) -> &HashMap<String, Value> {
+    pub fn get_variables(&self) -> &IndexMap<String, Value> {
         &self.variables
     }
 }

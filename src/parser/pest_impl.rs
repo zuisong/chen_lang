@@ -288,6 +288,17 @@ fn parse_primary(pair: Pair<Rule>) -> Expression {
     expr
 }
 
+
+fn parse_array_literal(pair: Pair<Rule>) -> Expression {
+    let mut elements = Vec::new();
+    for p in pair.into_inner() {
+         if p.as_rule() == Rule::expression {
+             elements.push(parse_expression(p));
+         }
+    }
+    Expression::ArrayLiteral(elements)
+}
+
 fn parse_atom(pair: Pair<Rule>) -> Expression {
     // atom = { float | integer | bool | string | identifier | "(" ~ expression ~ ")" | if_expr | block | object_literal }
     let inner = pair.into_inner().next().unwrap();
@@ -306,6 +317,7 @@ fn parse_atom(pair: Pair<Rule>) -> Expression {
         Rule::block => Expression::Block(parse_block(inner)),
         Rule::object_literal => parse_object_literal(inner),
         Rule::function_def => Expression::Function(build_function_declaration(inner)),
+        Rule::array_literal => parse_array_literal(inner),
         _ => unreachable!("Unexpected rule in atom: {:?}", inner.as_rule()),
     }
 }

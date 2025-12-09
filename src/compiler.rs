@@ -217,6 +217,13 @@ impl<'a> Compiler<'a> {
                     self.program.instructions.push(Instruction::SetField(key)); // 设置字段
                 }
             }
+            Expression::ArrayLiteral(elements) => {
+                let count = elements.len();
+                for elem in elements {
+                    self.compile_expression(elem);
+                }
+                self.program.instructions.push(Instruction::BuildArray(count));
+            }
             Expression::GetField { object, field } => {
                 self.compile_expression(*object);
                 self.program.instructions.push(Instruction::GetField(field));

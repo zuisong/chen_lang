@@ -33,6 +33,8 @@ pub enum Expression {
     If(If),
     /// 对象字面量: #{ k: v, ... }
     ObjectLiteral(Vec<(String, Expression)>),
+    /// 数组字面量
+    ArrayLiteral(Vec<Expression>),
     /// 属性访问: obj.field
     GetField {
         object: Box<Expression>,

@@ -29,6 +29,7 @@ clap = { version = "4", optional = true, features = ["derive"] }
 clap_complete = { version = "4", optional = true }
 pest = { version = "2.8.4", optional = true }
 pest_derive = { version = "2.8.4", optional = true }
+indexmap = "2.12.1"
 
 [dev-dependencies]
 assert_cmd = "2"
