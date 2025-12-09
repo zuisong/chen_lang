@@ -1,3 +1,10 @@
+//! Tests for Pest parser
+//! 
+//! These tests only run when the `pest-parser` feature is enabled.
+//! Run with: cargo test --features pest-parser
+
+#![cfg(feature = "pest-parser")]
+
 use chen_lang::expression::*;
 use chen_lang::parse_pest;
 

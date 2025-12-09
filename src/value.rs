@@ -491,6 +491,114 @@ impl Value {
     }
 }
 
+/// Metatable support methods
+impl Value {
+    /// Get field with metatable support (__index metamethod)
+    pub fn get_field_with_meta(&self, key: &str) -> Value {
+        match self {
+            Value::Object(table_ref) => {
+                let table = table_ref.borrow();
+                
+                // 1. Try direct lookup first
+                if let Some(value) = table.data.get(key) {
+                    return value.clone();
+                }
+                
+                // 2. Check for metatable
+                if let Some(metatable_ref) = &table.metatable {
+                    let metatable = metatable_ref.borrow();
+                    
+                    // 3. Look for __index metamethod
+                    if let Some(index_method) = metatable.data.get("__index") {
+                        match index_method {
+                            // If __index is a table, recursively look up the key
+                            Value::Object(index_table_ref) => {
+                                return index_table_ref.borrow()
+                                    .data.get(key).cloned()
+                                    .unwrap_or(Value::null());
+                            }
+                            // TODO: If __index is a function, call it (future feature)
+                            _ => {}
+                        }
+                    }
+                }
+                
+                // Not found anywhere
+                Value::null()
+            }
+            _ => Value::null(),
+        }
+    }
+
+    /// Set field with metatable support (__newindex metamethod placeholder)
+    pub fn set_field_with_meta(&self, key: String, value: Value) -> Result<(), RuntimeError> {
+        match self {
+            Value::Object(table_ref) => {
+                let mut table = table_ref.borrow_mut();
+                
+                // If key already exists, always update directly
+                if table.data.contains_key(&key) {
+                    table.data.insert(key, value);
+                    return Ok(());
+                }
+                
+                // Check for __newindex metamethod (placeholder for future)
+                if let Some(metatable_ref) = &table.metatable {
+                    let metatable = metatable_ref.borrow();
+                    if metatable.data.contains_key("__newindex") {
+                        // TODO: Call __newindex if it's a function (future feature)
+                        // For now, just insert directly
+                    }
+                }
+                
+                // No __newindex or it's not callable, insert directly
+                table.data.insert(key, value);
+                Ok(())
+            }
+            _ => Err(RuntimeError::InvalidOperation {
+                operator: "set_field".to_string(),
+                left_type: self.get_type(),
+                right_type: crate::value::ValueType::Null,
+            }),
+        }
+    }
+
+    /// Set metatable for an object
+    pub fn set_metatable(&self, metatable: Value) -> Result<(), RuntimeError> {
+        let meta_type = metatable.get_type(); // Get type before consuming
+        match (self, metatable) {
+            (Value::Object(obj_ref), Value::Object(meta_ref)) => {
+                obj_ref.borrow_mut().metatable = Some(meta_ref);
+                Ok(())
+            }
+            (Value::Object(_), Value::Null) => {
+                // Allow setting metatable to null (removes metatable)
+                Ok(())
+            }
+            _ => Err(RuntimeError::InvalidOperation {
+                operator: "set_metatable".to_string(),
+                left_type: self.get_type(),
+                right_type: meta_type,
+            }),
+        }
+    }
+
+    /// Get metatable for an object
+    pub fn get_metatable(&self) -> Value {
+        match self {
+            Value::Object(obj_ref) => {
+                if let Some(meta_ref) = &obj_ref.borrow().metatable {
+                    Value::Object(meta_ref.clone())
+                } else {
+                    Value::null()
+                }
+            }
+            _ => Value::null(),
+        }
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;

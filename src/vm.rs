@@ -371,6 +371,31 @@ impl VM {
                         writeln!(self.stdout).unwrap();
                         self.stack.push(Value::null());
                     }
+                    "set_meta" => {
+                        if *arg_count != 2 {
+                            return Err(RuntimeError::InvalidOperation {
+                                operator: "set_meta".to_string(),
+                                left_type: crate::value::ValueType::Null,
+                                right_type: crate::value::ValueType::Null,
+                            });
+                        }
+                        let metatable = self.stack.pop().unwrap_or(Value::null());
+                        let obj = self.stack.pop().unwrap_or(Value::null());
+                        obj.set_metatable(metatable)?;
+                        self.stack.push(Value::null());
+                    }
+                    "get_meta" => {
+                        if *arg_count != 1 {
+                            return Err(RuntimeError::InvalidOperation {
+                                operator: "get_meta".to_string(),
+                                left_type: crate::value::ValueType::Null,
+                                right_type: crate::value::ValueType::Null,
+                            });
+                        }
+                        let obj = self.stack.pop().unwrap_or(Value::null());
+                        let metatable = obj.get_metatable();
+                        self.stack.push(metatable);
+                    }
                     _ => {
                         // 处理用户定义的函数
                         let func_label = format!("func_{}", func_name);
@@ -466,38 +491,16 @@ impl VM {
 
             Instruction::GetField(field) => {
                 let obj = self.stack.pop().unwrap_or(Value::null());
-                match obj {
-                    Value::Object(table_ref) => {
-                        let table = table_ref.borrow();
-                        let value = table.data.get(field).cloned().unwrap_or(Value::null());
-                        self.stack.push(value);
-                    }
-                    _ => {
-                        return Err(RuntimeError::InvalidOperation {
-                            operator: "get_field".to_string(),
-                            left_type: obj.get_type(),
-                            right_type: crate::value::ValueType::Null,
-                        });
-                    }
-                }
+                // Use metatable-aware field access
+                let value = obj.get_field_with_meta(field);
+                self.stack.push(value);
             }
 
             Instruction::SetField(field) => {
                 let value = self.stack.pop().unwrap_or(Value::null());
                 let obj = self.stack.pop().unwrap_or(Value::null());
-                match obj {
-                    Value::Object(table_ref) => {
-                        table_ref.borrow_mut().data.insert(field.clone(), value);
-                        // SetField 不产生返回值（或者压入 obj 以支持链式调用）
-                    }
-                    _ => {
-                        return Err(RuntimeError::InvalidOperation {
-                            operator: "set_field".to_string(),
-                            left_type: obj.get_type(),
-                            right_type: crate::value::ValueType::Null,
-                        });
-                    }
-                }
+                // Use metatable-aware field setting
+                obj.set_field_with_meta(field.clone(), value)?;
             }
 
             Instruction::GetIndex => {

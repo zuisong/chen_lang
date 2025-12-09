@@ -1,3 +1,7 @@
+//! Pest-based parser (optional, enabled with pest-parser feature)
+//! 
+//! This module is only compiled when the `pest-parser` feature is enabled.
+
 use pest::Parser;
 use pest::iterators::Pair;
 use pest_derive::Parser;

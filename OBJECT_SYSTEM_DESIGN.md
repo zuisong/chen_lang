@@ -80,7 +80,7 @@ Chen Lang 的对象系统将模仿 Lua 的极简主义设计：
             emit(SetField(field)); // 注意：这里 VM 指令可能需要调整，SetField 应该消耗 object 和 value
             ```
 
-### 第四阶段：虚拟机运行时 (执行层)
+### 第四阶段：虚拟机运行时 (执行层) - [已完成 ✅]
 **目标**: 在 VM 中实现对象的操作逻辑，包括 Metatable 的支持。
 
 *   **设计**:
@@ -90,17 +90,18 @@ Chen Lang 的对象系统将模仿 Lua 的极简主义设计：
             如果 `object.data` 中找不到 key：
             1.  检查 `object.metatable` 是否存在。
             2.  如果存在，查找 metatable 中的 `__index` 字段。
-            3.  如果 `__index` 是 Table，递归查找。
-            4.  如果 `__index` 是 Function，调用它 `call(__index, object, key)`。
+            3.  如果 `__index` 是 Table，递归查找。✅
+            4.  如果 `__index` 是 Function，调用它 `call(__index, object, key)`。(未来功能)
         *   **写入 (`SetField`)**:
-            如果 `object.data` 中找不到 key 且存在 `__newindex` 元方法，则调用之。
+            如果 `object.data` 中找不到 key 且存在 `__newindex` 元方法，则调用之。(未来功能)
         *   **运算符重载 (`Add`, `Sub` 等)**:
-            修改 `Value::add` 等方法。如果操作数不是基本类型，检查是否有 `__add` 元方法并调用。
+            修改 `Value::add` 等方法。如果操作数不是基本类型，检查是否有 `__add` 元方法并调用。(未来功能)
 
-*   **实现计划**:
-    1.  在 `src/vm.rs` 的 `execute_instruction` 中实现基础指令。
-    2.  在 `src/value.rs` 中实现 `get_field_with_meta` 和 `set_field_with_meta` 逻辑。
-    3.  将 VM 的算术指令逻辑委托给 `Value` 的新方法，支持元方法查找。
+*   **实现状态**:
+    1.  ✅ 在 `src/vm.rs` 的 `execute_instruction` 中实现基础指令。
+    2.  ✅ 在 `src/value.rs` 中实现 `get_field_with_meta` 和 `set_field_with_meta` 逻辑。
+    3.  ✅ 添加内置函数 `set_meta()` 和 `get_meta()`。
+    4.  🔮 将 VM 的算术指令逻辑委托给 `Value` 的新方法，支持元方法查找。(未来功能)
 
 ### 第五阶段：标准库与用户侧 (应用层)
 **目标**: 暴露 `set_meta` 等函数，让用户能定义“类”。
@@ -128,4 +129,4 @@ Chen Lang 的对象系统将模仿 Lua 的极简主义设计：
     ```
 
 ---
-**当前状态**: 第三阶段已完成 ✅，VM 指令和编译器实现完成并通过测试。**下一步是第四阶段：实现 Metatable 元表机制以支持原型继承和运算符重载。**
+**当前状态**: 第四阶段已完成 ✅，Metatable 元表机制实现完成，支持 `__index` 原型继承和 `set_meta()`/`get_meta()` 内置函数。**下一步是第五阶段（可选）：完善标准库，添加更多元方法支持（如运算符重载）。**

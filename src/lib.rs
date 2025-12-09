@@ -34,10 +34,13 @@ use crate::token::*;
 pub mod compiler;
 /// 表达式模块
 pub mod expression;
-/// 语法分析模块
+/// 手写语法分析模块
 pub mod parse;
-/// Pest 解析模块
+/// Pest 解析模块 (可选，通过 pest-parser feature 启用)
+#[cfg(feature = "pest-parser")]
 pub mod parse_pest;
+/// 统一解析器接口（内部根据 feature 选择实现）
+pub mod parser;
 /// 词法分析模块
 pub mod token;
 /// 值系统模块
@@ -54,7 +57,7 @@ pub enum ChenError {
     #[error(transparent)]
     Token(#[from] token::TokenError),
     #[error(transparent)]
-    Parse(#[from] parse::ParseError),
+    Parser(#[from] parser::ParserError),
     #[error(transparent)]
     Runtime(#[from] value::RuntimeError),
     #[error(transparent)]
@@ -73,8 +76,14 @@ fn test_run_captured() {
 /// 运行代码
 #[unsafe(no_mangle)]
 pub fn run(code: String) -> Result<(), ChenError> {
-    let tokens = tokenlizer(code.clone())?;
-    let ast = parse::parse(tokens)?;
+    #[cfg(not(feature = "pest-parser"))]
+    let ast = {
+        let tokens = tokenlizer(code.clone())?;
+        parser::parse(tokens)?
+    };
+    
+    #[cfg(feature = "pest-parser")]
+    let ast = parser::parse(&code)?;
 
     let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
 
@@ -93,8 +102,14 @@ pub fn run(code: String) -> Result<(), ChenError> {
 
 /// 运行代码并捕获输出
 pub fn run_captured(code: String) -> Result<String, ChenError> {
-    let tokens = tokenlizer(code.clone())?;
-    let ast = parse::parse(tokens)?;
+    #[cfg(not(feature = "pest-parser"))]
+    let ast = {
+        let tokens = tokenlizer(code.clone())?;
+        parser::parse(tokens)?
+    };
+    
+    #[cfg(feature = "pest-parser")]
+    let ast = parser::parse(&code)?;
 
     let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
 
