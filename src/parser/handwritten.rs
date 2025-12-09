@@ -2,6 +2,9 @@
 
 use thiserror::Error;
 
+use crate::token::Keyword;
+use crate::token::Operator;
+use crate::token::Token;
 use crate::value::Value;
 use crate::*;
 

@@ -1,10 +1,10 @@
 use pretty_assertions::assert_eq;
 
-use crate::Keyword::DEF;
-use crate::Operator::{NotEquals, Or, Subtract};
 use crate::token;
+use crate::token::Keyword::DEF;
 use crate::token::Keyword::{ELSE, FOR, IF, LET};
 use crate::token::Operator::{Add, Assign, Equals, Lt, Mod};
+use crate::token::Operator::{NotEquals, Or, Subtract};
 use crate::token::Token::{
     Identifier, Int, Keyword, LBig, LParen, NewLine, Operator, RBig, RParen, String,
 };

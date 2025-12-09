@@ -201,8 +201,7 @@ fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
 mod tests {
     use pretty_assertions::assert_matches;
 
-    use crate::Operator;
-    use crate::Token;
+    use super::*;
     use crate::token::parse_with_winnow;
 
     #[test]

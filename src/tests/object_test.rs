@@ -535,6 +535,9 @@ println(person.city)"#;
         "#;
 
         let result = crate::run_captured(code.to_string());
+        if let Err(e) = &result {
+            println!("Error: {:?}", e);
+        }
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("(10,20)"));
