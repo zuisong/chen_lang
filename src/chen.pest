@@ -7,16 +7,16 @@ COMMENT = _{ "#" ~ !"{" ~ (!NEWLINE ~ ANY)* }
 
 // 关键字
 // 关键字
-LET = { "let" }
-FOR = { "for" }
-DEF = { "def" }
-RETURN = { "return" }
-IF = { "if" }
-ELSE = { "else" }
-TRUE = { "true" }
-FALSE = { "false" }
-BREAK = { "break" }
-CONTINUE = { "continue" }
+LET = @{ "let" ~ !(ASCII_ALPHANUMERIC | "_") }
+FOR = @{ "for" ~ !(ASCII_ALPHANUMERIC | "_") }
+DEF = @{ "def" ~ !(ASCII_ALPHANUMERIC | "_") }
+RETURN = @{ "return" ~ !(ASCII_ALPHANUMERIC | "_") }
+IF = @{ "if" ~ !(ASCII_ALPHANUMERIC | "_") }
+ELSE = @{ "else" ~ !(ASCII_ALPHANUMERIC | "_") }
+TRUE = @{ "true" ~ !(ASCII_ALPHANUMERIC | "_") }
+FALSE = @{ "false" ~ !(ASCII_ALPHANUMERIC | "_") }
+BREAK = @{ "break" ~ !(ASCII_ALPHANUMERIC | "_") }
+CONTINUE = @{ "continue" ~ !(ASCII_ALPHANUMERIC | "_") }
 // NULL removed
 
 // 标识符 (不能是关键字)
