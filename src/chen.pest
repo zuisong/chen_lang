@@ -1,6 +1,9 @@
-// 隐式规则：自动忽略空格和注释
-WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
-COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* ~ NEWLINE? }
+// 隐式规则：自动忽略空格和注释（但不包括换行）
+WHITESPACE = _{ " " | "\t" | "\r" }
+NEWLINE = _{ "\n" }
+// 注释：# 后面不能是 { (避免和对象字面量 #{ 冲突)
+// 注意：注释不吞掉换行符，留给 stmt_sep 处理
+COMMENT = _{ "#" ~ !"{" ~ (!NEWLINE ~ ANY)* }
 
 // 关键字
 LET = { "let" }
@@ -42,8 +45,7 @@ and = { "&&" }
 or = { "||" }
 not = { "!" }
 
-// 表达式优先级处理 (Pest 需要使用 Pratt Parser，或者我们手动分层)
-// 为了简单，这里我们手动分层，模拟递归下降的优先级
+// 表达式优先级处理
 expression = { logical_or }
 
 logical_or = { logical_and ~ (or ~ logical_and)* }
@@ -73,8 +75,11 @@ call_suffix = { "(" ~ arguments? ~ ")" }
 dot_suffix = { "." ~ identifier }
 index_suffix = { "[" ~ expression ~ "]" }
 
-object_literal = { "#{" ~ (pair ~ ("," ~ pair)*)? ~ "}" }
+object_literal = { "#{" ~ NEWLINE* ~ (pair ~ ("," ~ NEWLINE* ~ pair)*)? ~ NEWLINE* ~ "}" }
 pair = { identifier ~ ":" ~ expression }
+
+// 语句分隔符 - 使用换行
+stmt_sep = _{ NEWLINE+ }
 
 // 语句
 statement = {
@@ -89,11 +94,6 @@ statement = {
 }
 
 declaration = { LET ~ identifier ~ assign ~ expression }
-// assignment 需要修改，因为现在可以是 obj.field = val
-// 旧: assignment = { identifier ~ assign ~ expression }
-// 新: 赋值左边可以是复杂的 primary (只要它是 l-value)
-// 但 Pest 不区分 l-value。我们先允许 primary，然后在 AST 构建时检查。
-// 或者定义一个 assignment_target
 assignment_target = { identifier ~ postfix* } 
 assignment = { assignment_target ~ assign ~ expression }
 
@@ -104,11 +104,10 @@ break_stmt = { BREAK }
 continue_stmt = { CONTINUE }
 
 // 复合结构
-block = { "{" ~ statement* ~ "}" }
+block = { "{" ~ NEWLINE* ~ (statement ~ stmt_sep)* ~ statement? ~ NEWLINE* ~ "}" }
 if_expr = { IF ~ expression ~ block ~ (ELSE ~ block)? }
-// function_call 已被 primary 覆盖，但为了 function_def 里的参数定义，parameters 仍需保留
 parameters = { identifier ~ ("," ~ identifier)* }
 arguments = { expression ~ ("," ~ expression)* }
 
-// 程序入口
-program = { SOI ~ statement* ~ EOI }
+// 程序入口 - 允许语句之间有换行
+program = { SOI ~ NEWLINE* ~ (statement ~ stmt_sep)* ~ statement? ~ NEWLINE* ~ EOI }
