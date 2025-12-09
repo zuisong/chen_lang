@@ -5,7 +5,7 @@ use tracing::debug;
 use winnow::{
     ModalResult, Parser,
     ascii::{digit1, line_ending, till_line_ending},
-    combinator::{alt, delimited, opt, separated_pair},
+    combinator::{alt, delimited, opt},
     token::{literal, one_of, take_until, take_while},
 };
 
@@ -130,7 +130,7 @@ pub enum Token {
 fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
     alt((
         literal("#{").value(Token::HashLBig),
-        separated_pair(literal("#"), till_line_ending, line_ending).map(|_| Token::Comment),
+        (literal("#"), till_line_ending).map(|_| Token::Comment),
         alt((
             line_ending.value(Token::NewLine),
             one_of((' ', '\t', '\r', '\n')).value(Token::Space),
