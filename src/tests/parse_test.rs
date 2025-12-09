@@ -3,7 +3,7 @@ use crate::{
         Assign, BinaryOperation, Expression, FunctionCall, If, Literal, Local, Loop, Statement,
     },
     parser,
-    token::{self, Operator},
+    token::Operator,
     value::Value,
 };
 

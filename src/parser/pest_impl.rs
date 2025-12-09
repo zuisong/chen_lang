@@ -1,5 +1,5 @@
 //! Pest-based parser (optional, enabled with pest-parser feature)
-//! 
+//!
 //! This module is only compiled when the `pest-parser` feature is enabled.
 
 use pest::Parser;
@@ -73,13 +73,13 @@ fn parse_declaration(pair: Pair<Rule>) -> Statement {
 
 fn parse_assignment(pair: Pair<Rule>) -> Statement {
     // assignment = { assignment_target ~ assign ~ expression }
-    // assignment_target = { identifier ~ postfix* } 
+    // assignment_target = { identifier ~ postfix* }
     let mut inner = pair.into_inner();
     let target_pair = inner.next().unwrap();
     let mut expr = Expression::Literal(Literal::Value(Value::Null));
-    
+
     let lvalue = parse_assignment_target(target_pair);
-    
+
     for p in inner {
         if p.as_rule() == Rule::expression {
             expr = parse_expression(p);
@@ -87,9 +87,20 @@ fn parse_assignment(pair: Pair<Rule>) -> Statement {
     }
 
     match lvalue {
-        Expression::Identifier(name) => Statement::Assign(Assign { name, expr: Box::new(expr) }),
-        Expression::GetField { object, field } => Statement::SetField { object: *object, field, value: expr },
-        Expression::Index { object, index } => Statement::SetIndex { object: *object, index: *index, value: expr },
+        Expression::Identifier(name) => Statement::Assign(Assign {
+            name,
+            expr: Box::new(expr),
+        }),
+        Expression::GetField { object, field } => Statement::SetField {
+            object: *object,
+            field,
+            value: expr,
+        },
+        Expression::Index { object, index } => Statement::SetIndex {
+            object: *object,
+            index: *index,
+            value: expr,
+        },
         _ => unreachable!("Invalid l-value in assignment: {:?}", lvalue),
     }
 }
@@ -99,7 +110,7 @@ fn parse_assignment_target(pair: Pair<Rule>) -> Expression {
     let mut inner = pair.into_inner();
     let identifier_pair = inner.next().unwrap();
     let mut expr = Expression::Identifier(identifier_pair.as_str().to_string());
-    
+
     for p in inner {
         match p.as_rule() {
             Rule::postfix => expr = parse_postfix(expr, p),
@@ -278,7 +289,7 @@ fn parse_primary(pair: Pair<Rule>) -> Expression {
     let mut inner = pair.into_inner();
     let atom_pair = inner.next().unwrap();
     let mut expr = parse_atom(atom_pair);
-    
+
     for p in inner {
         match p.as_rule() {
             Rule::postfix => expr = parse_postfix(expr, p),
@@ -288,13 +299,12 @@ fn parse_primary(pair: Pair<Rule>) -> Expression {
     expr
 }
 
-
 fn parse_array_literal(pair: Pair<Rule>) -> Expression {
     let mut elements = Vec::new();
     for p in pair.into_inner() {
-         if p.as_rule() == Rule::expression {
-             elements.push(parse_expression(p));
-         }
+        if p.as_rule() == Rule::expression {
+            elements.push(parse_expression(p));
+        }
     }
     Expression::ArrayLiteral(elements)
 }
@@ -303,8 +313,12 @@ fn parse_atom(pair: Pair<Rule>) -> Expression {
     // atom = { float | integer | bool | string | identifier | "(" ~ expression ~ ")" | if_expr | block | object_literal }
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
-        Rule::float => Expression::Literal(Literal::Value(Value::Float(inner.as_str().parse().unwrap()))),
-        Rule::integer => Expression::Literal(Literal::Value(Value::Int(inner.as_str().parse().unwrap()))),
+        Rule::float => Expression::Literal(Literal::Value(Value::Float(
+            inner.as_str().parse().unwrap(),
+        ))),
+        Rule::integer => {
+            Expression::Literal(Literal::Value(Value::Int(inner.as_str().parse().unwrap())))
+        }
         Rule::bool => Expression::Literal(Literal::Value(Value::Bool(inner.as_str() == "true"))),
         Rule::string => {
             let s = inner.as_str();
@@ -336,18 +350,27 @@ fn parse_postfix(base: Expression, pair: Pair<Rule>) -> Expression {
                     }
                 }
             }
-            
-            Expression::FunctionCall(FunctionCall { callee: Box::new(base), arguments: args })
+
+            Expression::FunctionCall(FunctionCall {
+                callee: Box::new(base),
+                arguments: args,
+            })
         }
         Rule::dot_suffix => {
             // dot_suffix = { "." ~ identifier }
             let field = inner.into_inner().next().unwrap().as_str().to_string();
-            Expression::GetField { object: Box::new(base), field }
+            Expression::GetField {
+                object: Box::new(base),
+                field,
+            }
         }
         Rule::index_suffix => {
             // index_suffix = { "[" ~ expression ~ "]" }
             let idx_expr = parse_expression(inner.into_inner().next().unwrap());
-            Expression::Index { object: Box::new(base), index: Box::new(idx_expr) }
+            Expression::Index {
+                object: Box::new(base),
+                index: Box::new(idx_expr),
+            }
         }
         _ => unreachable!("Unexpected rule in postfix"),
     }
@@ -356,7 +379,7 @@ fn parse_postfix(base: Expression, pair: Pair<Rule>) -> Expression {
 fn parse_object_literal(pair: Pair<Rule>) -> Expression {
     // object_literal = { "#{" ~ (pair ~ ("," ~ pair)*)? ~ "}" }
     let mut fields = Vec::new();
-    
+
     for p in pair.into_inner() {
         if p.as_rule() == Rule::pair {
             let mut inner = p.into_inner();
@@ -365,7 +388,7 @@ fn parse_object_literal(pair: Pair<Rule>) -> Expression {
             fields.push((key, val));
         }
     }
-    
+
     Expression::ObjectLiteral(fields)
 }
 

@@ -537,8 +537,6 @@ impl Parser {
                 self.skip_newlines();
                 self.consume(&Token::RParen, "Expected ')' after arguments")?;
 
-
-
                 expr = Expression::FunctionCall(FunctionCall {
                     callee: Box::new(expr),
                     arguments: args,
@@ -664,7 +662,6 @@ impl Parser {
         self.consume(&Token::RSquare, "Expected ']' after array elements")?;
         Ok(Expression::ArrayLiteral(elements))
     }
-
 }
 
 // Keep the old function signature for compatibility with lib.rs for now,

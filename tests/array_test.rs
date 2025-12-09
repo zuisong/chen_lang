@@ -52,3 +52,53 @@ fn test_mixed_array() {
     assert!(output.contains("two"));
     assert!(output.contains("true"));
 }
+#[test]
+fn test_array_push() {
+    // Requires method call optimization because push is native method on proto
+    let code = r#"
+        let arr = [10, 20]
+        let new_len = arr.push(30)
+        println(new_len)
+        println(arr[2])
+    "#;
+    let output = run_chen_lang_code(code).expect("Execution failed");
+    assert!(output.contains("3"));
+    assert!(output.contains("30"));
+}
+
+#[test]
+fn test_array_pop() {
+    let code = r#"
+        let arr = [10, 20]
+        let val = arr.pop()
+        println(val)
+        let removed = arr[1] 
+        # Accessing "1" should be null.
+        if removed == null {
+            println("Removed")
+        }
+    "#;
+    let output = run_chen_lang_code(code).expect("Execution failed");
+    assert!(output.contains("20"));
+    assert!(output.contains("Removed"));
+}
+
+#[test]
+fn test_array_len() {
+    let code = r#"
+        let arr = [1, 2, 300]
+        println(arr.len())
+    "#;
+    let output = run_chen_lang_code(code).expect("Execution failed");
+    assert!(output.contains("3"));
+}
+
+#[test]
+fn test_array_type_tag() {
+    let code = r#"
+        let arr = []
+        println(arr.__type)
+    "#;
+    let output = run_chen_lang_code(code).expect("Execution failed");
+    assert!(output.contains("Array"));
+}

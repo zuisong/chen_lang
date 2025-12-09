@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod object_tests {
     use crate::value::Value;
-    use crate::vm::{Instruction, Program, VMResult, VM};
+    use crate::vm::{Instruction, Program, VM, VMResult};
 
     /// 测试 VM 指令：NewObject
     #[test]
@@ -24,15 +24,15 @@ mod object_tests {
     #[test]
     fn test_vm_set_get_field() {
         let mut program = Program::default();
-        
+
         // 创建对象
         program.add_instruction(Instruction::NewObject);
-        
+
         // 设置字段 name = "Chen"
         program.add_instruction(Instruction::Dup); // 复制对象引用
         program.add_instruction(Instruction::Push(Value::string("Chen".to_string())));
         program.add_instruction(Instruction::SetField("name".to_string()));
-        
+
         // 获取字段 name
         program.add_instruction(Instruction::GetField("name".to_string()));
 
@@ -51,16 +51,16 @@ mod object_tests {
     #[test]
     fn test_vm_set_get_index() {
         let mut program = Program::default();
-        
+
         // 创建对象
         program.add_instruction(Instruction::NewObject);
-        
+
         // 设置索引 obj["age"] = 25
         program.add_instruction(Instruction::Dup);
         program.add_instruction(Instruction::Push(Value::string("age".to_string())));
         program.add_instruction(Instruction::Push(Value::int(25)));
         program.add_instruction(Instruction::SetIndex);
-        
+
         // 获取索引 obj["age"]
         program.add_instruction(Instruction::Push(Value::string("age".to_string())));
         program.add_instruction(Instruction::GetIndex);
@@ -82,10 +82,14 @@ mod object_tests {
         let code = r#"let obj = #{ name: "Chen", age: 25 }
 println(obj.name)
 println(obj.age)"#;
-        
+
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Execution should succeed: {:?}",
+            result.err()
+        );
+
         let output = result.unwrap();
         assert!(output.contains("Chen"), "Output should contain 'Chen'");
         assert!(output.contains("25"), "Output should contain '25'");
@@ -97,12 +101,19 @@ println(obj.age)"#;
         let code = r#"let obj = #{ name: "Alice" }
 obj.city = "Shanghai"
 println(obj.city)"#;
-        
+
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Execution should succeed: {:?}",
+            result.err()
+        );
+
         let output = result.unwrap();
-        assert!(output.contains("Shanghai"), "Output should contain 'Shanghai'");
+        assert!(
+            output.contains("Shanghai"),
+            "Output should contain 'Shanghai'"
+        );
     }
 
     /// 测试索引访问
@@ -111,10 +122,14 @@ println(obj.city)"#;
         let code = r#"let obj = #{ name: "Bob" }
 obj["country"] = "China"
 println(obj["country"])"#;
-        
+
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Execution should succeed: {:?}",
+            result.err()
+        );
+
         let output = result.unwrap();
         assert!(output.contains("China"), "Output should contain 'China'");
     }
@@ -124,12 +139,19 @@ println(obj["country"])"#;
     fn test_nested_objects() {
         let code = r#"let person = #{ name: "Eve", address: #{ city: "Beijing", zip: 100000 } }
 println(person.address.city)"#;
-        
+
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Execution should succeed: {:?}",
+            result.err()
+        );
+
         let output = result.unwrap();
-        assert!(output.contains("Beijing"), "Output should contain 'Beijing'");
+        assert!(
+            output.contains("Beijing"),
+            "Output should contain 'Beijing'"
+        );
     }
 
     /// 测试 Metatable 原型继承
@@ -148,13 +170,20 @@ set_meta(dog, Animal)
 println(dog.name)
 println(dog.speak)
 println(dog.legs)"#;
-        
+
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Execution should succeed: {:?}",
+            result.err()
+        );
+
         let output = result.unwrap();
         assert!(output.contains("Buddy"), "Output should contain 'Buddy'");
-        assert!(output.contains("Some sound"), "Output should contain 'Some sound'");
+        assert!(
+            output.contains("Some sound"),
+            "Output should contain 'Some sound'"
+        );
         assert!(output.contains("4"), "Output should contain '4'");
     }
 
@@ -165,10 +194,14 @@ println(dog.legs)"#;
 let obj = #{ name: "Alice" }
 set_meta(obj, proto)
 println(obj.greet)"#;
-        
+
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Execution should succeed: {:?}",
+            result.err()
+        );
+
         let output = result.unwrap();
         assert!(output.contains("Hello"), "Output should contain 'Hello'");
     }
@@ -180,13 +213,20 @@ println(obj.greet)"#;
 let obj = #{ value: 10 }
 set_meta(obj, proto)
 println(obj.value)"#;
-        
+
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Execution should succeed: {:?}",
+            result.err()
+        );
+
         let output = result.unwrap();
         // Should use direct field (10) not metatable field (100)
-        assert!(output.contains("10"), "Output should contain '10' (direct field, not metatable)");
+        assert!(
+            output.contains("10"),
+            "Output should contain '10' (direct field, not metatable)"
+        );
         assert!(!output.contains("100"), "Output should not contain '100'");
     }
 
@@ -197,13 +237,20 @@ println(obj.value)"#;
 let obj2 = obj1
 obj2.value = 20
 println(obj1.value)"#;
-        
+
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Execution should succeed: {:?}",
+            result.err()
+        );
+
         let output = result.unwrap();
         // obj1 and obj2 share the same reference, so modifying obj2 affects obj1
-        assert!(output.contains("20"), "Output should contain '20' (shared reference)");
+        assert!(
+            output.contains("20"),
+            "Output should contain '20' (shared reference)"
+        );
     }
 
     /// 测试动态添加字段
@@ -215,14 +262,21 @@ person.city = "Shanghai"
 println(person.name)
 println(person.age)
 println(person.city)"#;
-        
+
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Execution should succeed: {:?}",
+            result.err()
+        );
+
         let output = result.unwrap();
         assert!(output.contains("Grace"), "Output should contain 'Grace'");
         assert!(output.contains("28"), "Output should contain '28'");
-        assert!(output.contains("Shanghai"), "Output should contain 'Shanghai'");
+        assert!(
+            output.contains("Shanghai"),
+            "Output should contain 'Shanghai'"
+        );
     }
 
     /// 测试对象相等性（引用比较）
@@ -236,10 +290,14 @@ println(person.city)"#;
         println(obj1 == obj2) # Should be false (different references)
         println(obj1 == obj3) # Should be true (same reference)
         "#;
-        
+
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Execution should succeed: {:?}",
+            result.err()
+        );
+
         let output = result.unwrap();
         let lines: Vec<&str> = output.trim().lines().collect();
         assert_eq!(lines[0], "false", "Different objects should not be equal");
@@ -265,10 +323,10 @@ println(person.city)"#;
         println(obj.n)
         println(obj.o.nested)
         "#;
-        
+
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok());
-        
+
         let output = result.unwrap();
         assert!(output.contains("42"));
         assert!(output.contains("3.14"));
@@ -294,13 +352,20 @@ println(person.city)"#;
         println("Age: " + child.age)
         println("Name: " + child.name)
         "#;
-        
+
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Execution should succeed: {:?}",
+            result.err()
+        );
+
         let output = result.unwrap();
         assert!(output.contains("Age: 50"), "Should find field in parent");
-        assert!(output.contains("Name: Grandpa"), "Should find field in grandparent");
+        assert!(
+            output.contains("Name: Grandpa"),
+            "Should find field in grandparent"
+        );
     }
 
     /// 测试 get_meta 和清除 meta
@@ -342,10 +407,10 @@ println(person.city)"#;
             println("Field x cleared: " + obj.x)
         }
         "#;
-        
+
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok());
-        
+
         let output = result.unwrap();
         assert!(output.contains("Initial: null"));
         assert!(output.contains("Meta match: true"));
@@ -353,12 +418,12 @@ println(person.city)"#;
         assert!(output.contains("Cleared: null"));
         assert!(output.contains("Field x cleared: null"));
     }
-    
+
     /// 测试方法调用 (Assign function to field)
     #[test]
     fn test_method_call() {
         let code = r#"
-        def greet(name) {
+        def greet(self, name) {
             return "Hello " + name
         }
         
@@ -367,13 +432,13 @@ println(person.city)"#;
         
         println(obj.say("World"))
         "#;
-        
+
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("Hello World"));
     }
-    
+
     /// 测试循环引用（仅创建，不打印以免栈溢出）
     #[test]
     fn test_circular_reference() {
@@ -385,10 +450,10 @@ println(person.city)"#;
         println(a.next.name)
         println(a.next.prev.name)
         "#;
-        
+
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok());
-        
+
         let output = result.unwrap();
         assert!(output.contains("B"));
         assert!(output.contains("A"));
@@ -398,7 +463,7 @@ println(person.city)"#;
     #[test]
     fn test_prototype_method() {
         let code = r#"
-        def speak() {
+        def speak(self) {
             return "I am an object"
         }
         
@@ -408,7 +473,7 @@ println(person.city)"#;
         
         println(obj.speak())
         "#;
-        
+
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok());
         let output = result.unwrap();
@@ -426,12 +491,12 @@ println(person.city)"#;
         let counter = #{ count: 0 }
         counter.inc = increment
         
-        counter.inc(counter)
+        counter.inc()
         println(counter.count)
-        counter.inc(counter)
+        counter.inc()
         println(counter.count)
         "#;
-        
+
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok());
         let output = result.unwrap();
@@ -466,20 +531,20 @@ println(person.city)"#;
         }
 
         let p = NewPoint(10, 20)
-        println(p.str(p)) # 像调用对象方法一样
+        println(p.str()) # 像调用对象方法一样
         "#;
-        
+
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok());
         let output = result.unwrap();
         assert!(output.contains("(10,20)"));
     }
-    }
+}
 
-    /// 测试嵌套函数定义 (Nested Functions)
-    #[test]
-    fn test_nested_function_class() {
-        let code = r#"
+/// 测试嵌套函数定义 (Nested Functions)
+#[test]
+fn test_nested_function_class() {
+    let code = r#"
         def NewPoint(x, y) {
             # 嵌套定义函数
             def point_str(self) {
@@ -497,11 +562,11 @@ println(person.city)"#;
         }
 
         let p = NewPoint(10, 20)
-        println(p.str(p))
+        println(p.str())
         "#;
-        
-        let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok());
-        let output = result.unwrap();
-        assert!(output.contains("(10,20)"));
-    }
+
+    let result = crate::run_captured(code.to_string());
+    assert!(result.is_ok());
+    let output = result.unwrap();
+    assert!(output.contains("(10,20)"));
+}

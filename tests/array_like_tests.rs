@@ -12,7 +12,7 @@ fn test_array_like_object_creation() {
         println(arr[1])
         println(arr[2])
     "#;
-    
+
     let output = run_captured(code.to_string()).unwrap();
     assert!(output.contains("first"));
     assert!(output.contains("second"));
@@ -26,7 +26,7 @@ fn test_array_like_index_access() {
         let sum = arr[0] + arr[1] + arr[2]
         println(sum)
     "#;
-    
+
     let output = run_captured(code.to_string()).unwrap();
     assert!(output.contains("60"));
 }
@@ -41,7 +41,7 @@ fn test_array_like_index_assignment() {
         println(arr[1])
         println(arr[2])
     "#;
-    
+
     let output = run_captured(code.to_string()).unwrap();
     assert!(output.contains("100"));
     assert!(output.contains("200"));
@@ -58,7 +58,7 @@ fn test_array_like_dynamic_indexing() {
             i = i + 1
         }
     "#;
-    
+
     let output = run_captured(code.to_string()).unwrap();
     assert!(output.contains("a"));
     assert!(output.contains("b"));
@@ -73,7 +73,7 @@ fn test_array_like_sparse_array() {
         println(sparse[0])
         println(sparse[100])
     "#;
-    
+
     let output = run_captured(code.to_string()).unwrap();
     assert!(output.contains("start"));
     assert!(output.contains("end"));
@@ -94,7 +94,7 @@ fn test_array_like_mixed_keys() {
         println(mixed.name)
         println(mixed.length)
     "#;
-    
+
     let output = run_captured(code.to_string()).unwrap();
     assert!(output.contains("first element"));
     assert!(output.contains("second element"));
@@ -115,7 +115,7 @@ fn test_array_like_nested() {
         println(matrix[1][0])
         println(matrix[1][1])
     "#;
-    
+
     let output = run_captured(code.to_string()).unwrap();
     assert!(output.contains("1"));
     assert!(output.contains("2"));
@@ -136,7 +136,7 @@ fn test_array_like_iteration() {
         }
         println(sum)
     "#;
-    
+
     let output = run_captured(code.to_string()).unwrap();
     assert!(output.contains("100"));
 }
@@ -152,7 +152,7 @@ fn test_array_like_with_strings() {
         let greeting = "Hello, " + names[0] + "!"
         println(greeting)
     "#;
-    
+
     let output = run_captured(code.to_string()).unwrap();
     assert!(output.contains("Hello, Alice!"));
 }

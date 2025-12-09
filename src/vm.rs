@@ -1,6 +1,6 @@
-use indexmap::IndexMap;
 use std::io::Write;
 
+use indexmap::IndexMap;
 use tracing::debug;
 
 use crate::value::{RuntimeError, Value};
@@ -64,14 +64,15 @@ pub enum Instruction {
     NewObject,         // 创建空对象
     SetField(String),  // 设置对象字段: obj[field] = value (弹出 value, obj)
     GetField(String),  // 获取对象字段: obj[field] (弹出 obj, 压入 value)
+    GetMethod(String), // 获取方法: obj.method (弹出 obj, 压入 func, obj) - 用于方法调用优化
     SetIndex,          // 设置对象索引: obj[index] = value (弹出 value, index, obj)
     GetIndex,          // 获取对象索引: obj[index] (弹出 index, obj, 压入 value)
-    
+
     // Call function from stack
-    CallStack(usize),  // Call function at stack[top-n-1], with n args
-    
+    CallStack(usize), // Call function at stack[top-n-1], with n args
+
     // Array creation (Syntactic sugar for object with numeric keys)
-    BuildArray(usize), 
+    BuildArray(usize),
 }
 
 /// 程序表示
@@ -90,12 +91,13 @@ pub enum VMResult {
 
 /// 虚拟机实现
 pub struct VM {
-    stack: Vec<Value>,                 // 操作数栈
+    stack: Vec<Value>,                  // 操作数栈
     variables: IndexMap<String, Value>, // 全局变量存储
-    pc: usize,                         // 程序计数器
-    fp: usize,                         // 帧指针
-    call_stack: Vec<(usize, usize)>,   // 调用栈（保存返回地址, 旧fp）
-    stdout: Box<dyn Write>,            // 标准输出
+    pc: usize,                          // 程序计数器
+    fp: usize,                          // 帧指针
+    call_stack: Vec<(usize, usize)>,    // 调用栈（保存返回地址, 旧fp）
+    stdout: Box<dyn Write>,             // 标准输出
+    array_prototype: Value,             // 数组原型对象
 }
 
 impl Default for VM {
@@ -115,6 +117,7 @@ impl VM {
             fp: 0,
             call_stack: Vec::new(),
             stdout: Box::new(std::io::stdout()),
+            array_prototype: create_array_prototype(),
         }
     }
 
@@ -128,6 +131,7 @@ impl VM {
             fp: 0,
             call_stack: Vec::new(),
             stdout: writer,
+            array_prototype: create_array_prototype(),
         }
     }
 
@@ -181,22 +185,36 @@ impl VM {
                     data: IndexMap::new(),
                     metatable: None,
                 };
-                
+
                 // Pop count elements
-                let start_index = self.stack.len().checked_sub(*count).ok_or(
-                    RuntimeError::StackUnderflow("Stack underflow during array creation".to_string())
-                )?;
-                
+                let start_index =
+                    self.stack
+                        .len()
+                        .checked_sub(*count)
+                        .ok_or(RuntimeError::StackUnderflow(
+                            "Stack underflow during array creation".to_string(),
+                        ))?;
+
                 for i in 0..*count {
-                     // Stack: [..., e0, e1, e2]
-                     // start_index points to e0 (e.g. len - 3, i=0 gives index len-3)
-                     let val = self.stack[start_index + i].clone();
-                     // Use numeric strings keys "0", "1", ...
-                     table.data.insert(i.to_string(), val);
+                    // Stack: [..., e0, e1, e2]
+                    // start_index points to e0 (e.g. len - 3, i=0 gives index len-3)
+                    let val = self.stack[start_index + i].clone();
+                    // Use numeric strings keys "0", "1", ...
+                    table.data.insert(i.to_string(), val);
                 }
-                
+
                 self.stack.truncate(start_index);
-                self.stack.push(Value::Object(std::rc::Rc::new(std::cell::RefCell::new(table))));
+                // Set Array Prototype
+                let mut table_ref = table;
+                // We need to clone the prototype's table reference if it's an object
+                if let Value::Object(proto_table) = &self.array_prototype {
+                    table_ref.metatable = Some(proto_table.clone());
+                }
+
+                self.stack
+                    .push(Value::Object(std::rc::Rc::new(std::cell::RefCell::new(
+                        table_ref,
+                    ))));
             }
 
             Instruction::Pop => {
@@ -446,12 +464,30 @@ impl VM {
                         // Try direct symbol lookup, then variable lookup
                         let target_symbol = if let Some(sym) = program.syms.get(&func_label) {
                             Some(sym)
-                        } else if let Some(Value::Function(real_name)) = self.variables.get(func_name) {
-                             let real_label = format!("func_{}", real_name);
-                             program.syms.get(&real_label)
+                        } else if let Some(Value::Function(real_name)) =
+                            self.variables.get(func_name)
+                        {
+                            let real_label = format!("func_{}", real_name);
+                            program.syms.get(&real_label)
                         } else {
-                             None
+                            None
                         };
+
+                        // Check for NativeFunction in variables
+                        if target_symbol.is_none() {
+                            if let Some(Value::NativeFunction(native_fn)) =
+                                self.variables.get(func_name)
+                            {
+                                // Native Call logic
+                                let args_start = self.stack.len().checked_sub(*arg_count).ok_or(
+                                    RuntimeError::StackUnderflow("Native call missing args".into()),
+                                )?;
+                                let args: Vec<Value> = self.stack.drain(args_start..).collect();
+                                let result = native_fn(args)?;
+                                self.stack.push(result);
+                                return Ok(true);
+                            }
+                        }
 
                         if let Some(target_symbol) = target_symbol {
                             if *arg_count != target_symbol.narguments {
@@ -542,7 +578,7 @@ impl VM {
             Instruction::GetField(field) => {
                 let obj = self.stack.pop().unwrap_or(Value::null());
                 // Use metatable-aware field access
-                let value = obj.get_field_with_meta(field);
+                let value = obj.get_field_with_meta(&field);
                 self.stack.push(value);
             }
 
@@ -551,6 +587,13 @@ impl VM {
                 let obj = self.stack.pop().unwrap_or(Value::null());
                 // Use metatable-aware field setting
                 obj.set_field_with_meta(field.clone(), value)?;
+            }
+
+            Instruction::GetMethod(field) => {
+                let obj = self.stack.pop().unwrap_or(Value::null());
+                let value = obj.get_field_with_meta(&field);
+                self.stack.push(value);
+                self.stack.push(obj);
             }
 
             Instruction::GetIndex => {
@@ -592,67 +635,74 @@ impl VM {
                 }
             }
 
+            Instruction::CallStack(arg_count) => {
+                // 1. Get function from stack (it's below args)
+                // Stack: [... func, arg1, ... argN]
+                let func_idx = self.stack.len().checked_sub(*arg_count + 1).ok_or(
+                    RuntimeError::StackUnderflow("CallStack: missing function".to_string()),
+                )?;
 
-        Instruction::CallStack(arg_count) => {
-             // 1. Get function from stack (it's below args)
-             // Stack: [... func, arg1, ... argN]
-             let func_idx = self.stack.len().checked_sub(*arg_count + 1).ok_or(
-                 RuntimeError::StackUnderflow("CallStack: missing function".to_string())
-             )?;
-             
-             let func_val = self.stack.remove(func_idx);
-             
-             match func_val {
-                 Value::Function(func_name) => {
-                     // Reuse logic for user defined functions
-                     // Note: We don't support builtins via CallStack yet
-                     let func_label = format!("func_{}", func_name);
-                     debug!(
-                         "Calling stack function {} (label: {}), arg_count: {}",
-                         func_name, func_label, *arg_count
-                     );
-                     
-                     if let Some(target_symbol) = program.syms.get(&func_label) {
-                         if *arg_count != target_symbol.narguments {
-                             return Err(RuntimeError::InvalidOperation {
-                                 operator: "call_stack".to_string(),
-                                 left_type: crate::value::ValueType::Function,
-                                 right_type: crate::value::ValueType::Null,
-                             });
-                         }
+                let func_val = self.stack.remove(func_idx);
 
-                         // 1. Save return address and old fp
-                         self.call_stack.push((self.pc, self.fp));
+                match func_val {
+                    Value::Function(func_name) => {
+                        // Reuse logic for user defined functions
+                        // Note: We don't support builtins via CallStack yet (except NativeFunction now)
+                        let func_label = format!("func_{}", func_name);
+                        debug!(
+                            "Calling stack function {} (label: {}), arg_count: {}",
+                            func_name, func_label, *arg_count
+                        );
 
-                         // 2. Set new fp
-                         // Stack is now [... args], so fp is at start of args
-                         self.fp = self.stack.len() - *arg_count;
+                        if let Some(target_symbol) = program.syms.get(&func_label) {
+                            if *arg_count != target_symbol.narguments {
+                                return Err(RuntimeError::InvalidOperation {
+                                    operator: "call_stack".to_string(),
+                                    left_type: crate::value::ValueType::Function,
+                                    right_type: crate::value::ValueType::Null,
+                                });
+                            }
 
-                         // 3. Allocate space for locals
-                         self.stack.resize(self.fp + target_symbol.nlocals, Value::null());
+                            // 1. Save return address and old fp
+                            self.call_stack.push((self.pc, self.fp));
 
-                         // 4. Jump
-                         self.pc = (target_symbol.location as usize) - 1;
-                         return Ok(true);
-                     } else {
-                         return Err(RuntimeError::UndefinedVariable(format!(
-                             "function: {}",
-                             func_name
-                         )));
-                     }
-                 }
-                 _ => {
-                     return Err(RuntimeError::InvalidOperation {
-                         operator: "call_stack".to_string(),
-                         left_type: func_val.get_type(),
-                         right_type: crate::value::ValueType::Null,
-                     });
-                 }
-             }
+                            // 2. Set new fp
+                            // Stack is now [... args], so fp is at start of args
+                            self.fp = self.stack.len() - *arg_count;
+
+                            // 3. Allocate space for locals
+                            self.stack
+                                .resize(self.fp + target_symbol.nlocals, Value::null());
+
+                            // 4. Jump
+                            self.pc = (target_symbol.location as usize) - 1;
+                            return Ok(true);
+                        } else {
+                            return Err(RuntimeError::UndefinedVariable(format!(
+                                "function: {}",
+                                func_name
+                            )));
+                        }
+                    }
+                    Value::NativeFunction(native_fn) => {
+                        let start_index = self.stack.len().checked_sub(*arg_count).ok_or(
+                            RuntimeError::StackUnderflow("CallStack native: missing args".into()),
+                        )?;
+                        let args: Vec<Value> = self.stack.drain(start_index..).collect();
+                        let result = native_fn(args)?;
+                        self.stack.push(result);
+                        return Ok(true);
+                    }
+                    _ => {
+                        return Err(RuntimeError::InvalidOperation {
+                            operator: "call_stack".to_string(),
+                            left_type: func_val.get_type(),
+                            right_type: crate::value::ValueType::Null,
+                        });
+                    }
+                }
+            }
         }
-
-        }
-
 
         Ok(true)
     }
@@ -666,6 +716,98 @@ impl VM {
     pub fn get_variables(&self) -> &IndexMap<String, Value> {
         &self.variables
     }
+}
+
+fn create_array_prototype() -> Value {
+    let mut table = crate::value::Table {
+        data: IndexMap::new(),
+        metatable: None,
+    };
+    table
+        .data
+        .insert("__type".to_string(), Value::string("Array".to_string()));
+    table
+        .data
+        .insert("push".to_string(), Value::NativeFunction(native_array_push));
+    table
+        .data
+        .insert("pop".to_string(), Value::NativeFunction(native_array_pop));
+    table
+        .data
+        .insert("len".to_string(), Value::NativeFunction(native_array_len));
+
+    let table_rc = std::rc::Rc::new(std::cell::RefCell::new(table));
+    let proto_val = Value::Object(table_rc.clone());
+
+    // Set __index = self to allow method lookup on instances
+    table_rc
+        .borrow_mut()
+        .data
+        .insert("__index".to_string(), proto_val.clone());
+
+    proto_val
+}
+
+fn native_array_push(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.is_empty() {
+        return Err(RuntimeError::TypeMismatch {
+            expected: crate::value::ValueType::Object,
+            found: crate::value::ValueType::Null,
+            operation: "push".into(),
+        });
+    }
+
+    let obj = &args[0];
+    if let Value::Object(table_rc) = obj {
+        let mut table = table_rc.borrow_mut();
+        // Since we are pushing to "Array", and we use IndexMap as dense vectorish thing:
+        // Key is current len.
+        let idx = table.data.len();
+        let val = if args.len() > 1 {
+            args[1].clone()
+        } else {
+            Value::Null
+        };
+
+        table.data.insert(idx.to_string(), val);
+        return Ok(Value::Int((idx + 1) as i32));
+    }
+    Err(RuntimeError::TypeMismatch {
+        expected: crate::value::ValueType::Object,
+        found: obj.get_type(),
+        operation: "push".into(),
+    })
+}
+
+fn native_array_pop(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.is_empty() {
+        return Err(RuntimeError::TypeMismatch {
+            expected: crate::value::ValueType::Object,
+            found: crate::value::ValueType::Null,
+            operation: "pop".into(),
+        });
+    }
+    let obj = &args[0];
+    if let Value::Object(table_rc) = obj {
+        let mut table = table_rc.borrow_mut();
+        if let Some((_, val)) = table.data.pop() {
+            return Ok(val);
+        }
+        return Ok(Value::Null);
+    }
+    Ok(Value::Null)
+}
+
+fn native_array_len(args: Vec<Value>) -> Result<Value, RuntimeError> {
+    if args.is_empty() {
+        return Ok(Value::Int(0));
+    }
+    let obj = &args[0];
+    if let Value::Object(table_rc) = obj {
+        let table = table_rc.borrow();
+        return Ok(Value::Int(table.data.len() as i32));
+    }
+    Ok(Value::Int(0))
 }
 
 impl Program {

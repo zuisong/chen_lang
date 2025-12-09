@@ -194,7 +194,12 @@ fn test_get_field() {
 #[test]
 fn test_set_field() {
     let stmts = parse_code("obj.x = 1").unwrap();
-    if let Statement::SetField { object, field, value: _ } = &stmts[0] {
+    if let Statement::SetField {
+        object,
+        field,
+        value: _,
+    } = &stmts[0]
+    {
         if let Expression::Identifier(name) = object {
             assert_eq!(name, "obj");
         } else {

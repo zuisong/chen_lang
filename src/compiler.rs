@@ -123,16 +123,21 @@ impl<'a> Compiler<'a> {
     fn compile_statement(&mut self, stmt: Statement) {
         match stmt {
             Statement::FunctionDeclaration(fd) => {
-                let func_name = fd.name.clone().expect("Statement function must have a name");
+                let func_name = fd
+                    .name
+                    .clone()
+                    .expect("Statement function must have a name");
                 let unique_id = self.program.instructions.len();
                 let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
-                
+
                 // 1. Jump over the function definition
-                self.program.instructions.push(Instruction::Jump(skip_label.clone()));
-                
+                self.program
+                    .instructions
+                    .push(Instruction::Jump(skip_label.clone()));
+
                 // 2. Compile the function body
                 self.compile_declaration(fd);
-                
+
                 // 3. Define label target
                 self.program.syms.insert(
                     skip_label,
@@ -145,8 +150,12 @@ impl<'a> Compiler<'a> {
 
                 // 4. Define local variable for the function
                 let index = self.define_variable(func_name.clone());
-                self.program.instructions.push(Instruction::Push(crate::value::Value::Function(func_name)));
-                self.program.instructions.push(Instruction::MovePlusFP(index as usize));
+                self.program
+                    .instructions
+                    .push(Instruction::Push(crate::value::Value::Function(func_name)));
+                self.program
+                    .instructions
+                    .push(Instruction::MovePlusFP(index as usize));
             }
             Statement::Return(r) => self.compile_return(r),
             Statement::Local(loc) => self.compile_local(loc),
@@ -168,12 +177,20 @@ impl<'a> Compiler<'a> {
                     .instructions
                     .push(Instruction::Jump(labels.start.clone()));
             }
-            Statement::SetField { object, field, value } => {
+            Statement::SetField {
+                object,
+                field,
+                value,
+            } => {
                 self.compile_expression(object);
                 self.compile_expression(value);
                 self.program.instructions.push(Instruction::SetField(field));
             }
-            Statement::SetIndex { object, index, value } => {
+            Statement::SetIndex {
+                object,
+                index,
+                value,
+            } => {
                 self.compile_expression(object);
                 self.compile_expression(index);
                 self.compile_expression(value);
@@ -193,9 +210,7 @@ impl<'a> Compiler<'a> {
                         .instructions
                         .push(Instruction::DupPlusFP(offset));
                 } else {
-                    self.program
-                        .instructions
-                        .push(Instruction::Load(ident));
+                    self.program.instructions.push(Instruction::Load(ident));
                 }
             }
             Expression::Unary(unary) => {
@@ -222,7 +237,9 @@ impl<'a> Compiler<'a> {
                 for elem in elements {
                     self.compile_expression(elem);
                 }
-                self.program.instructions.push(Instruction::BuildArray(count));
+                self.program
+                    .instructions
+                    .push(Instruction::BuildArray(count));
             }
             Expression::GetField { object, field } => {
                 self.compile_expression(*object);
@@ -234,25 +251,32 @@ impl<'a> Compiler<'a> {
                 self.program.instructions.push(Instruction::GetIndex);
             }
             Expression::Function(mut fd) => {
-                 let func_name = fd.name.take().unwrap_or_else(|| format!("anon_{}", self.program.instructions.len()));
-                 fd.name = Some(func_name.clone());
-                 
-                 let unique_id = self.program.instructions.len();
-                 let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
-                 
-                 self.program.instructions.push(Instruction::Jump(skip_label.clone()));
-                 self.compile_declaration(fd);
-                 
-                 self.program.syms.insert(
-                     skip_label,
-                     Symbol {
-                         location: self.program.instructions.len() as i32,
-                         narguments: 0,
-                         nlocals: 0, 
-                     }
-                 );
-                 
-                 self.program.instructions.push(Instruction::Push(crate::value::Value::Function(func_name)));
+                let func_name = fd
+                    .name
+                    .take()
+                    .unwrap_or_else(|| format!("anon_{}", self.program.instructions.len()));
+                fd.name = Some(func_name.clone());
+
+                let unique_id = self.program.instructions.len();
+                let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
+
+                self.program
+                    .instructions
+                    .push(Instruction::Jump(skip_label.clone()));
+                self.compile_declaration(fd);
+
+                self.program.syms.insert(
+                    skip_label,
+                    Symbol {
+                        location: self.program.instructions.len() as i32,
+                        narguments: 0,
+                        nlocals: 0,
+                    },
+                );
+
+                self.program
+                    .instructions
+                    .push(Instruction::Push(crate::value::Value::Function(func_name)));
             }
         }
     }
@@ -334,31 +358,53 @@ impl<'a> Compiler<'a> {
 
     fn compile_function_call(&mut self, fc: FunctionCall) {
         let len = fc.arguments.len();
-        let callee = *fc.callee;
         let arguments = fc.arguments;
+        let callee = *fc.callee;
 
-        // Check if we can optimize to direct Call (Identifier referring to Global/Builtin)
-        let is_optimized_call = if let Expression::Identifier(ref name) = callee {
-            self.resolve_variable(name).is_none()
-        } else {
-            false
-        };
+        match callee {
+            Expression::GetField { object, field } => {
+                // Method Call Optimization: obj.method(...) -> GetMethod -> CallStack(len+1)
+                self.compile_expression(*object);
+                self.program
+                    .instructions
+                    .push(Instruction::GetMethod(field));
 
-        if is_optimized_call {
-             if let Expression::Identifier(name) = callee {
-                 for arg in arguments {
-                     self.compile_expression(arg);
-                 }
-                 self.program.instructions.push(Instruction::Call(name, len));
-             } else {
-                 unreachable!("Logic error: is_optimized_call implies Identifier");
-             }
-        } else {
-             self.compile_expression(callee);
-             for arg in arguments {
-                 self.compile_expression(arg);
-             }
-             self.program.instructions.push(Instruction::CallStack(len));
+                for arg in arguments {
+                    self.compile_expression(arg);
+                }
+
+                // +1 argument for 'self'
+                self.program
+                    .instructions
+                    .push(Instruction::CallStack(len + 1));
+            }
+            other_callee => {
+                // Standard function call
+
+                // Check if we can optimize to direct Call (Identifier referring to Global/Builtin)
+                let is_optimized_call = if let Expression::Identifier(ref name) = other_callee {
+                    self.resolve_variable(name).is_none()
+                } else {
+                    false
+                };
+
+                if is_optimized_call {
+                    if let Expression::Identifier(name) = other_callee {
+                        for arg in arguments {
+                            self.compile_expression(arg);
+                        }
+                        self.program.instructions.push(Instruction::Call(name, len));
+                    } else {
+                        unreachable!("Logic error: is_optimized_call implies Identifier");
+                    }
+                } else {
+                    self.compile_expression(other_callee);
+                    for arg in arguments {
+                        self.compile_expression(arg);
+                    }
+                    self.program.instructions.push(Instruction::CallStack(len));
+                }
+            }
         }
     }
 
@@ -414,7 +460,10 @@ impl<'a> Compiler<'a> {
         self.program.instructions.push(Instruction::Return);
 
         self.program.syms.insert(
-            format!("func_{}", fd.name.as_ref().expect("Function must have a name")),
+            format!(
+                "func_{}",
+                fd.name.as_ref().expect("Function must have a name")
+            ),
             Symbol {
                 location: function_index,
                 nlocals,

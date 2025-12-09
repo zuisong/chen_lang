@@ -28,7 +28,6 @@ impl Write for SharedWriter {
 }
 
 use crate::expression::*;
-use crate::token::*;
 
 /// 编译器模块
 pub mod compiler;
