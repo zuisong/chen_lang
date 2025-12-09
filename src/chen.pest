@@ -76,7 +76,7 @@ dot_suffix = { "." ~ identifier }
 index_suffix = { "[" ~ expression ~ "]" }
 
 object_literal = { "#{" ~ NEWLINE* ~ (pair ~ ("," ~ NEWLINE* ~ pair)*)? ~ NEWLINE* ~ "}" }
-pair = { identifier ~ ":" ~ expression }
+pair = { (identifier | integer) ~ ":" ~ expression }
 
 // 语句分隔符 - 使用换行
 stmt_sep = _{ NEWLINE+ }

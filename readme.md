@@ -133,8 +133,7 @@ println(person[key])  # Output: Alice
 *   [x] **Control Flow**: `if/else` (expression), `for` loops, `break`, `continue`
 *   [x] **Functions**: Definition, Call, Recursion, Implicit Return
 *   [x] **Types**: Floats, Strings
-*   [x] **Object System**: Object literals, property access, indexing, metatables
-*   [ ] **Data Structures**: Arrays
+*   [x] **Object System**: Object literals, property access, indexing, metatables (can be used as arrays)
 *   [ ] **Standard Library**: File I/O, Math functions
 *   [ ] **Error Handling**: Try/Catch or Result type
 

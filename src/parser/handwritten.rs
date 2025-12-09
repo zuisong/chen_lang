@@ -590,16 +590,29 @@ impl Parser {
     }
 
     fn parse_object_literal(&mut self) -> Result<Expression, ParseError> {
-        // #{ key: val, key2: val2 }
+        // #{ key: val, key2: val2 } or #{ 0: val, 1: val2 }
         let mut fields = Vec::new();
         self.skip_newlines();
         if !self.check(&Token::RBig) {
             loop {
                 self.skip_newlines();
-                let key = if let Some(Token::Identifier(name)) = self.advance() {
-                    name.clone()
-                } else {
-                    return Err(ParseError::Message("Expected field name".to_string()));
+                // 支持标识符或整数作为键
+                let key = match self.peek() {
+                    Some(Token::Identifier(name)) => {
+                        let k = name.clone();
+                        self.advance();
+                        k
+                    }
+                    Some(Token::Int(n)) => {
+                        let k = n.to_string();
+                        self.advance();
+                        k
+                    }
+                    _ => {
+                        return Err(ParseError::Message(
+                            "Expected field name (identifier or integer)".to_string(),
+                        ));
+                    }
                 };
 
                 self.consume(&Token::Colon, "Expected ':' after field name")?;
