@@ -34,12 +34,7 @@ use crate::token::*;
 pub mod compiler;
 /// 表达式模块
 pub mod expression;
-/// 手写语法分析模块
-pub mod parse;
-/// Pest 解析模块 (可选，通过 pest-parser feature 启用)
-#[cfg(feature = "pest-parser")]
-pub mod parse_pest;
-/// 统一解析器接口（内部根据 feature 选择实现）
+/// 统一解析器模块（内部包含手写和 Pest 两种实现）
 pub mod parser;
 /// 词法分析模块
 pub mod token;
@@ -76,14 +71,7 @@ fn test_run_captured() {
 /// 运行代码
 #[unsafe(no_mangle)]
 pub fn run(code: String) -> Result<(), ChenError> {
-    #[cfg(not(feature = "pest-parser"))]
-    let ast = {
-        let tokens = tokenlizer(code.clone())?;
-        parser::parse(tokens)?
-    };
-    
-    #[cfg(feature = "pest-parser")]
-    let ast = parser::parse(&code)?;
+    let ast = parser::parse_from_source(&code)?;
 
     let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
 
@@ -102,14 +90,7 @@ pub fn run(code: String) -> Result<(), ChenError> {
 
 /// 运行代码并捕获输出
 pub fn run_captured(code: String) -> Result<String, ChenError> {
-    #[cfg(not(feature = "pest-parser"))]
-    let ast = {
-        let tokens = tokenlizer(code.clone())?;
-        parser::parse(tokens)?
-    };
-    
-    #[cfg(feature = "pest-parser")]
-    let ast = parser::parse(&code)?;
+    let ast = parser::parse_from_source(&code)?;
 
     let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
 

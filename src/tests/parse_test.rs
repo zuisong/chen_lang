@@ -2,7 +2,7 @@ use crate::{
     expression::{
         Assign, BinaryOperation, Expression, FunctionCall, If, Literal, Local, Loop, Statement,
     },
-    parse,
+    parser,
     token::{self, Operator},
     value::Value,
 };
@@ -23,8 +23,7 @@ fn parse() {
  "#
     .to_string();
 
-    let tokens = token::tokenlizer(code).unwrap();
-    let res = parse::parse(tokens);
+    let res = parser::parse_from_source(&code);
 
     dbg!(&res);
 

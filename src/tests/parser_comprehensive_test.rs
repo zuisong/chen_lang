@@ -1,12 +1,11 @@
 use crate::expression::{Expression, Literal, Statement};
-use crate::parse;
-use crate::token::{Operator, tokenlizer};
+use crate::parser;
+use crate::token::Operator;
 use crate::value::Value;
 
 // Helper to parse a string into statements
-fn parse_code(code: &str) -> Result<Vec<Statement>, crate::parse::ParseError> {
-    let tokens = tokenlizer(code.to_string()).expect("Tokenization failed");
-    parse::parse(tokens)
+fn parse_code(code: &str) -> Result<Vec<Statement>, crate::parser::ParserError> {
+    parser::parse_from_source(code)
 }
 
 // Helper to parse a single expression string
