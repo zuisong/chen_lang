@@ -528,17 +528,12 @@ impl Parser {
                 self.skip_newlines();
                 self.consume(&Token::RParen, "Expected ')' after arguments")?;
 
-                if let Expression::Identifier(name) = expr {
-                    expr = Expression::FunctionCall(FunctionCall {
-                        name,
-                        arguments: args,
-                    });
-                } else {
-                    return Err(ParseError::Message(
-                        "Complex function calls (e.g. obj.method()) not fully supported in AST yet"
-                            .to_string(),
-                    ));
-                }
+
+
+                expr = Expression::FunctionCall(FunctionCall {
+                    callee: Box::new(expr),
+                    arguments: args,
+                });
             } else if self.match_token(&Token::Dot) {
                 // GetField: expr.field
                 if let Some(Token::Identifier(field)) = self.advance() {

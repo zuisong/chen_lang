@@ -319,11 +319,7 @@ fn parse_postfix(base: Expression, pair: Pair<Rule>) -> Expression {
                 }
             }
             
-            if let Expression::Identifier(name) = base {
-                Expression::FunctionCall(FunctionCall { name, arguments: args })
-            } else {
-                panic!("Complex function calls not supported yet.");
-            }
+            Expression::FunctionCall(FunctionCall { callee: Box::new(base), arguments: args })
         }
         Rule::dot_suffix => {
             // dot_suffix = { "." ~ identifier }

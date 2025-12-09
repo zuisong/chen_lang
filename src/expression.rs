@@ -11,7 +11,7 @@ pub enum Literal {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionCall {
-    pub name: String,
+    pub callee: Box<Expression>,
     pub arguments: Vec<Expression>,
 }
 

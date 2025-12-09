@@ -66,6 +66,9 @@ pub enum Instruction {
     GetField(String),  // 获取对象字段: obj[field] (弹出 obj, 压入 value)
     SetIndex,          // 设置对象索引: obj[index] = value (弹出 value, index, obj)
     GetIndex,          // 获取对象索引: obj[index] (弹出 index, obj, 压入 value)
+    
+    // Call function from stack
+    CallStack(usize),  // Call function at stack[top-n-1], with n args
 }
 
 /// 程序表示
@@ -188,11 +191,17 @@ impl VM {
                     debug!("All variables in VM: {:?}", self.variables);
                     self.stack.push(value.clone());
                 } else {
-                    debug!(
-                        "Variable {} not found! Available variables: {:?}",
-                        var_name, self.variables
-                    );
-                    return Err(RuntimeError::UndefinedVariable(var_name.clone()));
+                    // Check if it is a function
+                    let func_label = format!("func_{}", var_name);
+                    if program.syms.contains_key(&func_label) {
+                        self.stack.push(Value::Function(var_name.clone()));
+                    } else {
+                        debug!(
+                            "Variable {} not found! Available variables: {:?}",
+                            var_name, self.variables
+                        );
+                        return Err(RuntimeError::UndefinedVariable(var_name.clone()));
+                    }
                 }
             }
 
@@ -542,7 +551,67 @@ impl VM {
                 }
             }
 
+
+        Instruction::CallStack(arg_count) => {
+             // 1. Get function from stack (it's below args)
+             // Stack: [... func, arg1, ... argN]
+             let func_idx = self.stack.len().checked_sub(*arg_count + 1).ok_or(
+                 RuntimeError::StackUnderflow("CallStack: missing function".to_string())
+             )?;
+             
+             let func_val = self.stack.remove(func_idx);
+             
+             match func_val {
+                 Value::Function(func_name) => {
+                     // Reuse logic for user defined functions
+                     // Note: We don't support builtins via CallStack yet
+                     let func_label = format!("func_{}", func_name);
+                     debug!(
+                         "Calling stack function {} (label: {}), arg_count: {}",
+                         func_name, func_label, *arg_count
+                     );
+                     
+                     if let Some(target_symbol) = program.syms.get(&func_label) {
+                         if *arg_count != target_symbol.narguments {
+                             return Err(RuntimeError::InvalidOperation {
+                                 operator: "call_stack".to_string(),
+                                 left_type: crate::value::ValueType::Function,
+                                 right_type: crate::value::ValueType::Null,
+                             });
+                         }
+
+                         // 1. Save return address and old fp
+                         self.call_stack.push((self.pc, self.fp));
+
+                         // 2. Set new fp
+                         // Stack is now [... args], so fp is at start of args
+                         self.fp = self.stack.len() - *arg_count;
+
+                         // 3. Allocate space for locals
+                         self.stack.resize(self.fp + target_symbol.nlocals, Value::null());
+
+                         // 4. Jump
+                         self.pc = (target_symbol.location as usize) - 1;
+                         return Ok(true);
+                     } else {
+                         return Err(RuntimeError::UndefinedVariable(format!(
+                             "function: {}",
+                             func_name
+                         )));
+                     }
+                 }
+                 _ => {
+                     return Err(RuntimeError::InvalidOperation {
+                         operator: "call_stack".to_string(),
+                         left_type: func_val.get_type(),
+                         right_type: crate::value::ValueType::Null,
+                     });
+                 }
+             }
         }
+
+        }
+
 
         Ok(true)
     }

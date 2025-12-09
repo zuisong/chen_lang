@@ -19,6 +19,8 @@ pub enum Value {
     String(Rc<String>),
     /// 对象类型 (Table)
     Object(Rc<RefCell<Table>>),
+    /// 函数引用 (函数名)
+    Function(String),
     Null,
 }
 
@@ -107,6 +109,7 @@ impl Value {
             Value::Bool(_) => ValueType::Bool,
             Value::String(_) => ValueType::String,
             Value::Object(_) => ValueType::Object,
+            Value::Function(_) => ValueType::Function,
             Value::Null => ValueType::Null,
         }
     }
@@ -140,11 +143,28 @@ impl PartialEq for Value {
             (Value::Null, Value::Null) => true,
             // 对象比较：引用比较
             (Value::Object(a), Value::Object(b)) => Rc::ptr_eq(a, b),
+            // 函数比较：名称比较
+            (Value::Function(a), Value::Function(b)) => a == b,
             // 混合类型比较：int和float可以比较
             (Value::Int(a), Value::Float(b)) => (*a as f32 - b).abs() < f32::EPSILON,
             (Value::Float(a), Value::Int(b)) => (a - *b as f32).abs() < f32::EPSILON,
             _ => false,
         }
+    }
+}
+
+impl fmt::Display for Table {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{{")?;
+        let mut first = true;
+        for (k, v) in &self.data {
+            if !first {
+                write!(f, ", ")?;
+            }
+            write!(f, "{}: {}", k, v)?;
+            first = false;
+        }
+        write!(f, "}}")
     }
 }
 
@@ -155,19 +175,8 @@ impl fmt::Display for Value {
             Value::Float(fl) => write!(f, "{}", fl),
             Value::Bool(b) => write!(f, "{}", b),
             Value::String(s) => write!(f, "{}", s),
-            Value::Object(obj) => {
-                let table = obj.borrow();
-                write!(f, "{{")?;
-                let mut first = true;
-                for (k, v) in &table.data {
-                    if !first {
-                        write!(f, ", ")?;
-                    }
-                    write!(f, "{}: {}", k, v)?;
-                    first = false;
-                }
-                write!(f, "}}")
-            }
+            Value::Object(obj) => write!(f, "{}", obj.borrow()),
+            Value::Function(name) => write!(f, "<function {}>", name),
             Value::Null => write!(f, "null"),
         }
     }
@@ -181,6 +190,7 @@ pub enum ValueType {
     Bool,
     String,
     Object,
+    Function,
     Null,
 }
 
@@ -220,6 +230,7 @@ pub enum RuntimeError {
     UndefinedVariable(String),
     UndefinedField(String),
     CallNonFunction(ValueType),
+    StackUnderflow(String),
 }
 
 impl fmt::Display for RuntimeError {
@@ -248,6 +259,7 @@ impl fmt::Display for RuntimeError {
                     left_type, operator, right_type
                 )
             }
+            RuntimeError::StackUnderflow(msg) => write!(f, "Stack underflow: {}", msg),
             RuntimeError::IndexOutOfBounds => write!(f, "Index out of bounds"),
             RuntimeError::UndefinedVariable(name) => write!(f, "Undefined variable: {}", name),
             RuntimeError::UndefinedField(name) => write!(f, "Undefined field: {}", name),

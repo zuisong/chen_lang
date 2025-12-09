@@ -94,7 +94,7 @@ pub fn run(code: String) -> Result<(), ChenError> {
             debug!("Execution result: {:?}", value);
         }
         vm::VMResult::Error(error) => {
-            eprintln!("Runtime error: {:?}", error);
+            return Err(ChenError::Runtime(error));
         }
     }
     Ok(())

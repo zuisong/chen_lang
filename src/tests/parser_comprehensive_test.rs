@@ -138,7 +138,11 @@ fn test_syntax_error_unexpected_token() {
 fn test_function_call_no_args() {
     let expr = parse_expr_str("myFunc()");
     if let Expression::FunctionCall(call) = expr {
-        assert_eq!(call.name, "myFunc");
+        if let Expression::Identifier(name) = *call.callee {
+            assert_eq!(name, "myFunc");
+        } else {
+            panic!("Expected Identifier callee");
+        }
         assert!(call.arguments.is_empty());
     } else {
         panic!("Expected FunctionCall");
@@ -149,7 +153,11 @@ fn test_function_call_no_args() {
 fn test_function_call_with_args() {
     let expr = parse_expr_str("add(1, 2)");
     if let Expression::FunctionCall(call) = expr {
-        assert_eq!(call.name, "add");
+        if let Expression::Identifier(name) = *call.callee {
+            assert_eq!(name, "add");
+        } else {
+            panic!("Expected Identifier callee");
+        }
         assert_eq!(call.arguments.len(), 2);
     } else {
         panic!("Expected FunctionCall");

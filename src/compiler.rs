@@ -165,10 +165,15 @@ impl<'a> Compiler<'a> {
             Expression::FunctionCall(fc) => self.compile_function_call(fc),
             Expression::Literal(lit) => self.compile_literal(lit),
             Expression::Identifier(ident) => {
-                let offset = self.resolve_variable(&ident).expect("Undefined variable");
-                self.program
-                    .instructions
-                    .push(Instruction::DupPlusFP(offset));
+                if let Some(offset) = self.resolve_variable(&ident) {
+                    self.program
+                        .instructions
+                        .push(Instruction::DupPlusFP(offset));
+                } else {
+                    self.program
+                        .instructions
+                        .push(Instruction::Load(ident));
+                }
             }
             Expression::Unary(unary) => {
                 self.compile_expression(*unary.expr);
@@ -278,12 +283,26 @@ impl<'a> Compiler<'a> {
 
     fn compile_function_call(&mut self, fc: FunctionCall) {
         let len = fc.arguments.len();
-        for arg in fc.arguments {
-            self.compile_expression(arg);
+        
+        // Optimization: If callee is an identifier, use direct Call instruction
+        // This also handles built-in functions which are currently matched by name in Call
+        if let Expression::Identifier(name) = *fc.callee {
+            for arg in fc.arguments {
+                self.compile_expression(arg);
+            }
+            self.program
+                .instructions
+                .push(Instruction::Call(name, len));
+        } else {
+            // General case: Compile callee (pushes function value), then arguments
+            self.compile_expression(*fc.callee);
+            for arg in fc.arguments {
+                self.compile_expression(arg);
+            }
+            self.program
+                .instructions
+                .push(Instruction::CallStack(len));
         }
-        self.program
-            .instructions
-            .push(Instruction::Call(fc.name, len));
     }
 
     fn compile_return(&mut self, ret: Return) {

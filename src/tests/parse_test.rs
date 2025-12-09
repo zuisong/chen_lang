@@ -61,7 +61,7 @@ fn parse() {
                         .into(),
                         body: vec![Statement::Expression(Expression::FunctionCall(
                             FunctionCall {
-                                name: "println".to_string(),
+                                callee: Box::new(Expression::Identifier("println".to_string())),
                                 arguments: vec![Expression::BinaryOperation(BinaryOperation {
                                     operator: Operator::Add,
                                     left: Expression::Identifier("i".to_string()).into(),
@@ -74,7 +74,7 @@ fn parse() {
                         ),),],
                         else_body: vec![Statement::Expression(Expression::FunctionCall(
                             FunctionCall {
-                                name: "println".to_string(),
+                                callee: Box::new(Expression::Identifier("println".to_string())),
                                 arguments: vec![Expression::BinaryOperation(BinaryOperation {
                                     operator: Operator::Add,
                                     left: Expression::Identifier("i".to_string()).into(),
