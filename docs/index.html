@@ -5,14 +5,34 @@
   <meta charset="utf-8">
   <title>Chen Lang Playground</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 
 <body>
   <div class="container">
     <h1>Chen Lang Playground</h1>
-    <textarea id="code" placeholder="Enter your Chen code here...">print("Hello, Chen Lang!")</textarea>
-    <button id="run">Run</button>
-    <pre id="output"></pre>
+    <div class="controls">
+      <label for="example-select">Load Example: </label>
+      <select id="example-select">
+        <option value="hello">Basic: Hello World</option>
+        <option value="fib">Algorithm: Fibonacci</option>
+        <option value="objects">Pattern: Objects & Methods</option>
+        <option value="inheritance">Pattern: Inheritance</option>
+        <option value="date">StdLib: Date & Time</option>
+        <option value="json">StdLib: JSON</option>
+        <option value="arrays">StdLib: Arrays</option>
+      </select>
+    </div>
+    <div class="main-content">
+      <div class="editor-section">
+        <textarea id="code" placeholder="Enter your Chen code here...">print("Hello, Chen Lang!")</textarea>
+        <button id="run">Run Code</button>
+      </div>
+      <div class="output-section">
+        <div class="output-label">Output:</div>
+        <pre id="output"></pre>
+      </div>
+    </div>
   </div>
   <script type="module" src="index.js"></script>
 </body>

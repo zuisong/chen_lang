@@ -1,5 +1,20 @@
 let wasm;
 
+function addHeapObject(obj) {
+    if (heap_next === heap.length) heap.push(heap.length + 1);
+    const idx = heap_next;
+    heap_next = heap[idx];
+
+    heap[idx] = obj;
+    return idx;
+}
+
+function dropObject(idx) {
+    if (idx < 132) return;
+    heap[idx] = heap_next;
+    heap_next = idx;
+}
+
 let cachedDataViewMemory0 = null;
 function getDataViewMemory0() {
     if (cachedDataViewMemory0 === null || cachedDataViewMemory0.buffer.detached === true || (cachedDataViewMemory0.buffer.detached === undefined && cachedDataViewMemory0.buffer !== wasm.memory.buffer)) {
@@ -19,6 +34,25 @@ function getUint8ArrayMemory0() {
         cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
     }
     return cachedUint8ArrayMemory0;
+}
+
+function getObject(idx) { return heap[idx]; }
+
+function handleError(f, args) {
+    try {
+        return f.apply(this, args);
+    } catch (e) {
+        wasm.__wbindgen_export3(addHeapObject(e));
+    }
+}
+
+let heap = new Array(128).fill(undefined);
+heap.push(undefined, null, true, false);
+
+let heap_next = heap.length;
+
+function isLikeNone(x) {
+    return x === undefined || x === null;
 }
 
 function passStringToWasm0(arg, malloc, realloc) {
@@ -56,6 +90,12 @@ function passStringToWasm0(arg, malloc, realloc) {
 
     WASM_VECTOR_LEN = offset;
     return ptr;
+}
+
+function takeObject(idx) {
+    const ret = getObject(idx);
+    dropObject(idx);
+    return ret;
 }
 
 let cachedTextDecoder = new TextDecoder('utf-8', { ignoreBOM: true, fatal: true });
@@ -106,7 +146,7 @@ export function run_wasm(code) {
         return getStringFromWasm0(r0, r1);
     } finally {
         wasm.__wbindgen_add_to_stack_pointer(16);
-        wasm.__wbindgen_export3(deferred2_0, deferred2_1, 1);
+        wasm.__wbindgen_export4(deferred2_0, deferred2_1, 1);
     }
 }
 
@@ -145,6 +185,53 @@ async function __wbg_load(module, imports) {
 function __wbg_get_imports() {
     const imports = {};
     imports.wbg = {};
+    imports.wbg.__wbg___wbindgen_string_get_a2a31e16edf96e42 = function(arg0, arg1) {
+        const obj = getObject(arg1);
+        const ret = typeof(obj) === 'string' ? obj : undefined;
+        var ptr1 = isLikeNone(ret) ? 0 : passStringToWasm0(ret, wasm.__wbindgen_export, wasm.__wbindgen_export2);
+        var len1 = WASM_VECTOR_LEN;
+        getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
+        getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
+    };
+    imports.wbg.__wbg___wbindgen_throw_dd24417ed36fc46e = function(arg0, arg1) {
+        throw new Error(getStringFromWasm0(arg0, arg1));
+    };
+    imports.wbg.__wbg_getTime_ad1e9878a735af08 = function(arg0) {
+        const ret = getObject(arg0).getTime();
+        return ret;
+    };
+    imports.wbg.__wbg_get_af9dab7e9603ea93 = function() { return handleError(function (arg0, arg1) {
+        const ret = Reflect.get(getObject(arg0), getObject(arg1));
+        return addHeapObject(ret);
+    }, arguments) };
+    imports.wbg.__wbg_new_0_23cedd11d9b40c9d = function() {
+        const ret = new Date();
+        return addHeapObject(ret);
+    };
+    imports.wbg.__wbg_new_1ba21ce319a06297 = function() {
+        const ret = new Object();
+        return addHeapObject(ret);
+    };
+    imports.wbg.__wbg_new_25f239778d6112b9 = function() {
+        const ret = new Array();
+        return addHeapObject(ret);
+    };
+    imports.wbg.__wbg_new_dc8b69c32b416910 = function(arg0, arg1) {
+        const ret = new Intl.DateTimeFormat(getObject(arg0), getObject(arg1));
+        return addHeapObject(ret);
+    };
+    imports.wbg.__wbg_resolvedOptions_c5df09ec2900085b = function(arg0) {
+        const ret = getObject(arg0).resolvedOptions();
+        return addHeapObject(ret);
+    };
+    imports.wbg.__wbindgen_cast_2241b6af4c4b2941 = function(arg0, arg1) {
+        // Cast intrinsic for `Ref(String) -> Externref`.
+        const ret = getStringFromWasm0(arg0, arg1);
+        return addHeapObject(ret);
+    };
+    imports.wbg.__wbindgen_object_drop_ref = function(arg0) {
+        takeObject(arg0);
+    };
 
     return imports;
 }

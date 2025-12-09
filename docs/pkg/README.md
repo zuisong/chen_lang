@@ -14,8 +14,10 @@
 *   **Expression-Oriented**: `if/else` blocks and code blocks are expressions that return values.
 *   **Dynamic Typing**: Supports Integers, Floats, Strings, Booleans, and Null.
 *   **Functions**: First-class functions with implicit returns.
-*   **Control Flow**: `if/else` expressions and `for` loops.
+*   **Control Flow**: `if/else` expressions, `for` loops, `break`, and `continue`.
+*   **Object System**: Supports object literals, property access, indexing, and metatables.
 *   **Scope Isolation**: Block-scoped variables.
+
 
 ---
 
@@ -83,6 +85,25 @@ for i <= 9 {
 }
 ```
 
+#### 6. Object System
+```python
+# Object literal
+let person = #{ 
+    name: "Alice", 
+    age: 25 
+}
+
+# Property access
+println(person.name)  # Output: Alice
+
+# Property assignment
+person.age = 26
+
+# Index access
+let key = "name"
+println(person[key])  # Output: Alice
+```
+
 ---
 
 ### 🛠️ Language Reference
@@ -109,13 +130,13 @@ for i <= 9 {
 ### 📝 TODO / Roadmap
 
 *   [x] **Core**: Integers, Booleans, Arithmetic, Logic
-*   [x] **Control Flow**: `if/else` (expression), `for` loops
+*   [x] **Control Flow**: `if/else` (expression), `for` loops, `break`, `continue`
 *   [x] **Functions**: Definition, Call, Recursion, Implicit Return
 *   [x] **Types**: Floats, Strings
-*   [ ] **Control Flow**: `break`, `continue`
-*   [ ] **Data Structures**: Arrays, Maps
+*   [x] **Object System**: Object literals, property access, indexing, metatables (can be used as arrays)
 *   [ ] **Standard Library**: File I/O, Math functions
 *   [ ] **Error Handling**: Try/Catch or Result type
+
 
 ---
 

@@ -1,7 +1,117 @@
-body { font-family: sans-serif; padding: 20px; background-color: #f0f0f0; }
-.container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-h1 { text-align: center; color: #333; }
-textarea { width: 100%; height: 200px; font-family: monospace; margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-button { padding: 10px 20px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 4px; font-size: 16px; }
-button:hover { background-color: #0056b3; }
-pre { background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 4px; min-height: 100px; overflow-x: auto; white-space: pre-wrap; }
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding: 20px;
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+    text-align: center;
+    color: #2c3e50;
+    margin-top: 0;
+}
+
+.controls {
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+select {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid #ddd;
+    font-size: 14px;
+    background-color: white;
+    cursor: pointer;
+    min-width: 200px;
+}
+
+/* 2-Column Layout */
+.main-content {
+    display: flex;
+    gap: 20px;
+    height: 600px;
+}
+
+.editor-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.output-section {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+textarea {
+    flex: 1;
+    width: 100%;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+    margin-bottom: 10px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    box-sizing: border-box;
+    resize: none;
+    line-height: 1.5;
+    background-color: #fafafa;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: #007bff;
+    background-color: white;
+}
+
+button {
+    padding: 12px 24px;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    transition: background-color 0.2s;
+    align-self: flex-start;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+.output-label {
+    font-weight: 600;
+    margin-bottom: 5px;
+    color: #555;
+}
+
+pre {
+    flex: 1;
+    margin: 0;
+    background: #2d2d2d;
+    color: #f8f8f2;
+    padding: 15px;
+    border-radius: 6px;
+    overflow: auto;
+    white-space: pre-wrap;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+}
