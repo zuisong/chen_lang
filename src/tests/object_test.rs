@@ -224,4 +224,173 @@ println(person.city)"#;
         assert!(output.contains("28"), "Output should contain '28'");
         assert!(output.contains("Shanghai"), "Output should contain 'Shanghai'");
     }
+
+    /// 测试对象相等性（引用比较）
+    #[test]
+    fn test_object_equality() {
+        let code = r#"
+        let obj1 = #{ a: 1 }
+        let obj2 = #{ a: 1 }
+        let obj3 = obj1
+        
+        println(obj1 == obj2) # Should be false (different references)
+        println(obj1 == obj3) # Should be true (same reference)
+        "#;
+        
+        let result = crate::run_captured(code.to_string());
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
+        
+        let output = result.unwrap();
+        let lines: Vec<&str> = output.trim().lines().collect();
+        assert_eq!(lines[0], "false", "Different objects should not be equal");
+        assert_eq!(lines[1], "true", "Same object reference should be equal");
+    }
+
+    /// 测试对象存储多种类型
+    #[test]
+    fn test_object_mixed_types() {
+        let code = r#"
+        let obj = #{
+            i: 42,
+            f: 3.14,
+            b: true,
+            s: "string",
+            n: null,
+            o: #{ nested: true }
+        }
+        println(obj.i)
+        println(obj.f)
+        println(obj.b)
+        println(obj.s)
+        println(obj.n)
+        println(obj.o.nested)
+        "#;
+        
+        let result = crate::run_captured(code.to_string());
+        assert!(result.is_ok());
+        
+        let output = result.unwrap();
+        assert!(output.contains("42"));
+        assert!(output.contains("3.14"));
+        assert!(output.contains("true"));
+        assert!(output.contains("string"));
+        assert!(output.contains("null"));
+    }
+
+    /// 测试多层 Metatable 继承
+    #[test]
+    fn test_metatable_chain() {
+        let code = r#"
+        let grand = #{ __index: #{ name: "Grandpa" } }
+        let parent = #{ __index: #{ age: 50 } }
+        
+        # Chain: parent -> grand
+        set_meta(parent.__index, grand)
+        
+        let child = #{ }
+        # Chain: child -> parent
+        set_meta(child, parent)
+        
+        println("Age: " + child.age)
+        println("Name: " + child.name)
+        "#;
+        
+        let result = crate::run_captured(code.to_string());
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
+        
+        let output = result.unwrap();
+        assert!(output.contains("Age: 50"), "Should find field in parent");
+        assert!(output.contains("Name: Grandpa"), "Should find field in grandparent");
+    }
+
+    /// 测试 get_meta 和清除 meta
+    #[test]
+    fn test_get_and_clear_meta() {
+        let code = r#"
+        let meta = #{ __index: #{ x: 1 } }
+        let obj = #{ }
+        
+        # 1. Initial should be null
+        if get_meta(obj) == null {
+            println("Initial: null")
+        } else {
+            println("Initial: not null")
+        }
+        
+        # 2. Set meta
+        set_meta(obj, meta)
+        let m = get_meta(obj)
+        if m == meta {
+            println("Meta match: true")
+        } else {
+            println("Meta match: false")
+        }
+        
+        println("Field x: " + obj.x)
+        
+        # 3. Clear meta
+        set_meta(obj, null)
+        if get_meta(obj) == null {
+            println("Cleared: null")
+        } else {
+            println("Cleared: not null")
+        }
+        
+        if obj.x == null {
+            println("Field x cleared: null")
+        } else {
+            println("Field x cleared: " + obj.x)
+        }
+        "#;
+        
+        let result = crate::run_captured(code.to_string());
+        assert!(result.is_ok());
+        
+        let output = result.unwrap();
+        assert!(output.contains("Initial: null"));
+        assert!(output.contains("Meta match: true"));
+        assert!(output.contains("Field x: 1"));
+        assert!(output.contains("Cleared: null"));
+        assert!(output.contains("Field x cleared: null"));
+    }
+    
+    /// 测试方法调用 (Assign function to field)
+    #[test]
+    fn test_method_call() {
+        let code = r#"
+        def greet(name) {
+            return "Hello " + name
+        }
+        
+        let obj = #{ }
+        obj.say = greet
+        
+        println(obj.say("World"))
+        "#;
+        
+        let result = crate::run_captured(code.to_string());
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("Hello World"));
+    }
+    
+    /// 测试循环引用（仅创建，不打印以免栈溢出）
+    #[test]
+    fn test_circular_reference() {
+        let code = r#"
+        let a = #{ name: "A" }
+        let b = #{ name: "B" }
+        a.next = b
+        b.prev = a
+        println(a.next.name)
+        println(a.next.prev.name)
+        "#;
+        
+        let result = crate::run_captured(code.to_string());
+        assert!(result.is_ok());
+        
+        let output = result.unwrap();
+        assert!(output.contains("B"));
+        assert!(output.contains("A"));
+    }
 }

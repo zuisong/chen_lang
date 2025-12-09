@@ -6,6 +6,7 @@ NEWLINE = _{ "\n" }
 COMMENT = _{ "#" ~ !"{" ~ (!NEWLINE ~ ANY)* }
 
 // 关键字
+// 关键字
 LET = { "let" }
 FOR = { "for" }
 DEF = { "def" }
@@ -16,11 +17,11 @@ TRUE = { "true" }
 FALSE = { "false" }
 BREAK = { "break" }
 CONTINUE = { "continue" }
-NULL = { "null" }
+// NULL removed
 
 // 标识符 (不能是关键字)
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
-keyword = { LET | FOR | DEF | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | NULL }
+keyword = { LET | FOR | DEF | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE }
 
 // 字面量
 integer = @{ "-"? ~ ASCII_DIGIT+ }
@@ -46,15 +47,16 @@ or = { "||" }
 not = { "!" }
 
 // 表达式优先级处理
+// 表达式优先级处理
 expression = { logical_or }
 
-logical_or = { logical_and ~ (or ~ logical_and)* }
-logical_and = { equality ~ (and ~ equality)* }
-equality = { comparison ~ ((eq | neq) ~ comparison)* }
-comparison = { term ~ ((lte | lt | gte | gt) ~ term)* }
-term = { factor ~ ((add | subtract) ~ factor)* }
-factor = { unary ~ ((multiply | divide | modulo) ~ unary)* }
-unary = { (not | subtract) ~ unary | primary }
+logical_or = { logical_and ~ (or ~ NEWLINE* ~ logical_and)* }
+logical_and = { equality ~ (and ~ NEWLINE* ~ equality)* }
+equality = { comparison ~ ((eq | neq) ~ NEWLINE* ~ comparison)* }
+comparison = { term ~ ((lte | lt | gte | gt) ~ NEWLINE* ~ term)* }
+term = { factor ~ ((add | subtract) ~ NEWLINE* ~ factor)* }
+factor = { unary ~ ((multiply | divide | modulo) ~ NEWLINE* ~ unary)* }
+unary = { (not | subtract) ~ NEWLINE* ~ unary | primary }
 
 primary = { atom ~ postfix* }
 
@@ -64,19 +66,19 @@ atom = {
     bool |
     string |
     identifier |
-    "(" ~ expression ~ ")" |
+    "(" ~ NEWLINE* ~ expression ~ NEWLINE* ~ ")" |
     if_expr |
     block |
     object_literal
 }
 
 postfix = { call_suffix | dot_suffix | index_suffix }
-call_suffix = { "(" ~ arguments? ~ ")" }
+call_suffix = { "(" ~ NEWLINE* ~ arguments? ~ NEWLINE* ~ ")" }
 dot_suffix = { "." ~ identifier }
-index_suffix = { "[" ~ expression ~ "]" }
+index_suffix = { "[" ~ NEWLINE* ~ expression ~ NEWLINE* ~ "]" }
 
 object_literal = { "#{" ~ NEWLINE* ~ (pair ~ ("," ~ NEWLINE* ~ pair)*)? ~ NEWLINE* ~ "}" }
-pair = { (identifier | integer) ~ ":" ~ expression }
+pair = { (identifier | integer) ~ ":" ~ NEWLINE* ~ expression }
 
 // 语句分隔符 - 使用换行
 stmt_sep = _{ NEWLINE+ }
@@ -93,21 +95,21 @@ statement = {
     expression
 }
 
-declaration = { LET ~ identifier ~ assign ~ expression }
+declaration = { LET ~ identifier ~ assign ~ NEWLINE* ~ expression }
 assignment_target = { identifier ~ postfix* } 
-assignment = { assignment_target ~ assign ~ expression }
+assignment = { assignment_target ~ assign ~ NEWLINE* ~ expression }
 
-for_loop = { FOR ~ expression ~ block }
-function_def = { DEF ~ identifier ~ "(" ~ parameters? ~ ")" ~ block }
-return_stmt = { RETURN ~ expression }
+for_loop = { FOR ~ NEWLINE* ~ expression ~ block }
+function_def = { DEF ~ identifier ~ "(" ~ NEWLINE* ~ parameters? ~ NEWLINE* ~ ")" ~ block }
+return_stmt = { RETURN ~ NEWLINE* ~ expression }
 break_stmt = { BREAK }
 continue_stmt = { CONTINUE }
 
 // 复合结构
 block = { "{" ~ NEWLINE* ~ (statement ~ stmt_sep)* ~ statement? ~ NEWLINE* ~ "}" }
-if_expr = { IF ~ expression ~ block ~ (ELSE ~ block)? }
-parameters = { identifier ~ ("," ~ identifier)* }
-arguments = { expression ~ ("," ~ expression)* }
+if_expr = { IF ~ NEWLINE* ~ expression ~ block ~ (ELSE ~ block)? }
+parameters = { identifier ~ ("," ~ NEWLINE* ~ identifier)* }
+arguments = { expression ~ ("," ~ NEWLINE* ~ expression)* }
 
 // 程序入口 - 允许语句之间有换行
 program = { SOI ~ NEWLINE* ~ (statement ~ stmt_sep)* ~ statement? ~ NEWLINE* ~ EOI }

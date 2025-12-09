@@ -103,9 +103,11 @@ impl Default for VM {
 
 impl VM {
     pub fn new() -> Self {
+        let mut variables = HashMap::new();
+        variables.insert("null".to_string(), Value::null());
         VM {
             stack: Vec::new(),
-            variables: HashMap::new(),
+            variables,
             pc: 0,
             fp: 0,
             call_stack: Vec::new(),
@@ -114,9 +116,11 @@ impl VM {
     }
 
     pub fn with_writer(writer: Box<dyn Write>) -> Self {
+        let mut variables = HashMap::new();
+        variables.insert("null".to_string(), Value::null());
         VM {
             stack: Vec::new(),
-            variables: HashMap::new(),
+            variables,
             pc: 0,
             fp: 0,
             call_stack: Vec::new(),

@@ -525,9 +525,7 @@ impl Value {
                         match index_method {
                             // If __index is a table, recursively look up the key
                             Value::Object(index_table_ref) => {
-                                return index_table_ref.borrow()
-                                    .data.get(key).cloned()
-                                    .unwrap_or(Value::null());
+                                return Value::Object(index_table_ref.clone()).get_field_with_meta(key);
                             }
                             // TODO: If __index is a function, call it (future feature)
                             _ => {}
@@ -583,8 +581,9 @@ impl Value {
                 obj_ref.borrow_mut().metatable = Some(meta_ref);
                 Ok(())
             }
-            (Value::Object(_), Value::Null) => {
+            (Value::Object(obj_ref), Value::Null) => {
                 // Allow setting metatable to null (removes metatable)
+                obj_ref.borrow_mut().metatable = None;
                 Ok(())
             }
             _ => Err(RuntimeError::InvalidOperation {
