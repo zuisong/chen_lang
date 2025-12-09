@@ -1118,6 +1118,21 @@ fn chen_to_json(v: &Value) -> serde_json::Value {
         Value::String(s) => serde_json::Value::String(s.to_string()),
         Value::Object(rc) => {
             let table = rc.borrow();
+
+            // Special handling for Date objects
+            if let Some(Value::String(type_name)) = table.data.get("__type") {
+                if **type_name == "Date" {
+                    if let Some(Value::String(ts_str)) = table.data.get("__timestamp") {
+                        if let Ok(ts_val) = ts_str.parse::<i64>() {
+                            if let Ok(ts) = Timestamp::from_millisecond(ts_val) {
+                                // Default JSON format for Date is ISO 8601 string
+                                return serde_json::Value::String(ts.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+
             // Check if array-like (all numeric keys)
             // Simple heuristic: if empty or has "0"
             let is_array = !table.data.is_empty() && table.data.contains_key("0");
