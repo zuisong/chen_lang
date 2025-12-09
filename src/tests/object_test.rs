@@ -393,4 +393,49 @@ println(person.city)"#;
         assert!(output.contains("B"));
         assert!(output.contains("A"));
     }
+
+    /// 测试原型方法继承 (通过 __index)
+    #[test]
+    fn test_prototype_method() {
+        let code = r#"
+        def speak() {
+            return "I am an object"
+        }
+        
+        let proto = #{ speak: speak }
+        let obj = #{ }
+        set_meta(obj, #{ __index: proto })
+        
+        println(obj.speak())
+        "#;
+        
+        let result = crate::run_captured(code.to_string());
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("I am an object"));
+    }
+
+    /// 测试显式传递 self (模拟方法)
+    #[test]
+    fn test_explicit_self_method() {
+        let code = r#"
+        def increment(self) {
+            self.count = self.count + 1
+        }
+        
+        let counter = #{ count: 0 }
+        counter.inc = increment
+        
+        counter.inc(counter)
+        println(counter.count)
+        counter.inc(counter)
+        println(counter.count)
+        "#;
+        
+        let result = crate::run_captured(code.to_string());
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        assert!(output.contains("1"));
+        assert!(output.contains("2"));
+    }
 }
