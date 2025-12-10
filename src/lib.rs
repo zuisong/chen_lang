@@ -15,6 +15,11 @@ use tracing::debug;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
+use codespan_reporting::diagnostic::{Diagnostic, Label};
+use codespan_reporting::files::SimpleFiles;
+use std::ops::Range;
+use codespan_reporting::term::{emit_into_string, Config};
+
 #[derive(Clone)]
 struct SharedWriter(Arc<Mutex<Vec<u8>>>);
 
@@ -108,18 +113,90 @@ pub fn run_captured(code: String) -> Result<String, ChenError> {
                 debug!("Execution result: {:?}", value);
             }
             vm::VMResult::Error { error, line, .. } => {
-                let mut guard = output.lock().unwrap();
-                writeln!(guard, "Runtime error at line {}: {:?}", line, error)?;
+                return Err(ChenError::Runtime(error, line));
             }
         }
+
     }
 
     let output_vec = output.lock().unwrap().clone();
     Ok(String::from_utf8(output_vec)?)
 }
 
+fn build_diagnostic(code: &str, file_id: usize, error: &ChenError) -> Diagnostic<usize> {
+    match error {
+        ChenError::Runtime(err, line) => {
+            let range = get_line_range(code, *line);
+            Diagnostic::error()
+                .with_message(err.to_string())
+                .with_labels(vec![
+                    Label::primary(file_id, range).with_message("Runtime error occurred here"),
+                ])
+        }
+        _ => Diagnostic::error().with_message(error.to_string()),
+    }
+}
+
+pub fn report_error(code: &str, filename: &str, error: &ChenError) -> String {
+    let mut files = SimpleFiles::new();
+    let file_id = files.add(filename, code);
+    let diagnostic = build_diagnostic(code, file_id, error);
+
+    let config = Config::default();
+    match emit_into_string(&config, &files, &diagnostic) {
+        Err(e) => {
+
+        eprintln!("Failed to emit diagnostic: {}", e);
+        eprintln!("Original error: {}", error);
+            Default::default()
+        }
+        Ok(s) => {
+            s
+        }
+    }
+}
+
+
+fn get_line_range(code: &str, line: u32) -> Range<usize> {
+    if line == 0 {
+        return 0..code.len();
+    }
+
+    let mut current_line = 1;
+    let mut start_byte = 0;
+
+    for line_str in code.split_inclusive('\n') {
+        if current_line == line {
+            let len = line_str.trim_end().len();
+            let end_byte = if len == 0 {
+                start_byte + 1
+            } else {
+                start_byte + len
+            };
+            let end_byte = std::cmp::min(end_byte, code.len());
+
+            return start_byte..end_byte;
+        }
+        start_byte += line_str.len();
+        current_line += 1;
+    }
+
+    let len = code.len();
+    if len > 0 {
+        len - 1..len
+    } else {
+        0..0
+    }
+}
+
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub fn run_wasm(code: String) -> String {
-    run_captured(code).unwrap_or_else(|e| format!("Error: {}", e))
+    match run_captured(code.clone()) {
+        Ok(output) => output,
+        Err(e) => {
+            let error_report = report_error(&code, "<input>", &e);
+            format!("Error:\n{}", error_report)
+        }
+    }
 }

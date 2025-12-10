@@ -67,7 +67,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn run_file(code_file: String) -> Result<(), chen_lang::ChenError> {
-    let s = std::env::current_dir()?.join(code_file);
+    let s = std::env::current_dir()?.join(&code_file);
 
     debug!(?s);
     let mut f = OpenOptions::new().read(true).open(s)?;
@@ -76,7 +76,11 @@ fn run_file(code_file: String) -> Result<(), chen_lang::ChenError> {
     f.read_to_string(&mut code)?;
     debug!(?code);
 
-    chen_lang::run(code)?;
+    if let Err(e) = chen_lang::run(code.clone()) {
+        let s = chen_lang::report_error(&code, &code_file, &e);
+        eprintln!("{s}");
+        std::process::exit(1);
+    }
     Ok(())
 }
 
