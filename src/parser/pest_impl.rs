@@ -186,10 +186,7 @@ fn parse_return_stmt(pair: Pair<Rule>, line: u32) -> Statement {
             expr = parse_expression(p);
         }
     }
-    Statement::Return(Return {
-        expression: expr,
-        line,
-    })
+    Statement::Return(Return { expression: expr, line })
 }
 
 fn parse_block(pair: Pair<Rule>) -> Vec<Statement> {
@@ -333,18 +330,9 @@ fn parse_atom(pair: Pair<Rule>) -> Expression {
     let line = pair.as_span().start_pos().line_col().0 as u32;
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
-        Rule::float => Expression::Literal(
-            Literal::Value(Value::Float(inner.as_str().parse().unwrap())),
-            line,
-        ),
-        Rule::integer => Expression::Literal(
-            Literal::Value(Value::Int(inner.as_str().parse().unwrap())),
-            line,
-        ),
-        Rule::bool => Expression::Literal(
-            Literal::Value(Value::Bool(inner.as_str() == "true")),
-            line,
-        ),
+        Rule::float => Expression::Literal(Literal::Value(Value::Float(inner.as_str().parse().unwrap())), line),
+        Rule::integer => Expression::Literal(Literal::Value(Value::Int(inner.as_str().parse().unwrap())), line),
+        Rule::bool => Expression::Literal(Literal::Value(Value::Bool(inner.as_str() == "true")), line),
         Rule::string => {
             let s = inner.as_str();
             // TODO: Better string unescaping

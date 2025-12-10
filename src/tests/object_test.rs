@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod object_tests {
     use crate::value::Value;
-    use crate::vm::{Instruction, Program, VM, VMResult};
+    use crate::vm::{Instruction, Program, VM};
 
     /// 测试 VM 指令：NewObject
     #[test]
@@ -13,10 +13,10 @@ mod object_tests {
         let result = vm.execute(&program);
 
         match result {
-            VMResult::Ok(value) => {
+            Ok(value) => {
                 assert!(matches!(value, Value::Object(_)));
             }
-            VMResult::Error { error: e, .. } => panic!("Expected success, got error: {}", e),
+            Err(e) => panic!("Expected success, got error: {:?}", e),
         }
     }
 
@@ -40,10 +40,10 @@ mod object_tests {
         let result = vm.execute(&program);
 
         match result {
-            VMResult::Ok(value) => {
+            Ok(value) => {
                 assert_eq!(value, Value::string("Chen".to_string()));
             }
-            VMResult::Error { error: e, .. } => panic!("Expected success, got error: {}", e),
+            Err(e) => panic!("Expected success, got error: {:?}", e),
         }
     }
 
@@ -69,10 +69,10 @@ mod object_tests {
         let result = vm.execute(&program);
 
         match result {
-            VMResult::Ok(value) => {
+            Ok(value) => {
                 assert_eq!(value, Value::int(25));
             }
-            VMResult::Error { error: e, .. } => panic!("Expected success, got error: {}", e),
+            Err(e) => panic!("Expected success, got error: {:?}", e),
         }
     }
 

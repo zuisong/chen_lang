@@ -6,6 +6,8 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 use thiserror::Error;
 
+use crate::vm::VMRuntimeError;
+
 /// Table 结构，用于实现对象和 Map
 #[derive(Debug, Clone, PartialEq)]
 pub struct Table {
@@ -14,7 +16,7 @@ pub struct Table {
 }
 
 /// 原生函数类型
-pub type NativeFnType = dyn Fn(Vec<Value>) -> Result<Value, RuntimeError> + 'static + Send + Sync;
+pub type NativeFnType = dyn Fn(Vec<Value>) -> Result<Value, VMRuntimeError> + 'static + Send + Sync;
 
 /// 运行时值类型 - 统一表示所有数据类型
 #[derive(Clone)]
@@ -165,16 +167,16 @@ impl PartialEq for Value {
 
 impl fmt::Display for Table {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{{")?;
+        write!(f, "{}", "{{")?;
         let mut first = true;
         for (k, v) in &self.data {
             if !first {
-                write!(f, ", ")?;
+                write!(f, "{}", ", ")?;
             }
             write!(f, "{}: {}", k, v)?;
             first = false;
         }
-        write!(f, "}}")
+        write!(f, "{}", "}}")
     }
 }
 
@@ -186,7 +188,7 @@ impl fmt::Display for Value {
             Value::Bool(b) => write!(f, "{}", b),
             Value::String(s) => write!(f, "{}", s),
             Value::Object(obj) => write!(f, "{}", obj.borrow()),
-            Value::Function(name) => write!(f, "<function {}>", name),
+            Value::Function(name) => write!(f, "<function {}", name),
             Value::NativeFunction(_) => write!(f, "<native function>"),
             Value::Null => write!(f, "null"),
         }
@@ -200,7 +202,7 @@ impl Debug for Value {
             Value::Float(fl) => write!(f, "Float({})", fl),
             Value::Bool(b) => write!(f, "Bool({})", b),
             Value::String(s) => write!(f, "String(\"{}\")", s),
-            Value::Object(obj) => write!(f, "Object({:?})", obj.borrow()),
+            Value::Object(obj) => write!(f, "Object({:.?})", obj.borrow()),
             Value::Function(name) => write!(f, "Function({})", name),
             Value::NativeFunction(_) => write!(f, "NativeFunction(<native fn>)"),
             Value::Null => write!(f, "Null"),
@@ -238,8 +240,8 @@ impl ValueType {
 
 /// 运算错误类型
 #[derive(Error, Debug, Clone)]
-pub enum RuntimeError {
-    #[error("Type mismatch in {operation}: expected {expected:?}, found {found:?}")]
+pub enum ValueError {
+    #[error("Type mismatch in {{operation}}: expected {{expected:?}}, found {{found:?}}")]
     TypeMismatch {
         expected: ValueType,
         found: ValueType,
@@ -247,7 +249,7 @@ pub enum RuntimeError {
     },
     #[error("Division by zero")]
     DivisionByZero,
-    #[error("Invalid operation: {left_type:?} {operator} {right_type:?}")]
+    #[error("Invalid operation: {{left_type:?}} {{operator}} {{right_type:?}}")]
     InvalidOperation {
         operator: String,
         left_type: ValueType,
@@ -255,14 +257,10 @@ pub enum RuntimeError {
     },
     #[error("Index out of bounds")]
     IndexOutOfBounds,
-    #[error("Undefined variable: {0}")]
-    UndefinedVariable(String),
-    #[error("Undefined field: {0}")]
+    #[error("Undefined field: {{0}}")]
     UndefinedField(String),
-    #[error("Attempt to call non-function value: {0:?}")]
+    #[error("Attempt to call non-function value: {{0:?}}")]
     CallNonFunction(ValueType),
-    #[error("Stack underflow: {0}")]
-    StackUnderflow(String),
 }
 
 /// 表示算术操作的结果，可以是直接的 Value，也可以是需要调用元方法的指示
@@ -294,7 +292,7 @@ impl OpResult {
 
 /// 算术运算实现
 impl Value {
-    pub fn add(&self, other: &Value) -> Result<OpResult, RuntimeError> {
+    pub fn add(&self, other: &Value) -> Result<OpResult, ValueError> {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(OpResult::Value(Value::Int(a + b))),
             (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(a + b))),
@@ -329,7 +327,7 @@ impl Value {
                         right: right_val.clone(),
                     }))
                 } else {
-                    Err(RuntimeError::InvalidOperation {
+                    Err(ValueError::InvalidOperation {
                         operator: "+".to_string(),
                         left_type: self.get_type(),
                         right_type: other.get_type(),
@@ -339,7 +337,7 @@ impl Value {
         }
     }
 
-    pub fn subtract(&self, other: &Value) -> Result<OpResult, RuntimeError> {
+    pub fn subtract(&self, other: &Value) -> Result<OpResult, ValueError> {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(OpResult::Value(Value::Int(a - b))),
             (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(a - b))),
@@ -358,7 +356,7 @@ impl Value {
                         right: right_val.clone(),
                     }))
                 } else {
-                    Err(RuntimeError::InvalidOperation {
+                    Err(ValueError::InvalidOperation {
                         operator: "-".to_string(),
                         left_type: self.get_type(),
                         right_type: other.get_type(),
@@ -368,7 +366,7 @@ impl Value {
         }
     }
 
-    pub fn multiply(&self, other: &Value) -> Result<OpResult, RuntimeError> {
+    pub fn multiply(&self, other: &Value) -> Result<OpResult, ValueError> {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(OpResult::Value(Value::Int(a * b))),
             (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(a * b))),
@@ -387,7 +385,7 @@ impl Value {
                         right: right_val.clone(),
                     }))
                 } else {
-                    Err(RuntimeError::InvalidOperation {
+                    Err(ValueError::InvalidOperation {
                         operator: "*".to_string(),
                         left_type: self.get_type(),
                         right_type: other.get_type(),
@@ -397,37 +395,37 @@ impl Value {
         }
     }
 
-    pub fn divide(&self, other: &Value) -> Result<Value, RuntimeError> {
+    pub fn divide(&self, other: &Value) -> Result<Value, ValueError> {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => {
                 if *b == 0 {
-                    Err(RuntimeError::DivisionByZero)
+                    Err(ValueError::DivisionByZero)
                 } else {
                     Ok(Value::Int(a / b))
                 }
             }
             (Value::Float(a), Value::Float(b)) => {
                 if *b == 0.0 {
-                    Err(RuntimeError::DivisionByZero)
+                    Err(ValueError::DivisionByZero)
                 } else {
                     Ok(Value::Float(a / b))
                 }
             }
             (Value::Int(a), Value::Float(b)) => {
                 if *b == 0.0 {
-                    Err(RuntimeError::DivisionByZero)
+                    Err(ValueError::DivisionByZero)
                 } else {
                     Ok(Value::Float(*a as f32 / b))
                 }
             }
             (Value::Float(a), Value::Int(b)) => {
                 if *b == 0 {
-                    Err(RuntimeError::DivisionByZero)
+                    Err(ValueError::DivisionByZero)
                 } else {
                     Ok(Value::Float(a / *b as f32))
                 }
             }
-            _ => Err(RuntimeError::InvalidOperation {
+            _ => Err(ValueError::InvalidOperation {
                 operator: "/".to_string(),
                 left_type: self.get_type(),
                 right_type: other.get_type(),
@@ -435,37 +433,37 @@ impl Value {
         }
     }
 
-    pub fn modulo(&self, other: &Value) -> Result<Value, RuntimeError> {
+    pub fn modulo(&self, other: &Value) -> Result<Value, ValueError> {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => {
                 if *b == 0 {
-                    Err(RuntimeError::DivisionByZero)
+                    Err(ValueError::DivisionByZero)
                 } else {
                     Ok(Value::Int(a % b))
                 }
             }
             (Value::Float(a), Value::Float(b)) => {
                 if *b == 0.0 {
-                    Err(RuntimeError::DivisionByZero)
+                    Err(ValueError::DivisionByZero)
                 } else {
                     Ok(Value::Float(a % b))
                 }
             }
             (Value::Int(a), Value::Float(b)) => {
                 if *b == 0.0 {
-                    Err(RuntimeError::DivisionByZero)
+                    Err(ValueError::DivisionByZero)
                 } else {
                     Ok(Value::Float(*a as f32 % b))
                 }
             }
             (Value::Float(a), Value::Int(b)) => {
                 if *b == 0 {
-                    Err(RuntimeError::DivisionByZero)
+                    Err(ValueError::DivisionByZero)
                 } else {
                     Ok(Value::Float(a % *b as f32))
                 }
             }
-            _ => Err(RuntimeError::InvalidOperation {
+            _ => Err(ValueError::InvalidOperation {
                 operator: "%".to_string(),
                 left_type: self.get_type(),
                 right_type: other.get_type(),
@@ -484,14 +482,14 @@ impl Value {
         Value::bool(self != other)
     }
 
-    pub fn less_than(&self, other: &Value) -> Result<Value, RuntimeError> {
+    pub fn less_than(&self, other: &Value) -> Result<Value, ValueError> {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(Value::bool(a < b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a < b)),
             (Value::Int(a), Value::Float(b)) => Ok(Value::bool((*a as f32) < *b)),
             (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a < (*b as f32))),
             (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) < String::as_str(b))),
-            _ => Err(RuntimeError::InvalidOperation {
+            _ => Err(ValueError::InvalidOperation {
                 operator: "<".to_string(),
                 left_type: self.get_type(),
                 right_type: other.get_type(),
@@ -499,14 +497,14 @@ impl Value {
         }
     }
 
-    pub fn less_equal(&self, other: &Value) -> Result<Value, RuntimeError> {
+    pub fn less_equal(&self, other: &Value) -> Result<Value, ValueError> {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(Value::bool(a <= b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a <= b)),
             (Value::Int(a), Value::Float(b)) => Ok(Value::bool((*a as f32) <= *b)),
             (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a <= (*b as f32))),
             (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) <= String::as_str(b))),
-            _ => Err(RuntimeError::InvalidOperation {
+            _ => Err(ValueError::InvalidOperation {
                 operator: "<=".to_string(),
                 left_type: self.get_type(),
                 right_type: other.get_type(),
@@ -514,14 +512,14 @@ impl Value {
         }
     }
 
-    pub fn greater_than(&self, other: &Value) -> Result<Value, RuntimeError> {
+    pub fn greater_than(&self, other: &Value) -> Result<Value, ValueError> {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(Value::bool(a > b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a > b)),
             (Value::Int(a), Value::Float(b)) => Ok(Value::bool((*a as f32) > *b)),
             (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a > (*b as f32))),
             (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) > String::as_str(b))),
-            _ => Err(RuntimeError::InvalidOperation {
+            _ => Err(ValueError::InvalidOperation {
                 operator: ">".to_string(),
                 left_type: self.get_type(),
                 right_type: other.get_type(),
@@ -529,14 +527,14 @@ impl Value {
         }
     }
 
-    pub fn greater_equal(&self, other: &Value) -> Result<Value, RuntimeError> {
+    pub fn greater_equal(&self, other: &Value) -> Result<Value, ValueError> {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(Value::bool(a >= b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a >= b)),
             (Value::Int(a), Value::Float(b)) => Ok(Value::bool((*a as f32) >= *b)),
             (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a >= (*b as f32))),
             (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) >= String::as_str(b))),
-            _ => Err(RuntimeError::InvalidOperation {
+            _ => Err(ValueError::InvalidOperation {
                 operator: ">=".to_string(),
                 left_type: self.get_type(),
                 right_type: other.get_type(),
@@ -629,7 +627,7 @@ impl Value {
     }
 
     /// Set field with metatable support (__newindex metamethod placeholder)
-    pub fn set_field_with_meta(&self, key: String, value: Value) -> Result<(), RuntimeError> {
+    pub fn set_field_with_meta(&self, key: String, value: Value) -> Result<(), ValueError> {
         match self {
             Value::Object(table_ref) => {
                 let mut table = table_ref.borrow_mut();
@@ -653,7 +651,7 @@ impl Value {
                 table.data.insert(key, value);
                 Ok(())
             }
-            _ => Err(RuntimeError::InvalidOperation {
+            _ => Err(ValueError::InvalidOperation {
                 operator: "set_field".to_string(),
                 left_type: self.get_type(),
                 right_type: ValueType::Null,
@@ -662,7 +660,7 @@ impl Value {
     }
 
     /// Set metatable for an object
-    pub fn set_metatable(&self, metatable: Value) -> Result<(), RuntimeError> {
+    pub fn set_metatable(&self, metatable: Value) -> Result<(), ValueError> {
         let meta_type = metatable.get_type(); // Get type before consuming
         match (self, metatable) {
             (Value::Object(obj_ref), Value::Object(meta_ref)) => {
@@ -674,7 +672,7 @@ impl Value {
                 obj_ref.borrow_mut().metatable = None;
                 Ok(())
             }
-            _ => Err(RuntimeError::InvalidOperation {
+            _ => Err(ValueError::InvalidOperation {
                 operator: "set_metatable".to_string(),
                 left_type: self.get_type(),
                 right_type: meta_type,

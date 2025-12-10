@@ -1,11 +1,13 @@
+use std::fmt::{Display, Formatter, Pointer};
 use std::io::Write;
 use std::rc::Rc;
 
 use indexmap::IndexMap;
 use jiff::Timestamp;
+use thiserror::Error;
 use tracing::debug;
 
-use crate::value::{NativeFnType, RuntimeError, Value, ValueType};
+use crate::value::{NativeFnType, Value, ValueError, ValueType};
 
 #[derive(Debug, Clone)]
 pub struct Symbol {
@@ -85,12 +87,34 @@ pub struct Program {
     pub lines: IndexMap<usize, u32>,    // 行号映射 (Instruction Index -> Line Number)
 }
 
-/// VM执行结果
-#[derive(Debug)]
-pub enum VMResult {
-    Ok(Value),
-    Error { error: RuntimeError, line: u32, pc: usize },
+/// VM 运行时错误
+#[derive(Error, Debug, Clone)]
+pub enum VMRuntimeError {
+    #[error("Stack underflow: {0}")]
+    StackUnderflow(String),
+    #[error("Undefined variable: {0}")]
+    UndefinedVariable(String),
+    #[error("Undefined label: {0}")]
+    UndefinedLabel(String),
+    #[error(transparent)]
+    ValueError(#[from] ValueError),
 }
+
+/// 包含上下文信息的运行时错误
+#[derive(Debug, Error)]
+pub struct RuntimeErrorWithContext {
+    pub error: VMRuntimeError,
+    pub line: u32,
+    pub pc: usize,
+}
+impl Display for RuntimeErrorWithContext {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.error.fmt(f)
+    }
+}
+
+/// VM执行结果
+pub type VMResult = Result<Value, RuntimeErrorWithContext>;
 
 /// 虚拟机实现
 pub struct VM {
@@ -163,11 +187,11 @@ impl VM {
                 Err(error) => {
                     let line = *program.lines.get(&self.pc).unwrap_or(&0);
                     debug!("Execution error at PC {} (Line {}): {}", self.pc, line, error);
-                    return VMResult::Error {
+                    return Err(RuntimeErrorWithContext {
                         error,
                         line,
                         pc: self.pc,
-                    };
+                    });
                 }
             }
 
@@ -178,11 +202,11 @@ impl VM {
 
         // 返回栈顶值或null
         let result = self.stack.pop().unwrap_or(Value::null());
-        VMResult::Ok(result)
+        Ok(result)
     }
 
     /// 执行单条指令
-    fn execute_instruction(&mut self, instruction: &Instruction, program: &Program) -> Result<bool, RuntimeError> {
+    fn execute_instruction(&mut self, instruction: &Instruction, program: &Program) -> Result<bool, VMRuntimeError> {
         match instruction {
             Instruction::Push(value) => {
                 self.stack.push(value.clone());
@@ -199,7 +223,7 @@ impl VM {
                     .stack
                     .len()
                     .checked_sub(*count)
-                    .ok_or(RuntimeError::StackUnderflow(
+                    .ok_or(VMRuntimeError::StackUnderflow(
                         "Stack underflow during array creation".to_string(),
                     ))?;
 
@@ -231,11 +255,11 @@ impl VM {
                 if let Some(top) = self.stack.last() {
                     self.stack.push(top.clone());
                 } else {
-                    return Err(RuntimeError::InvalidOperation {
+                    return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                         operator: "dup".to_string(),
                         left_type: ValueType::Null,
                         right_type: ValueType::Null,
-                    });
+                    }));
                 }
             }
 
@@ -254,7 +278,7 @@ impl VM {
                             "Variable {} not found! Available variables: {:?}",
                             var_name, self.variables
                         );
-                        return Err(RuntimeError::UndefinedVariable(var_name.clone()));
+                        return Err(VMRuntimeError::UndefinedVariable(var_name.clone()));
                     }
                 }
             }
@@ -264,11 +288,11 @@ impl VM {
                     debug!("Storing value {:?} to variable {}", value, var_name);
                     self.variables.insert(var_name.clone(), value);
                 } else {
-                    return Err(RuntimeError::InvalidOperation {
+                    return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                         operator: "store".to_string(),
                         left_type: ValueType::Null,
                         right_type: ValueType::Null,
-                    });
+                    }));
                 }
             }
 
@@ -422,7 +446,7 @@ impl VM {
                     self.pc = (target.location as usize) - 1;
                     Ok(true) // 继续执行，但PC已更新
                 } else {
-                    Err(RuntimeError::UndefinedVariable(format!("label: {}", label)))
+                    Err(VMRuntimeError::UndefinedLabel(format!("label: {}", label)))
                 };
             }
 
@@ -433,7 +457,7 @@ impl VM {
                         self.pc = (target.location as usize) - 1;
                         Ok(true)
                     } else {
-                        Err(RuntimeError::UndefinedVariable(format!("label: {}", label)))
+                        Err(VMRuntimeError::UndefinedLabel(format!("label: {}", label)))
                     };
                 }
             }
@@ -445,7 +469,7 @@ impl VM {
                         self.pc = (target.location as usize) - 1;
                         Ok(true)
                     } else {
-                        Err(RuntimeError::UndefinedVariable(format!("label: {}", label)))
+                        Err(VMRuntimeError::UndefinedLabel(format!("label: {}", label)))
                     };
                 }
             }
@@ -484,11 +508,11 @@ impl VM {
                     }
                     "set_meta" => {
                         if *arg_count != 2 {
-                            return Err(RuntimeError::InvalidOperation {
+                            return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                                 operator: "set_meta".to_string(),
                                 left_type: ValueType::Null,
                                 right_type: ValueType::Null,
-                            });
+                            }));
                         }
                         let metatable = self.stack.pop().unwrap_or(Value::null());
                         let obj = self.stack.pop().unwrap_or(Value::null());
@@ -502,11 +526,11 @@ impl VM {
                     }
                     "get_meta" => {
                         if *arg_count != 1 {
-                            return Err(RuntimeError::InvalidOperation {
+                            return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                                 operator: "get_meta".to_string(),
                                 left_type: ValueType::Null,
                                 right_type: ValueType::Null,
-                            });
+                            }));
                         }
                         let obj = self.stack.pop().unwrap_or(Value::null());
                         let metatable = obj.get_metatable();
@@ -539,7 +563,7 @@ impl VM {
                                 .stack
                                 .len()
                                 .checked_sub(*arg_count)
-                                .ok_or(RuntimeError::StackUnderflow("Native call missing args".into()))?;
+                                .ok_or(VMRuntimeError::StackUnderflow("Native call missing args".into()))?;
                             let args: Vec<Value> = self.stack.drain(args_start..).collect();
                             let result = native_fn(args)?;
                             self.stack.push(result);
@@ -548,11 +572,11 @@ impl VM {
 
                         return if let Some(target_symbol) = target_symbol {
                             if *arg_count != target_symbol.narguments {
-                                return Err(RuntimeError::InvalidOperation {
+                                return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                                     operator: "call".to_string(),
                                     left_type: ValueType::Null,
                                     right_type: ValueType::Null,
-                                });
+                                }));
                             }
 
                             // 1. 保存返回地址和旧fp
@@ -569,7 +593,7 @@ impl VM {
                             Ok(true)
                         } else {
                             debug!("Function label {} not found in {:?}", func_label, program.syms);
-                            Err(RuntimeError::UndefinedVariable(format!("function: {}", func_name)))
+                            Err(VMRuntimeError::UndefinedVariable(format!("function: {}", func_name)))
                         };
                     }
                 }
@@ -665,11 +689,11 @@ impl VM {
                         self.stack.push(value);
                     }
                     _ => {
-                        return Err(RuntimeError::InvalidOperation {
+                        return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                             operator: "get_index".to_string(),
                             left_type: obj.get_type(),
                             right_type: ValueType::Null,
-                        });
+                        }));
                     }
                 }
             }
@@ -684,11 +708,11 @@ impl VM {
                         table_ref.borrow_mut().data.insert(key, value);
                     }
                     _ => {
-                        return Err(RuntimeError::InvalidOperation {
+                        return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                             operator: "set_index".to_string(),
                             left_type: obj.get_type(),
                             right_type: ValueType::Null,
-                        });
+                        }));
                     }
                 }
             }
@@ -700,7 +724,9 @@ impl VM {
                     .stack
                     .len()
                     .checked_sub(*arg_count + 1)
-                    .ok_or(RuntimeError::StackUnderflow("CallStack: missing function".to_string()))?;
+                    .ok_or(VMRuntimeError::StackUnderflow(
+                        "CallStack: missing function".to_string(),
+                    ))?;
 
                 let func_val = self.stack.remove(func_idx);
 
@@ -716,11 +742,11 @@ impl VM {
 
                         if let Some(target_symbol) = program.syms.get(&func_label) {
                             if *arg_count != target_symbol.narguments {
-                                return Err(RuntimeError::InvalidOperation {
+                                return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                                     operator: "call_stack".to_string(),
                                     left_type: ValueType::Function,
                                     right_type: ValueType::Null,
-                                });
+                                }));
                             }
 
                             // 1. Save return address and old fp
@@ -737,7 +763,7 @@ impl VM {
                             self.pc = (target_symbol.location as usize) - 1;
                             Ok(true)
                         } else {
-                            Err(RuntimeError::UndefinedVariable(format!("function: {}", func_name)))
+                            Err(VMRuntimeError::UndefinedVariable(format!("function: {}", func_name)))
                         }
                     }
                     Value::NativeFunction(native_fn) => {
@@ -745,17 +771,17 @@ impl VM {
                             .stack
                             .len()
                             .checked_sub(*arg_count)
-                            .ok_or(RuntimeError::StackUnderflow("CallStack native: missing args".into()))?;
+                            .ok_or(VMRuntimeError::StackUnderflow("CallStack native: missing args".into()))?;
                         let args: Vec<Value> = self.stack.drain(start_index..).collect();
                         let result = native_fn(args)?;
                         self.stack.push(result);
                         Ok(true)
                     }
-                    _ => Err(RuntimeError::InvalidOperation {
+                    _ => Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                         operator: "call_stack".to_string(),
                         left_type: func_val.get_type(),
                         right_type: ValueType::Null,
-                    }),
+                    })),
                 };
             }
         }
@@ -810,13 +836,13 @@ fn create_array_prototype() -> Value {
     proto_val
 }
 
-fn native_array_push(args: Vec<Value>) -> Result<Value, RuntimeError> {
+fn native_array_push(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if args.is_empty() {
-        return Err(RuntimeError::TypeMismatch {
+        return Err(ValueError::TypeMismatch {
             expected: ValueType::Object,
             found: ValueType::Null,
             operation: "push".into(),
-        });
+        })?;
     }
 
     let obj = &args[0];
@@ -830,20 +856,20 @@ fn native_array_push(args: Vec<Value>) -> Result<Value, RuntimeError> {
         table.data.insert(idx.to_string(), val);
         return Ok(Value::Int((idx + 1) as i32));
     }
-    Err(RuntimeError::TypeMismatch {
+    Err(ValueError::TypeMismatch {
         expected: ValueType::Object,
         found: obj.get_type(),
         operation: "push".into(),
-    })
+    })?
 }
 
-fn native_array_pop(args: Vec<Value>) -> Result<Value, RuntimeError> {
+fn native_array_pop(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if args.is_empty() {
-        return Err(RuntimeError::TypeMismatch {
+        return Err(ValueError::TypeMismatch {
             expected: ValueType::Object,
             found: ValueType::Null,
             operation: "pop".into(),
-        });
+        })?;
     }
     let obj = &args[0];
     if let Value::Object(table_rc) = obj {
@@ -856,7 +882,7 @@ fn native_array_pop(args: Vec<Value>) -> Result<Value, RuntimeError> {
     Ok(Value::Null)
 }
 
-fn native_array_len(args: Vec<Value>) -> Result<Value, RuntimeError> {
+fn native_array_len(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if args.is_empty() {
         return Ok(Value::Int(0));
     }
@@ -905,53 +931,54 @@ fn create_string_prototype() -> Value {
     proto_val
 }
 
-fn native_string_len(args: Vec<Value>) -> Result<Value, RuntimeError> {
+fn native_string_len(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if args.is_empty() {
         return Ok(Value::Int(0));
     }
     match &args[0] {
         Value::String(s) => Ok(Value::Int(s.chars().count() as i32)),
-        _ => Err(RuntimeError::TypeMismatch {
+        _ => Err(ValueError::TypeMismatch {
             expected: ValueType::String,
             found: args[0].get_type(),
             operation: "string.len".into(),
-        }),
+        })?,
     }
 }
 
-fn native_string_trim(args: Vec<Value>) -> Result<Value, RuntimeError> {
+fn native_string_trim(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     match args.first() {
         Some(Value::String(s)) => Ok(Value::string(s.trim().to_string())),
-        Some(v) => Err(RuntimeError::TypeMismatch {
+        Some(v) => Err(ValueError::TypeMismatch {
             expected: ValueType::String,
             found: v.get_type(),
             operation: "string.trim".into(),
-        }),
-        None => Err(RuntimeError::StackUnderflow("string.trim".into())),
+        }
+        .into()),
+        None => Err(VMRuntimeError::StackUnderflow("string.trim".into())),
     }
 }
 
-fn native_string_upper(args: Vec<Value>) -> Result<Value, RuntimeError> {
+fn native_string_upper(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     match args.first() {
         Some(Value::String(s)) => Ok(Value::string(s.to_uppercase())),
-        Some(v) => Err(RuntimeError::TypeMismatch {
+        Some(v) => Err(crate::vm::VMRuntimeError::ValueError(ValueError::TypeMismatch {
             expected: ValueType::String,
             found: v.get_type(),
             operation: "string.upper".into(),
-        }),
-        None => Err(RuntimeError::StackUnderflow("string.upper".into())),
+        })),
+        None => Err(VMRuntimeError::StackUnderflow("string.upper".into())),
     }
 }
 
-fn native_string_lower(args: Vec<Value>) -> Result<Value, RuntimeError> {
+fn native_string_lower(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     match args.first() {
         Some(Value::String(s)) => Ok(Value::string(s.to_lowercase())),
-        Some(v) => Err(RuntimeError::TypeMismatch {
+        Some(v) => Err(ValueError::TypeMismatch {
             expected: ValueType::String,
             found: v.get_type(),
             operation: "string.lower".into(),
-        }),
-        None => Err(RuntimeError::StackUnderflow("string.lower".into())),
+        })?,
+        None => Err(VMRuntimeError::StackUnderflow("string.lower".into())),
     }
 }
 
@@ -985,7 +1012,7 @@ fn create_date_object() -> Value {
     val
 }
 
-fn native_date_new(args: Vec<Value>) -> Result<Value, RuntimeError> {
+fn native_date_new(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     let mut ts = Timestamp::now().as_millisecond();
     // args[0] is Date class itself
     if args.len() > 1 {
@@ -1017,7 +1044,7 @@ fn native_date_new(args: Vec<Value>) -> Result<Value, RuntimeError> {
     Ok(Value::Object(table_rc))
 }
 
-fn native_date_format(args: Vec<Value>) -> Result<Value, RuntimeError> {
+fn native_date_format(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     // args[0] is instance
     if let Some(obj) = args.first()
         && let Value::Object(table_rc) = obj
@@ -1045,7 +1072,7 @@ fn native_date_format(args: Vec<Value>) -> Result<Value, RuntimeError> {
     Ok(Value::Null)
 }
 
-fn native_date_timestamp(args: Vec<Value>) -> Result<Value, RuntimeError> {
+fn native_date_timestamp(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if let Some(obj) = args.first()
         && let Value::Object(table_rc) = obj
     {
@@ -1079,10 +1106,10 @@ fn create_json_object() -> Value {
     Value::Object(Rc::new(std::cell::RefCell::new(table)))
 }
 
-fn native_json_parse(args: Vec<Value>) -> Result<Value, RuntimeError> {
+fn native_json_parse(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     // args[0] is JSON object, args[1] is string
     if let Some(Value::String(s)) = args.get(1) {
-        let v: serde_json::Value = serde_json::from_str(s).map_err(|_e| RuntimeError::InvalidOperation {
+        let v: serde_json::Value = serde_json::from_str(s).map_err(|_e| ValueError::InvalidOperation {
             operator: "JSON.parse".into(),
             left_type: ValueType::String,
             right_type: ValueType::Null,
@@ -1092,7 +1119,7 @@ fn native_json_parse(args: Vec<Value>) -> Result<Value, RuntimeError> {
     Ok(Value::Null)
 }
 
-fn native_json_stringify(args: Vec<Value>) -> Result<Value, RuntimeError> {
+fn native_json_stringify(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if let Some(val) = args.get(1) {
         let j = chen_to_json(val);
         return Ok(Value::string(j.to_string()));
@@ -1213,8 +1240,8 @@ mod tests {
         let result = vm.execute(&program);
 
         match result {
-            VMResult::Ok(value) => assert_eq!(value, Value::int(8)),
-            VMResult::Error { .. } => panic!("Expected success"),
+            Ok(value) => assert_eq!(value, Value::int(8)),
+            Err(_) => panic!("Expected success"),
         }
     }
 
@@ -1229,8 +1256,8 @@ mod tests {
         let result = vm.execute(&program);
 
         match result {
-            VMResult::Ok(value) => assert_eq!(value, Value::int(42)),
-            VMResult::Error { .. } => panic!("Expected success"),
+            Ok(value) => assert_eq!(value, Value::int(42)),
+            Err(_) => panic!("Expected success"),
         }
     }
 
@@ -1245,8 +1272,8 @@ mod tests {
         let result = vm.execute(&program);
 
         match result {
-            VMResult::Ok(value) => assert_eq!(value, Value::float(5.5)),
-            VMResult::Error { .. } => panic!("Expected success"),
+            Ok(value) => assert_eq!(value, Value::float(5.5)),
+            Err(_) => panic!("Expected success"),
         }
     }
 
@@ -1261,8 +1288,8 @@ mod tests {
         let result = vm.execute(&program);
 
         match result {
-            VMResult::Ok(value) => assert_eq!(value, Value::string("Hello World".to_string())),
-            VMResult::Error { .. } => panic!("Expected success"),
+            Ok(value) => assert_eq!(value, Value::string("Hello World".to_string())),
+            Err(_) => panic!("Expected success"),
         }
     }
 
@@ -1277,8 +1304,8 @@ mod tests {
         let result = vm.execute(&program);
 
         match result {
-            VMResult::Ok(value) => assert_eq!(value, Value::bool(false)),
-            VMResult::Error { .. } => panic!("Expected success"),
+            Ok(value) => assert_eq!(value, Value::bool(false)),
+            Err(_) => panic!("Expected success"),
         }
     }
 
@@ -1292,8 +1319,8 @@ mod tests {
         let result = vm.execute(&program);
 
         match result {
-            VMResult::Ok(value) => assert_eq!(value, Value::null()),
-            VMResult::Error { .. } => panic!("Expected success"),
+            Ok(value) => assert_eq!(value, Value::null()),
+            Err(_) => panic!("Expected success"),
         }
     }
 }

@@ -8,17 +8,18 @@
 // #![deny(unreachable_code)]
 
 use std::io::Write;
+use std::ops::Range;
 use std::sync::{Arc, Mutex};
 
+use codespan_reporting::diagnostic::{Diagnostic, Label};
+use codespan_reporting::files::SimpleFiles;
+use codespan_reporting::term::{Config, emit_into_string};
 use thiserror::Error;
 use tracing::debug;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use codespan_reporting::diagnostic::{Diagnostic, Label};
-use codespan_reporting::files::SimpleFiles;
-use std::ops::Range;
-use codespan_reporting::term::{emit_into_string, Config};
+use crate::vm::{RuntimeErrorWithContext, VMRuntimeError}; // Add this import
 
 #[derive(Clone)]
 struct SharedWriter(Arc<Mutex<Vec<u8>>>);
@@ -55,18 +56,12 @@ pub enum ChenError {
     Token(#[from] token::TokenError),
     #[error(transparent)]
     Parser(#[from] parser::ParserError),
-    #[error("Runtime error at line {1}: {0}")]
-    Runtime(#[source] value::RuntimeError, u32),
+    #[error("Runtime error")]
+    Runtime(#[from] RuntimeErrorWithContext), // Changed to VMRuntimeError
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Utf8(#[from] std::string::FromUtf8Error),
-}
-
-impl From<value::RuntimeError> for ChenError {
-    fn from(e: value::RuntimeError) -> Self {
-        ChenError::Runtime(e, 0)
-    }
 }
 
 #[test]
@@ -84,15 +79,8 @@ pub fn run(code: String) -> Result<(), ChenError> {
     let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
 
     let mut vm = vm::VM::new();
-    let result = vm.execute(&program);
-    match result {
-        vm::VMResult::Ok(value) => {
-            debug!("Execution result: {:?}", value);
-        }
-        vm::VMResult::Error { error, line, .. } => {
-            return Err(ChenError::Runtime(error, line));
-        }
-    }
+    let _result = vm.execute(&program)?;
+    // debug!("Execution result: {:?}", _result); // _result is unit from Ok(())
     Ok(())
 }
 
@@ -107,17 +95,9 @@ pub fn run_captured(code: String) -> Result<String, ChenError> {
 
     {
         let mut vm = vm::VM::with_writer(Box::new(writer));
-        let result = vm.execute(&program);
-        match result {
-            vm::VMResult::Ok(value) => {
-                debug!("Execution result: {:?}", value);
-            }
-            vm::VMResult::Error { error, line, .. } => {
-                return Err(ChenError::Runtime(error, line));
-            }
-        }
-
-    }
+        let _result = vm.execute(&program)?;
+        // debug!("Execution result: {:?}", _result);
+    } // writer goes out of scope here, flushing
 
     let output_vec = output.lock().unwrap().clone();
     Ok(String::from_utf8(output_vec)?)
@@ -125,13 +105,11 @@ pub fn run_captured(code: String) -> Result<String, ChenError> {
 
 fn build_diagnostic(code: &str, file_id: usize, error: &ChenError) -> Diagnostic<usize> {
     match error {
-        ChenError::Runtime(err, line) => {
-            let range = get_line_range(code, *line);
-            Diagnostic::error()
-                .with_message(err.to_string())
-                .with_labels(vec![
-                    Label::primary(file_id, range).with_message("Runtime error occurred here"),
-                ])
+        ChenError::Runtime(err) => {
+            let range = get_line_range(code, err.line);
+            Diagnostic::error().with_message(err.to_string()).with_labels(vec![
+                Label::primary(file_id, range).with_message("Runtime error occurred here"),
+            ])
         }
         _ => Diagnostic::error().with_message(error.to_string()),
     }
@@ -145,17 +123,13 @@ pub fn report_error(code: &str, filename: &str, error: &ChenError) -> String {
     let config = Config::default();
     match emit_into_string(&config, &files, &diagnostic) {
         Err(e) => {
-
-        eprintln!("Failed to emit diagnostic: {}", e);
-        eprintln!("Original error: {}", error);
+            eprintln!("Failed to emit diagnostic: {}", e);
+            eprintln!("Original error: {}", error);
             Default::default()
         }
-        Ok(s) => {
-            s
-        }
+        Ok(s) => s,
     }
 }
-
 
 fn get_line_range(code: &str, line: u32) -> Range<usize> {
     if line == 0 {
@@ -168,11 +142,7 @@ fn get_line_range(code: &str, line: u32) -> Range<usize> {
     for line_str in code.split_inclusive('\n') {
         if current_line == line {
             let len = line_str.trim_end().len();
-            let end_byte = if len == 0 {
-                start_byte + 1
-            } else {
-                start_byte + len
-            };
+            let end_byte = if len == 0 { start_byte + 1 } else { start_byte + len };
             let end_byte = std::cmp::min(end_byte, code.len());
 
             return start_byte..end_byte;
@@ -182,11 +152,7 @@ fn get_line_range(code: &str, line: u32) -> Range<usize> {
     }
 
     let len = code.len();
-    if len > 0 {
-        len - 1..len
-    } else {
-        0..0
-    }
+    if len > 0 { len - 1..len } else { 0..0 }
 }
 
 #[cfg(feature = "wasm")]
