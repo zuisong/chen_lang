@@ -4,6 +4,8 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 use indexmap::IndexMap;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::*;
 use thiserror::Error;
 
 use crate::vm::VMRuntimeError;
@@ -22,7 +24,7 @@ pub type NativeFnType = dyn Fn(Vec<Value>) -> Result<Value, VMRuntimeError> + 's
 #[derive(Clone)]
 pub enum Value {
     Int(i32),
-    Float(f32),
+    Float(Decimal),
     Bool(bool),
     String(Rc<String>),
     /// 对象类型 (Table)
@@ -41,7 +43,7 @@ impl Value {
     }
 
     /// 创建浮点数值
-    pub fn float(f: f32) -> Self {
+    pub fn float(f: Decimal) -> Self {
         Value::Float(f)
     }
 
@@ -77,7 +79,7 @@ impl Value {
     }
 
     /// 获取浮点数值
-    pub fn as_float(&self) -> Option<f32> {
+    pub fn as_float(&self) -> Option<Decimal> {
         match self {
             Value::Float(f) => Some(*f),
             _ => None,
@@ -105,7 +107,7 @@ impl Value {
         match self {
             Value::Bool(false) | Value::Null => false,
             Value::Int(0) => false,
-            Value::Float(f) if *f == 0.0 => false,
+            Value::Float(f) if *f == Decimal::ZERO => false,
             Value::String(s) if s.is_empty() => false,
             _ => true,
         }
@@ -126,9 +128,9 @@ impl Value {
     }
 
     /// 数值类型转换
-    pub fn to_float(&self) -> Option<f32> {
+    pub fn to_float(&self) -> Option<Decimal> {
         match self {
-            Value::Int(n) => Some(*n as f32),
+            Value::Int(n) => Some(Decimal::from(*n)),
             Value::Float(f) => Some(*f),
             _ => None,
         }
@@ -138,7 +140,7 @@ impl Value {
     pub fn to_int(&self) -> Option<i32> {
         match self {
             Value::Int(n) => Some(*n),
-            Value::Float(f) => Some(*f as i32),
+            Value::Float(f) => f.to_i32(),
             _ => None,
         }
     }
@@ -148,7 +150,7 @@ impl PartialEq for Value {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => a == b,
-            (Value::Float(a), Value::Float(b)) => (a - b).abs() < f32::EPSILON,
+            (Value::Float(a), Value::Float(b)) => a == b,
             (Value::Bool(a), Value::Bool(b)) => a == b,
             (Value::String(a), Value::String(b)) => a == b,
             (Value::Null, Value::Null) => true,
@@ -158,8 +160,8 @@ impl PartialEq for Value {
             (Value::Function(a), Value::Function(b)) => a == b,
             (Value::NativeFunction(a), Value::NativeFunction(b)) => Rc::ptr_eq(a, b),
             // 混合类型比较：int和float可以比较
-            (Value::Int(a), Value::Float(b)) => (*a as f32 - b).abs() < f32::EPSILON,
-            (Value::Float(a), Value::Int(b)) => (a - *b as f32).abs() < f32::EPSILON,
+            (Value::Int(a), Value::Float(b)) => Decimal::from(*a) == *b,
+            (Value::Float(a), Value::Int(b)) => *a == Decimal::from(*b),
             _ => false,
         }
     }
@@ -167,16 +169,16 @@ impl PartialEq for Value {
 
 impl fmt::Display for Table {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", "{{")?;
+        write!(f, "{{{{")?;
         let mut first = true;
         for (k, v) in &self.data {
             if !first {
-                write!(f, "{}", ", ")?;
+                write!(f, ", ")?;
             }
             write!(f, "{}: {}", k, v)?;
             first = false;
         }
-        write!(f, "{}", "}}")
+        write!(f, "}}}}")
     }
 }
 
@@ -184,7 +186,7 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Value::Int(n) => write!(f, "{}", n),
-            Value::Float(fl) => write!(f, "{}", fl),
+            Value::Float(fl) => write!(f, "{}", fl.normalize()),
             Value::Bool(b) => write!(f, "{}", b),
             Value::String(s) => write!(f, "{}", s),
             Value::Object(obj) => write!(f, "{}", obj.borrow()),
@@ -296,8 +298,8 @@ impl Value {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(OpResult::Value(Value::Int(a + b))),
             (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(a + b))),
-            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(*a as f32 + b))),
-            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::Float(a + *b as f32))),
+            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(Decimal::from(*a) + b))),
+            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::Float(a + Decimal::from(*b)))),
             (Value::String(a), Value::String(b)) => {
                 let mut result = String::as_str(a).to_string();
                 result.push_str(String::as_str(b));
@@ -341,8 +343,8 @@ impl Value {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(OpResult::Value(Value::Int(a - b))),
             (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(a - b))),
-            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(*a as f32 - b))),
-            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::Float(a - *b as f32))),
+            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(Decimal::from(*a) - b))),
+            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::Float(a - Decimal::from(*b)))),
             // Metamethod lookup for __sub
             (left_val, right_val) => {
                 let metamethod = left_val
@@ -370,8 +372,8 @@ impl Value {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(OpResult::Value(Value::Int(a * b))),
             (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(a * b))),
-            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(*a as f32 * b))),
-            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::Float(a * *b as f32))),
+            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(Decimal::from(*a) * b))),
+            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::Float(a * Decimal::from(*b)))),
             // Metamethod lookup for __mul
             (left_val, right_val) => {
                 let metamethod = left_val
@@ -405,24 +407,24 @@ impl Value {
                 }
             }
             (Value::Float(a), Value::Float(b)) => {
-                if *b == 0.0 {
+                if *b == Decimal::ZERO {
                     Err(ValueError::DivisionByZero)
                 } else {
                     Ok(Value::Float(a / b))
                 }
             }
             (Value::Int(a), Value::Float(b)) => {
-                if *b == 0.0 {
+                if *b == Decimal::ZERO {
                     Err(ValueError::DivisionByZero)
                 } else {
-                    Ok(Value::Float(*a as f32 / b))
+                    Ok(Value::Float(Decimal::from(*a) / b))
                 }
             }
             (Value::Float(a), Value::Int(b)) => {
                 if *b == 0 {
                     Err(ValueError::DivisionByZero)
                 } else {
-                    Ok(Value::Float(a / *b as f32))
+                    Ok(Value::Float(a / Decimal::from(*b)))
                 }
             }
             _ => Err(ValueError::InvalidOperation {
@@ -443,24 +445,24 @@ impl Value {
                 }
             }
             (Value::Float(a), Value::Float(b)) => {
-                if *b == 0.0 {
+                if *b == Decimal::ZERO {
                     Err(ValueError::DivisionByZero)
                 } else {
                     Ok(Value::Float(a % b))
                 }
             }
             (Value::Int(a), Value::Float(b)) => {
-                if *b == 0.0 {
+                if *b == Decimal::ZERO {
                     Err(ValueError::DivisionByZero)
                 } else {
-                    Ok(Value::Float(*a as f32 % b))
+                    Ok(Value::Float(Decimal::from(*a) % b))
                 }
             }
             (Value::Float(a), Value::Int(b)) => {
                 if *b == 0 {
                     Err(ValueError::DivisionByZero)
                 } else {
-                    Ok(Value::Float(a % *b as f32))
+                    Ok(Value::Float(a % Decimal::from(*b)))
                 }
             }
             _ => Err(ValueError::InvalidOperation {
@@ -486,8 +488,8 @@ impl Value {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(Value::bool(a < b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a < b)),
-            (Value::Int(a), Value::Float(b)) => Ok(Value::bool((*a as f32) < *b)),
-            (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a < (*b as f32))),
+            (Value::Int(a), Value::Float(b)) => Ok(Value::bool(Decimal::from(*a) < *b)),
+            (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a < Decimal::from(*b))),
             (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) < String::as_str(b))),
             _ => Err(ValueError::InvalidOperation {
                 operator: "<".to_string(),
@@ -501,8 +503,8 @@ impl Value {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(Value::bool(a <= b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a <= b)),
-            (Value::Int(a), Value::Float(b)) => Ok(Value::bool((*a as f32) <= *b)),
-            (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a <= (*b as f32))),
+            (Value::Int(a), Value::Float(b)) => Ok(Value::bool(Decimal::from(*a) <= *b)),
+            (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a <= Decimal::from(*b))),
             (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) <= String::as_str(b))),
             _ => Err(ValueError::InvalidOperation {
                 operator: "<=".to_string(),
@@ -516,8 +518,8 @@ impl Value {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(Value::bool(a > b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a > b)),
-            (Value::Int(a), Value::Float(b)) => Ok(Value::bool((*a as f32) > *b)),
-            (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a > (*b as f32))),
+            (Value::Int(a), Value::Float(b)) => Ok(Value::bool(Decimal::from(*a) > *b)),
+            (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a > Decimal::from(*b))),
             (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) > String::as_str(b))),
             _ => Err(ValueError::InvalidOperation {
                 operator: ">".to_string(),
@@ -531,8 +533,8 @@ impl Value {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => Ok(Value::bool(a >= b)),
             (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a >= b)),
-            (Value::Int(a), Value::Float(b)) => Ok(Value::bool((*a as f32) >= *b)),
-            (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a >= (*b as f32))),
+            (Value::Int(a), Value::Float(b)) => Ok(Value::bool(Decimal::from(*a) >= *b)),
+            (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a >= Decimal::from(*b))),
             (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) >= String::as_str(b))),
             _ => Err(ValueError::InvalidOperation {
                 operator: ">=".to_string(),
@@ -713,13 +715,22 @@ mod tests {
 
     #[test]
     fn test_float_operations() {
-        let a = Value::float(5.5);
+        let a = Value::float(Decimal::from_f32(5.5).unwrap());
         let b = Value::int(2);
 
-        assert_eq!(a.add(&b).unwrap().unwrap_value(), Value::float(7.5));
-        assert_eq!(a.subtract(&b).unwrap().unwrap_value(), Value::float(3.5));
-        assert_eq!(a.multiply(&b).unwrap().unwrap_value(), Value::float(11.0));
-        assert_eq!(a.divide(&b).unwrap(), Value::float(2.75));
+        assert_eq!(
+            a.add(&b).unwrap().unwrap_value(),
+            Value::float(Decimal::from_f32(7.5).unwrap())
+        );
+        assert_eq!(
+            a.subtract(&b).unwrap().unwrap_value(),
+            Value::float(Decimal::from_f32(3.5).unwrap())
+        );
+        assert_eq!(
+            a.multiply(&b).unwrap().unwrap_value(),
+            Value::float(Decimal::from_f32(11.0).unwrap())
+        );
+        assert_eq!(a.divide(&b).unwrap(), Value::float(Decimal::from_f32(2.75).unwrap()));
     }
 
     #[test]
@@ -757,12 +768,12 @@ mod tests {
     #[test]
     fn test_type_conversions() {
         let int_val = Value::int(42);
-        let float_val = Value::float(3.14);
+        let float_val = Value::float(Decimal::from_f32(3.14).unwrap());
 
-        assert_eq!(int_val.to_float(), Some(42.0));
+        assert_eq!(int_val.to_float(), Some(Decimal::from(42)));
         assert_eq!(float_val.to_int(), Some(3));
         assert_eq!(int_val.to_int(), Some(42));
-        assert_eq!(float_val.to_float(), Some(3.14));
+        assert_eq!(float_val.to_float(), Some(Decimal::from_f32(3.14).unwrap()));
     }
 
     #[test]
@@ -771,8 +782,8 @@ mod tests {
         assert!(!Value::bool(false).is_truthy());
         assert!(Value::int(1).is_truthy());
         assert!(!Value::int(0).is_truthy());
-        assert!(Value::float(1.0).is_truthy());
-        assert!(!Value::float(0.0).is_truthy());
+        assert!(Value::float(Decimal::from(1)).is_truthy());
+        assert!(!Value::float(Decimal::from(0)).is_truthy());
         assert!(Value::string("test".to_string()).is_truthy());
         assert!(!Value::string("".to_string()).is_truthy());
         assert!(!Value::null().is_truthy());

@@ -1,5 +1,6 @@
-use std::{char, num::ParseIntError};
+use std::{char, num::ParseIntError, str::FromStr};
 
+use rust_decimal::Decimal;
 use thiserror::Error;
 use tracing::debug;
 use winnow::{
@@ -15,6 +16,8 @@ pub enum TokenError {
     UnknownToken { token: char },
     #[error("parse int error")]
     Disconnect(#[from] ParseIntError),
+    #[error("parse decimal error")]
+    DecimalError(#[from] rust_decimal::Error),
     #[error("Parse error: {0}")]
     ParseError(String),
     #[error("unknown error")]
@@ -93,7 +96,7 @@ pub enum Token {
     /// int
     Int(i32),
     /// float
-    Float(f32),
+    Float(Decimal),
     /// bool
     Bool(bool),
     /// string
@@ -162,7 +165,7 @@ fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
             literal("-").value(Token::Operator(Operator::Subtract)),
             alt((
                 delimited(literal("\""), take_until(0.., "\""), literal("\"")),
-                delimited(literal("\'"), take_until(0.., "\'"), literal("\'")),
+                delimited(literal("'"), take_until(0.., "'"), literal("'")),
             ))
             .map(|s: &str| Token::String(s.to_string())),
             //
@@ -170,7 +173,7 @@ fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
             (digit1, literal("."), opt(digit1)).try_map(|(int_part, _, frac_part): (&str, _, Option<&str>)| {
                 let frac = frac_part.unwrap_or("0");
                 let float_str = format!("{}.{}", int_part, frac);
-                float_str.parse::<f32>().map(Token::Float)
+                Decimal::from_str(&float_str).map(Token::Float)
             }),
             // 整数解析
             digit1.try_map(|s: &str| s.parse::<i32>().map(Token::Int)),
@@ -208,8 +211,8 @@ mod tests {
         assert_matches!(parse_with_winnow("-a"), Ok(("a", Token::Operator(Operator::Subtract))));
         assert_matches!(parse_with_winnow("10a"), Ok(("a", Token::Int(10))));
         assert_matches!(parse_with_winnow("\"aaaa\""), Ok(("", Token::String(ref a))) if a == "aaaa");
-        assert_matches!(parse_with_winnow("\'aaaa\'"),Ok(("", Token::String(ref a))) if a == "aaaa");
-        assert_matches!(parse_with_winnow("\'\'"), Ok(("", Token::String(ref a))) if a.is_empty());
+        assert_matches!(parse_with_winnow("'aaaa'"),Ok(("", Token::String(ref a))) if a == "aaaa");
+        assert_matches!(parse_with_winnow("''"), Ok(("", Token::String(ref a))) if a.is_empty());
     }
 }
 

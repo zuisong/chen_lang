@@ -4,6 +4,8 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 use jiff::Timestamp;
+use rust_decimal::Decimal;
+use rust_decimal::prelude::*;
 use thiserror::Error;
 use tracing::debug;
 
@@ -843,7 +845,7 @@ fn create_array_prototype() -> Value {
 
 fn native_array_push(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if args.is_empty() {
-        return Err(ValueError::TypeMismatch {
+        Err(ValueError::TypeMismatch {
             expected: ValueType::Object,
             found: ValueType::Null,
             operation: "push".into(),
@@ -870,7 +872,7 @@ fn native_array_push(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
 
 fn native_array_pop(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if args.is_empty() {
-        return Err(ValueError::TypeMismatch {
+        Err(ValueError::TypeMismatch {
             expected: ValueType::Object,
             found: ValueType::Null,
             operation: "pop".into(),
@@ -1140,7 +1142,7 @@ fn json_to_chen(v: serde_json::Value) -> Value {
             if n.is_i64() {
                 Value::Int(n.as_i64().unwrap() as i32) // Truncate :S
             } else {
-                Value::Float(n.as_f64().unwrap() as f32)
+                Value::Float(Decimal::from_f64(n.as_f64().unwrap()).unwrap_or_default())
             }
         }
         serde_json::Value::String(s) => Value::string(s),
@@ -1175,7 +1177,7 @@ fn chen_to_json(v: &Value) -> serde_json::Value {
         Value::Null => serde_json::Value::Null,
         Value::Bool(b) => serde_json::Value::Bool(*b),
         Value::Int(i) => serde_json::Value::Number((*i).into()),
-        Value::Float(f) => serde_json::Number::from_f64(*f as f64)
+        Value::Float(f) => serde_json::Number::from_f64(f.to_f64().unwrap())
             .map(serde_json::Value::Number)
             .unwrap_or(serde_json::Value::Null),
         Value::String(s) => serde_json::Value::String(s.to_string()),
@@ -1269,7 +1271,7 @@ mod tests {
     #[test]
     fn test_float_operations() {
         let mut program = Program::default();
-        program.add_instruction(Instruction::Push(Value::float(3.5)));
+        program.add_instruction(Instruction::Push(Value::float(Decimal::from_str("3.5").unwrap())));
         program.add_instruction(Instruction::Push(Value::int(2)));
         program.add_instruction(Instruction::Add);
 
@@ -1277,7 +1279,7 @@ mod tests {
         let result = vm.execute(&program);
 
         match result {
-            Ok(value) => assert_eq!(value, Value::float(5.5)),
+            Ok(value) => assert_eq!(value, Value::float(Decimal::from_str("5.5").unwrap())),
             Err(_) => panic!("Expected success"),
         }
     }

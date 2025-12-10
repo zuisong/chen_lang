@@ -451,8 +451,8 @@ impl Parser {
 
     fn parse_unary(&mut self) -> Result<Expression, ParseError> {
         let start_line = self.line;
-        if let Some(Token::Operator(op)) = self.peek() {
-            if matches!(op, Operator::Not | Operator::Subtract) {
+        if let Some(Token::Operator(op)) = self.peek()
+            && matches!(op, Operator::Not | Operator::Subtract) {
                 let op = *op;
                 self.advance();
                 let right = self.parse_unary()?;
@@ -471,7 +471,6 @@ impl Parser {
                     }))
                 };
             }
-        }
         self.parse_postfix_expr()
     }
 
