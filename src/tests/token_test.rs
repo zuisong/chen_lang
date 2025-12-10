@@ -5,9 +5,7 @@ use crate::token::Keyword::DEF;
 use crate::token::Keyword::{ELSE, FOR, IF, LET};
 use crate::token::Operator::{Add, Assign, Equals, Lt, Mod};
 use crate::token::Operator::{NotEquals, Or, Subtract};
-use crate::token::Token::{
-    Identifier, Int, Keyword, LBig, LParen, NewLine, Operator, RBig, RParen, String,
-};
+use crate::token::Token::{Identifier, Int, Keyword, LBig, LParen, NewLine, Operator, RBig, RParen, String};
 
 #[test]
 fn test_parse_keyword() {
@@ -19,10 +17,7 @@ fn test_parse_keyword() {
 
 #[test]
 fn test_parse_for() {
-    assert_eq!(
-        token::tokenlizer("for".to_string()).unwrap(),
-        vec![Keyword(FOR)]
-    )
+    assert_eq!(token::tokenlizer("for".to_string()).unwrap(), vec![Keyword(FOR)])
 }
 
 #[test]

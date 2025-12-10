@@ -3,8 +3,8 @@
 use thiserror::Error;
 
 use crate::expression::{
-    Assign, Ast, BinaryOperation, Expression, FunctionCall, FunctionDeclaration, If, Literal,
-    Local, Loop, Return, Statement, Unary,
+    Assign, Ast, BinaryOperation, Expression, FunctionCall, FunctionDeclaration, If, Literal, Local, Loop, Return,
+    Statement, Unary,
 };
 use crate::token::Keyword;
 use crate::token::Operator;
@@ -52,8 +52,6 @@ impl Parser {
     fn peek(&self) -> Option<&Token> {
         self.tokens.get(self.current)
     }
-
-
 
     fn previous(&self) -> Option<&Token> {
         if self.current > 0 {
@@ -206,10 +204,7 @@ impl Parser {
             ));
         };
 
-        self.consume(
-            &Token::Operator(Operator::Assign),
-            "Expected '=' after variable name",
-        )?;
+        self.consume(&Token::Operator(Operator::Assign), "Expected '=' after variable name")?;
 
         let expr = self.parse_expression_logic()?;
 
@@ -393,10 +388,7 @@ impl Parser {
         let mut left = self.parse_term()?;
 
         while let Some(Token::Operator(op)) = self.peek() {
-            if matches!(
-                op,
-                Operator::Gt | Operator::GtE | Operator::Lt | Operator::LtE
-            ) {
+            if matches!(op, Operator::Gt | Operator::GtE | Operator::Lt | Operator::LtE) {
                 let op = *op;
                 self.advance();
                 let right = self.parse_term()?;
@@ -517,9 +509,7 @@ impl Parser {
                         line: self.line,
                     };
                 } else {
-                    return Err(ParseError::Message(
-                        "Expected identifier after '.'".to_string(),
-                    ));
+                    return Err(ParseError::Message("Expected identifier after '.'".to_string()));
                 }
             } else if self.match_token(&Token::LSquare) {
                 self.skip_newlines();
@@ -541,10 +531,7 @@ impl Parser {
     fn parse_primary(&mut self) -> Result<Expression, ParseError> {
         let start_line = self.line;
         self.skip_newlines();
-        let token = self
-            .advance()
-            .ok_or(ParseError::UnexpectedEndOfInput)?
-            .clone();
+        let token = self.advance().ok_or(ParseError::UnexpectedEndOfInput)?.clone();
 
         match token {
             Token::Int(i) => Ok(Expression::Literal(Literal::Value(Value::Int(i)), start_line)),

@@ -24,8 +24,7 @@ struct Args {
 }
 
 fn level_parser() -> impl Into<ValueParser> {
-    PossibleValuesParser::new(["ERROR", "WARN", "INFO", "DEBUG", "TRACE"])
-        .try_map(|s| s.parse::<Level>())
+    PossibleValuesParser::new(["ERROR", "WARN", "INFO", "DEBUG", "TRACE"]).try_map(|s| s.parse::<Level>())
 }
 
 #[derive(Parser, Debug, Clone)]

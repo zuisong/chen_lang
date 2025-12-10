@@ -65,10 +65,7 @@ fn parse_declaration(pair: Pair<Rule>) -> Statement {
         }
     }
 
-    Statement::Local(Local {
-        name,
-        expression: expr,
-    })
+    Statement::Local(Local { name, expression: expr })
 }
 
 fn parse_assignment(pair: Pair<Rule>) -> Statement {
@@ -157,11 +154,7 @@ fn build_function_declaration(pair: Pair<Rule>) -> FunctionDeclaration {
         }
     }
 
-    FunctionDeclaration {
-        name,
-        parameters,
-        body,
-    }
+    FunctionDeclaration { name, parameters, body }
 }
 
 fn parse_function_def(pair: Pair<Rule>) -> Statement {
@@ -313,12 +306,8 @@ fn parse_atom(pair: Pair<Rule>) -> Expression {
     // atom = { float | integer | bool | string | identifier | "(" ~ expression ~ ")" | if_expr | block | object_literal }
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
-        Rule::float => Expression::Literal(Literal::Value(Value::Float(
-            inner.as_str().parse().unwrap(),
-        ))),
-        Rule::integer => {
-            Expression::Literal(Literal::Value(Value::Int(inner.as_str().parse().unwrap())))
-        }
+        Rule::float => Expression::Literal(Literal::Value(Value::Float(inner.as_str().parse().unwrap()))),
+        Rule::integer => Expression::Literal(Literal::Value(Value::Int(inner.as_str().parse().unwrap()))),
         Rule::bool => Expression::Literal(Literal::Value(Value::Bool(inner.as_str() == "true"))),
         Rule::string => {
             let s = inner.as_str();

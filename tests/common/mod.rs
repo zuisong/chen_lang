@@ -10,11 +10,7 @@ pub fn run_chen_lang_code(code: &str) -> Result<String, Box<dyn std::error::Erro
     let test_file = temp_dir.path().join("test.ch");
     fs::write(&test_file, code)?;
 
-    let output = cmd
-        .arg("run")
-        .arg(&test_file)
-        .env("RUST_LOG", "off")
-        .output()?;
+    let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output()?;
 
     if !output.status.success() {
         return Err(format!(

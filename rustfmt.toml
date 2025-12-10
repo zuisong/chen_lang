@@ -3,3 +3,4 @@ reorder_imports = true
 group_imports = "StdExternalCrate"
 trailing_comma = "Vertical"
 trailing_semicolon = true
+max_width = 120

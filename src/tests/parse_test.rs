@@ -1,6 +1,4 @@
-use crate::{
-    parser,
-};
+use crate::parser;
 
 #[test]
 fn parse() {
@@ -25,7 +23,7 @@ fn parse() {
     assert!(res.is_ok());
     let statements = res.unwrap();
     assert!(!statements.is_empty());
-    
+
     // Detailed AST structure verification is covered by parser_comprehensive_test.rs
     // This test ensures that a larger block of code parses without error.
 }

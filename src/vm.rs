@@ -89,11 +89,7 @@ pub struct Program {
 #[derive(Debug)]
 pub enum VMResult {
     Ok(Value),
-    Error {
-        error: RuntimeError,
-        line: u32,
-        pc: usize,
-    },
+    Error { error: RuntimeError, line: u32, pc: usize },
 }
 
 /// 虚拟机实现
@@ -178,10 +174,7 @@ impl VM {
             self.pc += 1;
         }
 
-        debug!(
-            "Execution completed. PC: {}, Stack: {:?}",
-            self.pc, self.stack
-        );
+        debug!("Execution completed. PC: {}, Stack: {:?}", self.pc, self.stack);
 
         // 返回栈顶值或null
         let result = self.stack.pop().unwrap_or(Value::null());
@@ -189,11 +182,7 @@ impl VM {
     }
 
     /// 执行单条指令
-    fn execute_instruction(
-        &mut self,
-        instruction: &Instruction,
-        program: &Program,
-    ) -> Result<bool, RuntimeError> {
+    fn execute_instruction(&mut self, instruction: &Instruction, program: &Program) -> Result<bool, RuntimeError> {
         match instruction {
             Instruction::Push(value) => {
                 self.stack.push(value.clone());
@@ -206,13 +195,13 @@ impl VM {
                 };
 
                 // Pop count elements
-                let start_index =
-                    self.stack
-                        .len()
-                        .checked_sub(*count)
-                        .ok_or(RuntimeError::StackUnderflow(
-                            "Stack underflow during array creation".to_string(),
-                        ))?;
+                let start_index = self
+                    .stack
+                    .len()
+                    .checked_sub(*count)
+                    .ok_or(RuntimeError::StackUnderflow(
+                        "Stack underflow during array creation".to_string(),
+                    ))?;
 
                 for i in 0..*count {
                     // Stack: [..., e0, e1, e2]
@@ -534,9 +523,7 @@ impl VM {
                         // Try direct symbol lookup, then variable lookup
                         let target_symbol = if let Some(sym) = program.syms.get(&func_label) {
                             Some(sym)
-                        } else if let Some(Value::Function(real_name)) =
-                            self.variables.get(func_name)
-                        {
+                        } else if let Some(Value::Function(real_name)) = self.variables.get(func_name) {
                             let real_label = format!("func_{}", real_name);
                             program.syms.get(&real_label)
                         } else {
@@ -545,13 +532,14 @@ impl VM {
 
                         // Check for NativeFunction in variables
                         if target_symbol.is_none()
-                            && let Some(Value::NativeFunction(native_fn)) =
-                                self.variables.get(func_name)
+                            && let Some(Value::NativeFunction(native_fn)) = self.variables.get(func_name)
                         {
                             // Native Call logic
-                            let args_start = self.stack.len().checked_sub(*arg_count).ok_or(
-                                RuntimeError::StackUnderflow("Native call missing args".into()),
-                            )?;
+                            let args_start = self
+                                .stack
+                                .len()
+                                .checked_sub(*arg_count)
+                                .ok_or(RuntimeError::StackUnderflow("Native call missing args".into()))?;
                             let args: Vec<Value> = self.stack.drain(args_start..).collect();
                             let result = native_fn(args)?;
                             self.stack.push(result);
@@ -574,21 +562,14 @@ impl VM {
                             self.fp = self.stack.len() - *arg_count;
 
                             // 3. 为局部变量分配空间
-                            self.stack
-                                .resize(self.fp + target_symbol.nlocals, Value::null());
+                            self.stack.resize(self.fp + target_symbol.nlocals, Value::null());
 
                             // 4. 跳转到函数
                             self.pc = (target_symbol.location as usize) - 1;
                             Ok(true)
                         } else {
-                            debug!(
-                                "Function label {} not found in {:?}",
-                                func_label, program.syms
-                            );
-                            Err(RuntimeError::UndefinedVariable(format!(
-                                "function: {}",
-                                func_name
-                            )))
+                            debug!("Function label {} not found in {:?}", func_label, program.syms);
+                            Err(RuntimeError::UndefinedVariable(format!("function: {}", func_name)))
                         };
                     }
                 }
@@ -715,9 +696,11 @@ impl VM {
             Instruction::CallStack(arg_count) => {
                 // 1. Get function from stack (it's below args)
                 // Stack: [... func, arg1, ... argN]
-                let func_idx = self.stack.len().checked_sub(*arg_count + 1).ok_or(
-                    RuntimeError::StackUnderflow("CallStack: missing function".to_string()),
-                )?;
+                let func_idx = self
+                    .stack
+                    .len()
+                    .checked_sub(*arg_count + 1)
+                    .ok_or(RuntimeError::StackUnderflow("CallStack: missing function".to_string()))?;
 
                 let func_val = self.stack.remove(func_idx);
 
@@ -748,23 +731,21 @@ impl VM {
                             self.fp = self.stack.len() - *arg_count;
 
                             // 3. Allocate space for locals
-                            self.stack
-                                .resize(self.fp + target_symbol.nlocals, Value::null());
+                            self.stack.resize(self.fp + target_symbol.nlocals, Value::null());
 
                             // 4. Jump
                             self.pc = (target_symbol.location as usize) - 1;
                             Ok(true)
                         } else {
-                            Err(RuntimeError::UndefinedVariable(format!(
-                                "function: {}",
-                                func_name
-                            )))
+                            Err(RuntimeError::UndefinedVariable(format!("function: {}", func_name)))
                         }
                     }
                     Value::NativeFunction(native_fn) => {
-                        let start_index = self.stack.len().checked_sub(*arg_count).ok_or(
-                            RuntimeError::StackUnderflow("CallStack native: missing args".into()),
-                        )?;
+                        let start_index = self
+                            .stack
+                            .len()
+                            .checked_sub(*arg_count)
+                            .ok_or(RuntimeError::StackUnderflow("CallStack native: missing args".into()))?;
                         let args: Vec<Value> = self.stack.drain(start_index..).collect();
                         let result = native_fn(args)?;
                         self.stack.push(result);
@@ -844,11 +825,7 @@ fn native_array_push(args: Vec<Value>) -> Result<Value, RuntimeError> {
         // Since we are pushing to "Array", and we use IndexMap as dense vectorish thing:
         // Key is current len.
         let idx = table.data.len();
-        let val = if args.len() > 1 {
-            args[1].clone()
-        } else {
-            Value::Null
-        };
+        let val = if args.len() > 1 { args[1].clone() } else { Value::Null };
 
         table.data.insert(idx.to_string(), val);
         return Ok(Value::Int((idx + 1) as i32));
@@ -1004,10 +981,7 @@ fn create_date_object() -> Value {
     let table_rc = Rc::new(std::cell::RefCell::new(table));
     let val = Value::Object(table_rc.clone());
     // Class acts as prototype for instances
-    table_rc
-        .borrow_mut()
-        .data
-        .insert("__index".to_string(), val.clone());
+    table_rc.borrow_mut().data.insert("__index".to_string(), val.clone());
     val
 }
 
@@ -1033,10 +1007,7 @@ fn native_date_new(args: Vec<Value>) -> Result<Value, RuntimeError> {
     data.insert("__timestamp".to_string(), Value::string(ts.to_string()));
     data.insert("__type".to_string(), Value::string("Date".to_string()));
 
-    let table_rc = Rc::new(std::cell::RefCell::new(crate::value::Table {
-        data,
-        metatable: None,
-    }));
+    let table_rc = Rc::new(std::cell::RefCell::new(crate::value::Table { data, metatable: None }));
 
     // Set prototype
     if let Some(Value::Object(cls_rc)) = args.first() {
@@ -1111,12 +1082,11 @@ fn create_json_object() -> Value {
 fn native_json_parse(args: Vec<Value>) -> Result<Value, RuntimeError> {
     // args[0] is JSON object, args[1] is string
     if let Some(Value::String(s)) = args.get(1) {
-        let v: serde_json::Value =
-            serde_json::from_str(s).map_err(|_e| RuntimeError::InvalidOperation {
-                operator: "JSON.parse".into(),
-                left_type: ValueType::String,
-                right_type: ValueType::Null,
-            })?;
+        let v: serde_json::Value = serde_json::from_str(s).map_err(|_e| RuntimeError::InvalidOperation {
+            operator: "JSON.parse".into(),
+            left_type: ValueType::String,
+            right_type: ValueType::Null,
+        })?;
         return Ok(json_to_chen(v));
     }
     Ok(Value::Null)

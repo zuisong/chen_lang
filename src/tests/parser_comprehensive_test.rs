@@ -26,19 +26,20 @@ fn test_operator_precedence_mul_add() {
     if let Expression::BinaryOperation(bin_op) = expr {
         assert_eq!(bin_op.operator, Operator::Add);
         match (*bin_op.left, *bin_op.right) {
-            (
-                Expression::Literal(Literal::Value(Value::Int(1)), _),
-                Expression::BinaryOperation(right_op),
-            ) => {
+            (Expression::Literal(Literal::Value(Value::Int(1)), _), Expression::BinaryOperation(right_op)) => {
                 assert_eq!(right_op.operator, Operator::Multiply);
-                
+
                 // Check left operand (2)
                 if let Expression::Literal(Literal::Value(Value::Int(2)), _) = *right_op.left {
-                } else { panic!("Expected 2") }
+                } else {
+                    panic!("Expected 2")
+                }
 
                 // Check right operand (3)
-                 if let Expression::Literal(Literal::Value(Value::Int(3)), _) = *right_op.right {
-                } else { panic!("Expected 3") }
+                if let Expression::Literal(Literal::Value(Value::Int(3)), _) = *right_op.right {
+                } else {
+                    panic!("Expected 3")
+                }
             }
             _ => panic!("AST structure incorrect for 1 + 2 * 3"),
         }
@@ -55,16 +56,17 @@ fn test_operator_precedence_paren() {
     if let Expression::BinaryOperation(bin_op) = expr {
         assert_eq!(bin_op.operator, Operator::Multiply);
         match (*bin_op.left, *bin_op.right) {
-            (
-                Expression::BinaryOperation(left_op),
-                Expression::Literal(Literal::Value(Value::Int(3)), _),
-            ) => {
+            (Expression::BinaryOperation(left_op), Expression::Literal(Literal::Value(Value::Int(3)), _)) => {
                 assert_eq!(left_op.operator, Operator::Add);
-                 if let Expression::Literal(Literal::Value(Value::Int(1)), _) = *left_op.left {
-                } else { panic!("Expected 1") }
+                if let Expression::Literal(Literal::Value(Value::Int(1)), _) = *left_op.left {
+                } else {
+                    panic!("Expected 1")
+                }
 
-                 if let Expression::Literal(Literal::Value(Value::Int(2)), _) = *left_op.right {
-                } else { panic!("Expected 2") }
+                if let Expression::Literal(Literal::Value(Value::Int(2)), _) = *left_op.right {
+                } else {
+                    panic!("Expected 2")
+                }
             }
             _ => panic!("AST structure incorrect for (1 + 2) * 3"),
         }

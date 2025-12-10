@@ -150,10 +150,7 @@ impl<'a> Compiler<'a> {
         match stmt {
             Statement::FunctionDeclaration(fd) => {
                 let line = fd.line;
-                let func_name = fd
-                    .name
-                    .clone()
-                    .expect("Statement function must have a name");
+                let func_name = fd.name.clone().expect("Statement function must have a name");
                 let unique_id = self.program.instructions.len();
                 let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
 
@@ -171,14 +168,9 @@ impl<'a> Compiler<'a> {
                 );
 
                 let var_location = self.define_variable(func_name.clone());
-                self.emit(
-                    Instruction::Push(crate::value::Value::Function(func_name)),
-                    line,
-                );
+                self.emit(Instruction::Push(crate::value::Value::Function(func_name)), line);
                 match var_location {
-                    VarLocation::Local(offset) => {
-                        self.emit(Instruction::MovePlusFP(offset as usize), line)
-                    }
+                    VarLocation::Local(offset) => self.emit(Instruction::MovePlusFP(offset as usize), line),
                     VarLocation::Global(name) => self.emit(Instruction::Store(name), line),
                 }
             }
@@ -293,19 +285,11 @@ impl<'a> Compiler<'a> {
                 }
                 self.emit(Instruction::BuildArray(count), line);
             }
-            Expression::GetField {
-                object,
-                field,
-                line,
-            } => {
+            Expression::GetField { object, field, line } => {
                 self.compile_expression(*object);
                 self.emit(Instruction::GetField(field), line);
             }
-            Expression::Index {
-                object,
-                index,
-                line,
-            } => {
+            Expression::Index { object, index, line } => {
                 self.compile_expression(*object);
                 self.compile_expression(*index);
                 self.emit(Instruction::GetIndex, line);
@@ -333,10 +317,7 @@ impl<'a> Compiler<'a> {
                     },
                 );
 
-                self.emit(
-                    Instruction::Push(crate::value::Value::Function(func_name)),
-                    line,
-                );
+                self.emit(Instruction::Push(crate::value::Value::Function(func_name)), line);
             }
         }
     }
@@ -389,9 +370,7 @@ impl<'a> Compiler<'a> {
     fn compile_assign(&mut self, assign: Assign) {
         let line = assign.line;
         self.compile_expression(*assign.expr);
-        let var_location = self
-            .resolve_variable(&assign.name)
-            .expect("Undefined variable");
+        let var_location = self.resolve_variable(&assign.name).expect("Undefined variable");
 
         match var_location {
             VarLocation::Local(offset) => {
@@ -526,10 +505,7 @@ impl<'a> Compiler<'a> {
         self.emit(Instruction::Return, line); // Safety?
 
         self.program.syms.insert(
-            format!(
-                "func_{}",
-                fd.name.as_ref().expect("Function must have a name")
-            ),
+            format!("func_{}", fd.name.as_ref().expect("Function must have a name")),
             Symbol {
                 location: function_index,
                 nlocals,

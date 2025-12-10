@@ -167,13 +167,11 @@ fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
             .map(|s: &str| Token::String(s.to_string())),
             //
             // 浮点数解析（必须在整数之前，因为更具体）
-            (digit1, literal("."), opt(digit1)).try_map(
-                |(int_part, _, frac_part): (&str, _, Option<&str>)| {
-                    let frac = frac_part.unwrap_or("0");
-                    let float_str = format!("{}.{}", int_part, frac);
-                    float_str.parse::<f32>().map(Token::Float)
-                },
-            ),
+            (digit1, literal("."), opt(digit1)).try_map(|(int_part, _, frac_part): (&str, _, Option<&str>)| {
+                let frac = frac_part.unwrap_or("0");
+                let float_str = format!("{}.{}", int_part, frac);
+                float_str.parse::<f32>().map(Token::Float)
+            }),
             // 整数解析
             digit1.try_map(|s: &str| s.parse::<i32>().map(Token::Int)),
             take_while(1.., |c: char| c.is_alphanumeric() || c == '_').map(|arr: &str| {
@@ -206,14 +204,8 @@ mod tests {
 
     #[test]
     fn test() {
-        assert_matches!(
-            parse_with_winnow("-1"),
-            Ok(("1", Token::Operator(Operator::Subtract)))
-        );
-        assert_matches!(
-            parse_with_winnow("-a"),
-            Ok(("a", Token::Operator(Operator::Subtract)))
-        );
+        assert_matches!(parse_with_winnow("-1"), Ok(("1", Token::Operator(Operator::Subtract))));
+        assert_matches!(parse_with_winnow("-a"), Ok(("a", Token::Operator(Operator::Subtract))));
         assert_matches!(parse_with_winnow("10a"), Ok(("a", Token::Int(10))));
         assert_matches!(parse_with_winnow("\"aaaa\""), Ok(("", Token::String(ref a))) if a == "aaaa");
         assert_matches!(parse_with_winnow("\'aaaa\'"),Ok(("", Token::String(ref a))) if a == "aaaa");
@@ -276,20 +268,14 @@ fn parse_token(input: &str, loc: &Location) -> Result<(Token, Location), TokenEr
                 l = l.incr();
             }
 
-            let s: String = chars
-                .iter()
-                .skip(loc.index)
-                .take(l.index - loc.index)
-                .collect();
+            let s: String = chars.iter().skip(loc.index).take(l.index - loc.index).collect();
 
             (Token::Int(s.parse()?), l)
         }
 
         _ if cur.is_ascii_alphabetic() => {
             let mut l = loc.incr();
-            while l.index < chars.len()
-                && matches!(chars[l.index], 'A'..='Z' | 'a'..='z' | '0'..='9')
-            {
+            while l.index < chars.len() && matches!(chars[l.index], 'A'..='Z' | 'a'..='z' | '0'..='9') {
                 l = l.incr();
             }
 
@@ -324,8 +310,7 @@ pub fn tokenlizer(code: String) -> Result<Vec<Token>, TokenError> {
 
     loop {
         debug!(?input);
-        let (remain_input, token) =
-            parse_with_winnow(input).map_err(|e| TokenError::ParseError(e.to_string()))?;
+        let (remain_input, token) = parse_with_winnow(input).map_err(|e| TokenError::ParseError(e.to_string()))?;
         if !matches!(token, Token::Comment | Token::Space) {
             tokens.push(token);
         }

@@ -228,9 +228,7 @@ impl ValueType {
     /// 获取两个类型的公共类型（用于类型提升）
     pub fn get_common_type(&self, other: &Self) -> Option<Self> {
         match (self, other) {
-            (ValueType::Int, ValueType::Float) | (ValueType::Float, ValueType::Int) => {
-                Some(ValueType::Float)
-            }
+            (ValueType::Int, ValueType::Float) | (ValueType::Float, ValueType::Int) => Some(ValueType::Float),
             (a, b) if a == b => Some(*a),
             _ => None,
         }
@@ -278,11 +276,7 @@ impl fmt::Display for RuntimeError {
                 left_type,
                 right_type,
             } => {
-                write!(
-                    f,
-                    "Invalid operation: {:?} {} {:?}",
-                    left_type, operator, right_type
-                )
+                write!(f, "Invalid operation: {:?} {} {:?}", left_type, operator, right_type)
             }
             RuntimeError::StackUnderflow(msg) => write!(f, "Stack underflow: {}", msg),
             RuntimeError::IndexOutOfBounds => write!(f, "Index out of bounds"),
@@ -522,9 +516,7 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a < b)),
             (Value::Int(a), Value::Float(b)) => Ok(Value::bool((*a as f32) < *b)),
             (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a < (*b as f32))),
-            (Value::String(a), Value::String(b)) => {
-                Ok(Value::bool(String::as_str(a) < String::as_str(b)))
-            }
+            (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) < String::as_str(b))),
             _ => Err(RuntimeError::InvalidOperation {
                 operator: "<".to_string(),
                 left_type: self.get_type(),
@@ -539,9 +531,7 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a <= b)),
             (Value::Int(a), Value::Float(b)) => Ok(Value::bool((*a as f32) <= *b)),
             (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a <= (*b as f32))),
-            (Value::String(a), Value::String(b)) => {
-                Ok(Value::bool(String::as_str(a) <= String::as_str(b)))
-            }
+            (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) <= String::as_str(b))),
             _ => Err(RuntimeError::InvalidOperation {
                 operator: "<=".to_string(),
                 left_type: self.get_type(),
@@ -556,9 +546,7 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a > b)),
             (Value::Int(a), Value::Float(b)) => Ok(Value::bool((*a as f32) > *b)),
             (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a > (*b as f32))),
-            (Value::String(a), Value::String(b)) => {
-                Ok(Value::bool(String::as_str(a) > String::as_str(b)))
-            }
+            (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) > String::as_str(b))),
             _ => Err(RuntimeError::InvalidOperation {
                 operator: ">".to_string(),
                 left_type: self.get_type(),
@@ -573,9 +561,7 @@ impl Value {
             (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a >= b)),
             (Value::Int(a), Value::Float(b)) => Ok(Value::bool((*a as f32) >= *b)),
             (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a >= (*b as f32))),
-            (Value::String(a), Value::String(b)) => {
-                Ok(Value::bool(String::as_str(a) >= String::as_str(b)))
-            }
+            (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) >= String::as_str(b))),
             _ => Err(RuntimeError::InvalidOperation {
                 operator: ">=".to_string(),
                 left_type: self.get_type(),
@@ -614,9 +600,7 @@ impl Value {
                         let metatable = metatable_ref.borrow();
                         if let Some(metamethod_val) = metatable.data.get(metamethod_name) {
                             return match metamethod_val {
-                                Value::Function(_) | Value::NativeFunction(_) => {
-                                    Some(metamethod_val.clone())
-                                }
+                                Value::Function(_) | Value::NativeFunction(_) => Some(metamethod_val.clone()),
                                 _ => {
                                     // Found a value, but it's not a function, treat as not found
                                     None
@@ -653,8 +637,7 @@ impl Value {
                         match index_method {
                             // If __index is a table, recursively look up the key
                             Value::Object(index_table_ref) => {
-                                return Value::Object(index_table_ref.clone())
-                                    .get_field_with_meta(key);
+                                return Value::Object(index_table_ref.clone()).get_field_with_meta(key);
                             }
                             Value::Function(_) => {
                                 // TODO: If __index is a function, call it (future feature)

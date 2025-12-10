@@ -84,11 +84,7 @@ println(obj.name)
 println(obj.age)"#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(
-            result.is_ok(),
-            "Execution should succeed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
 
         let output = result.unwrap();
         assert!(output.contains("Chen"), "Output should contain 'Chen'");
@@ -103,17 +99,10 @@ obj.city = "Shanghai"
 println(obj.city)"#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(
-            result.is_ok(),
-            "Execution should succeed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
 
         let output = result.unwrap();
-        assert!(
-            output.contains("Shanghai"),
-            "Output should contain 'Shanghai'"
-        );
+        assert!(output.contains("Shanghai"), "Output should contain 'Shanghai'");
     }
 
     /// 测试索引访问
@@ -124,11 +113,7 @@ obj["country"] = "China"
 println(obj["country"])"#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(
-            result.is_ok(),
-            "Execution should succeed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
 
         let output = result.unwrap();
         assert!(output.contains("China"), "Output should contain 'China'");
@@ -141,17 +126,10 @@ println(obj["country"])"#;
 println(person.address.city)"#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(
-            result.is_ok(),
-            "Execution should succeed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
 
         let output = result.unwrap();
-        assert!(
-            output.contains("Beijing"),
-            "Output should contain 'Beijing'"
-        );
+        assert!(output.contains("Beijing"), "Output should contain 'Beijing'");
     }
 
     /// 测试 Metatable 原型继承
@@ -172,18 +150,11 @@ println(dog.speak)
 println(dog.legs)"#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(
-            result.is_ok(),
-            "Execution should succeed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
 
         let output = result.unwrap();
         assert!(output.contains("Buddy"), "Output should contain 'Buddy'");
-        assert!(
-            output.contains("Some sound"),
-            "Output should contain 'Some sound'"
-        );
+        assert!(output.contains("Some sound"), "Output should contain 'Some sound'");
         assert!(output.contains("4"), "Output should contain '4'");
     }
 
@@ -196,11 +167,7 @@ set_meta(obj, proto)
 println(obj.greet)"#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(
-            result.is_ok(),
-            "Execution should succeed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
 
         let output = result.unwrap();
         assert!(output.contains("Hello"), "Output should contain 'Hello'");
@@ -215,11 +182,7 @@ set_meta(obj, proto)
 println(obj.value)"#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(
-            result.is_ok(),
-            "Execution should succeed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
 
         let output = result.unwrap();
         // Should use direct field (10) not metatable field (100)
@@ -239,18 +202,11 @@ obj2.value = 20
 println(obj1.value)"#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(
-            result.is_ok(),
-            "Execution should succeed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
 
         let output = result.unwrap();
         // obj1 and obj2 share the same reference, so modifying obj2 affects obj1
-        assert!(
-            output.contains("20"),
-            "Output should contain '20' (shared reference)"
-        );
+        assert!(output.contains("20"), "Output should contain '20' (shared reference)");
     }
 
     /// 测试动态添加字段
@@ -264,19 +220,12 @@ println(person.age)
 println(person.city)"#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(
-            result.is_ok(),
-            "Execution should succeed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
 
         let output = result.unwrap();
         assert!(output.contains("Grace"), "Output should contain 'Grace'");
         assert!(output.contains("28"), "Output should contain '28'");
-        assert!(
-            output.contains("Shanghai"),
-            "Output should contain 'Shanghai'"
-        );
+        assert!(output.contains("Shanghai"), "Output should contain 'Shanghai'");
     }
 
     /// 测试对象相等性（引用比较）
@@ -292,11 +241,7 @@ println(person.city)"#;
         "#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(
-            result.is_ok(),
-            "Execution should succeed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
 
         let output = result.unwrap();
         let lines: Vec<&str> = output.trim().lines().collect();
@@ -354,18 +299,11 @@ println(person.city)"#;
         "#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(
-            result.is_ok(),
-            "Execution should succeed: {:?}",
-            result.err()
-        );
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
 
         let output = result.unwrap();
         assert!(output.contains("Age: 50"), "Should find field in parent");
-        assert!(
-            output.contains("Name: Grandpa"),
-            "Should find field in grandparent"
-        );
+        assert!(output.contains("Name: Grandpa"), "Should find field in grandparent");
     }
 
     /// 测试 get_meta 和清除 meta
