@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::rc::Rc;
 
 use indexmap::IndexMap;
+use thiserror::Error;
 
 /// Table 结构，用于实现对象和 Map
 #[derive(Debug, Clone, PartialEq)]
@@ -236,60 +237,33 @@ impl ValueType {
 }
 
 /// 运算错误类型
-#[derive(Debug, Clone)]
+#[derive(Error, Debug, Clone)]
 pub enum RuntimeError {
+    #[error("Type mismatch in {operation}: expected {expected:?}, found {found:?}")]
     TypeMismatch {
         expected: ValueType,
         found: ValueType,
         operation: String,
     },
+    #[error("Division by zero")]
     DivisionByZero,
+    #[error("Invalid operation: {left_type:?} {operator} {right_type:?}")]
     InvalidOperation {
         operator: String,
         left_type: ValueType,
         right_type: ValueType,
     },
+    #[error("Index out of bounds")]
     IndexOutOfBounds,
+    #[error("Undefined variable: {0}")]
     UndefinedVariable(String),
+    #[error("Undefined field: {0}")]
     UndefinedField(String),
+    #[error("Attempt to call non-function value: {0:?}")]
     CallNonFunction(ValueType),
+    #[error("Stack underflow: {0}")]
     StackUnderflow(String),
 }
-
-impl fmt::Display for RuntimeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            RuntimeError::TypeMismatch {
-                expected,
-                found,
-                operation,
-            } => {
-                write!(
-                    f,
-                    "Type mismatch in {}: expected {:?}, found {:?}",
-                    operation, expected, found
-                )
-            }
-            RuntimeError::DivisionByZero => write!(f, "Division by zero"),
-            RuntimeError::InvalidOperation {
-                operator,
-                left_type,
-                right_type,
-            } => {
-                write!(f, "Invalid operation: {:?} {} {:?}", left_type, operator, right_type)
-            }
-            RuntimeError::StackUnderflow(msg) => write!(f, "Stack underflow: {}", msg),
-            RuntimeError::IndexOutOfBounds => write!(f, "Index out of bounds"),
-            RuntimeError::UndefinedVariable(name) => write!(f, "Undefined variable: {}", name),
-            RuntimeError::UndefinedField(name) => write!(f, "Undefined field: {}", name),
-            RuntimeError::CallNonFunction(t) => {
-                write!(f, "Attempt to call non-function value: {:?}", t)
-            }
-        }
-    }
-}
-
-impl std::error::Error for RuntimeError {}
 
 /// 表示算术操作的结果，可以是直接的 Value，也可以是需要调用元方法的指示
 #[derive(Debug, Clone)]
