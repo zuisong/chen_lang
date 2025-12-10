@@ -1,6 +1,6 @@
 use std::{
     fs::OpenOptions,
-    io::{self, Read},
+    io::{self, Read, Write},
 };
 
 use clap::{
@@ -39,6 +39,8 @@ enum SubCommand {
         ///要执行的源代码文件
         code_file: String,
     },
+    /// Start REPL
+    Repl,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -60,9 +62,94 @@ fn main() -> anyhow::Result<()> {
         Some(command) => match command {
             SubCommand::Completions { shell } => print_completions(shell, &mut Args::command()),
             SubCommand::Run { code_file } => run_file(code_file)?,
+            SubCommand::Repl => repl()?,
         },
     }
 
+    Ok(())
+}
+
+fn repl() -> anyhow::Result<()> {
+    println!("Chen Lang REPL v0.1.0");
+    println!("Type 'exit' or 'quit' to exit.");
+
+    let mut vm = chen_lang::vm::VM::new();
+    let mut global_program = chen_lang::vm::Program::default();
+
+    // We need to keep track of total instructions for offset
+    let mut offset = 0;
+
+    let stdin = std::io::stdin();
+    let mut stdout = std::io::stdout();
+    let mut input = String::new();
+
+    loop {
+        print!("> ");
+        stdout.flush()?;
+        input.clear();
+        if stdin.read_line(&mut input)? == 0 {
+            break; // EOF
+        }
+
+        debug!("REPL input: {:?}", input);
+
+        let trimmed = input.trim();
+        if trimmed == "exit" || trimmed == "quit" {
+            break;
+        }
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        // Parse
+        match chen_lang::parser::parse_from_source(&input) {
+            Ok(ast) => {
+                // Compile
+                let chars: Vec<char> = input.chars().collect();
+                let mut new_program = chen_lang::compiler::compile_with_offset(&chars, ast, offset);
+
+                // Hack: If the last instruction is Pop, remove it to print the result
+                if let Some(chen_lang::vm::Instruction::Pop) = new_program.instructions.last() {
+                    new_program.instructions.pop();
+                }
+
+                let start_pc = global_program.instructions.len();
+
+                // Adjust symbol locations
+                for sym in new_program.syms.values_mut() {
+                    sym.location += start_pc as i32;
+                }
+
+                // Adjust lines
+                for (idx, line) in new_program.lines {
+                    global_program.lines.insert(idx + start_pc, line);
+                }
+
+                // Merge instructions
+                global_program.instructions.append(&mut new_program.instructions);
+
+                // Merge symbols
+                global_program.syms.extend(new_program.syms);
+
+                // Execute
+                match vm.execute_from(&global_program, start_pc) {
+                    Ok(value) => {
+                        if value != chen_lang::value::Value::Null {
+                            println!("{}", value);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Runtime Error: {}", e);
+                    }
+                }
+
+                offset = global_program.instructions.len();
+            }
+            Err(e) => {
+                eprintln!("Parse Error: {}", e);
+            }
+        }
+    }
     Ok(())
 }
 

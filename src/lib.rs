@@ -15,11 +15,10 @@ use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::files::SimpleFiles;
 use codespan_reporting::term::{Config, emit_into_string};
 use thiserror::Error;
-use tracing::debug;
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
-use crate::vm::{RuntimeErrorWithContext, VMRuntimeError}; // Add this import
+use crate::vm::RuntimeErrorWithContext;
 
 #[derive(Clone)]
 struct SharedWriter(Arc<Mutex<Vec<u8>>>);

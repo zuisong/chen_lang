@@ -31,6 +31,7 @@ struct Compiler<'a> {
     scopes: Vec<Scope>,
     locals_count: usize, // For current function's local stack frame
     loop_stack: Vec<LoopLabels>,
+    offset: usize,
 }
 
 struct LoopLabels {
@@ -40,13 +41,19 @@ struct LoopLabels {
 
 // The main entry point for compilation.
 pub fn compile(raw: &[char], ast: Ast) -> Program {
-    let mut compiler = Compiler::new(raw);
+    let mut compiler = Compiler::new(raw, 0);
+    compiler.compile_program(ast);
+    compiler.program
+}
+
+pub fn compile_with_offset(raw: &[char], ast: Ast, offset: usize) -> Program {
+    let mut compiler = Compiler::new(raw, offset);
     compiler.compile_program(ast);
     compiler.program
 }
 
 impl<'a> Compiler<'a> {
-    fn new(raw: &'a [char]) -> Self {
+    fn new(raw: &'a [char], offset: usize) -> Self {
         // Start with one global scope.
         let scopes = vec![Scope::new(true)];
 
@@ -56,7 +63,12 @@ impl<'a> Compiler<'a> {
             scopes,
             locals_count: 0,
             loop_stack: Vec::new(),
+            offset,
         }
+    }
+
+    fn unique_id(&self) -> usize {
+        self.offset + self.program.instructions.len()
     }
 
     // --- Scope Management ---
@@ -151,7 +163,7 @@ impl<'a> Compiler<'a> {
             Statement::FunctionDeclaration(fd) => {
                 let line = fd.line;
                 let func_name = fd.name.clone().expect("Statement function must have a name");
-                let unique_id = self.program.instructions.len();
+                let unique_id = self.unique_id();
                 let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
 
                 self.emit(Instruction::Jump(skip_label.clone()), line);
@@ -296,13 +308,10 @@ impl<'a> Compiler<'a> {
             }
             Expression::Function(mut fd) => {
                 let line = fd.line;
-                let func_name = fd
-                    .name
-                    .take()
-                    .unwrap_or_else(|| format!("anon_{}", self.program.instructions.len()));
+                let func_name = fd.name.take().unwrap_or_else(|| format!("anon_{}", self.unique_id()));
                 fd.name = Some(func_name.clone());
 
-                let unique_id = self.program.instructions.len();
+                let unique_id = self.unique_id();
                 let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
 
                 self.emit(Instruction::Jump(skip_label.clone()), line);
@@ -518,7 +527,7 @@ impl<'a> Compiler<'a> {
         let line = if_stmt.line;
         self.compile_expression(*if_stmt.test);
 
-        let unique_id = self.program.instructions.len();
+        let unique_id = self.unique_id();
         let else_label = format!("else_{}", unique_id);
         let end_label = format!("end_{}", unique_id);
 
@@ -555,8 +564,9 @@ impl<'a> Compiler<'a> {
 
     fn compile_loop(&mut self, loop_: Loop) {
         let line = loop_.line;
-        let loop_start = format!("loop_start_{}", self.program.instructions.len());
-        let loop_end = format!("loop_end_{}", self.program.instructions.len());
+        let unique_id = self.unique_id();
+        let loop_start = format!("loop_start_{}", unique_id);
+        let loop_end = format!("loop_end_{}", unique_id);
 
         self.program.syms.insert(
             loop_start.clone(),

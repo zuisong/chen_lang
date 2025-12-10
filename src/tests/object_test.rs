@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod object_tests {
     use pretty_assertions::assert_matches;
+
     use crate::value::Value;
     use crate::vm::{Instruction, Program, VM};
 

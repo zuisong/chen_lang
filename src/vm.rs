@@ -1,4 +1,4 @@
-use std::fmt::{Display, Formatter, Pointer};
+use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::rc::Rc;
 
@@ -171,7 +171,12 @@ impl VM {
 
     /// 执行程序
     pub fn execute(&mut self, program: &Program) -> VMResult {
-        self.pc = 0;
+        self.execute_from(program, 0)
+    }
+
+    /// 从指定PC开始执行程序
+    pub fn execute_from(&mut self, program: &Program, start_pc: usize) -> VMResult {
+        self.pc = start_pc;
 
         while self.pc < program.instructions.len() {
             let instruction = &program.instructions[self.pc];
