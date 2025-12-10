@@ -10,6 +10,11 @@ use rust_decimal::prelude::*;
 use thiserror::Error;
 use tracing::debug;
 
+mod native_array_prototype;
+mod native_date;
+mod native_json;
+mod native_string_prototype;
+
 use crate::value::{NativeFnType, Value, ValueError, ValueType};
 
 #[derive(Debug, Clone)]
@@ -137,8 +142,9 @@ impl Default for VM {
     }
 }
 
-use native_json::create_json_object;
 use native_date::create_date_object;
+use native_json::create_json_object;
+
 use crate::vm::native_array_prototype::create_array_prototype;
 use crate::vm::native_string_prototype::create_string_prototype;
 
@@ -893,17 +899,6 @@ impl VM {
     }
 }
 
-
-mod native_array_prototype;
-
-
-mod native_string_prototype;
-
-
-mod native_date;
-
-mod native_json;
-
 impl Program {
     /// 添加指令
     pub fn add_instruction(&mut self, instruction: Instruction) {
@@ -913,4 +908,3 @@ impl Program {
 
 #[cfg(test)]
 mod tests;
-

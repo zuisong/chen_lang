@@ -1,6 +1,5 @@
 use super::*;
 
-
 pub fn create_array_prototype() -> Value {
     use native_array_prototype::*;
     let mut table = crate::value::Table {
