@@ -190,5 +190,3 @@ fn test_metatable_multiply_symmetric_lookup() {
     assert!(output.contains("30")); // 10 * 3 = 30
     assert!(output.contains("100")); // 20 * 5 = 100
 }
-
-

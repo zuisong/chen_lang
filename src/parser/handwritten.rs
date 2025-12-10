@@ -2,11 +2,14 @@
 
 use thiserror::Error;
 
+use crate::expression::{
+    Assign, Ast, BinaryOperation, Expression, FunctionCall, FunctionDeclaration, If, Literal,
+    Local, Loop, Return, Statement, Unary,
+};
 use crate::token::Keyword;
 use crate::token::Operator;
 use crate::token::Token;
 use crate::value::Value;
-use crate::*;
 
 #[derive(Error, Debug)]
 /// 语法分析错误
@@ -206,29 +209,23 @@ impl Parser {
         // Check if it is an assignment
         if self.match_token(&Token::Operator(Operator::Assign)) {
             let value = self.parse_expression_logic()?;
-            match expr {
-                Expression::Identifier(name) => {
-                    return Ok(Statement::Assign(Assign {
-                        name,
-                        expr: Box::new(value),
-                    }));
-                }
-                Expression::GetField { object, field } => {
-                    return Ok(Statement::SetField {
-                        object: *object,
-                        field,
-                        value,
-                    });
-                }
-                Expression::Index { object, index } => {
-                    return Ok(Statement::SetIndex {
-                        object: *object,
-                        index: *index,
-                        value,
-                    });
-                }
-                _ => return Err(ParseError::Message("Invalid assignment target".to_string())),
-            }
+            return match expr {
+                Expression::Identifier(name) => Ok(Statement::Assign(Assign {
+                    name,
+                    expr: Box::new(value),
+                })),
+                Expression::GetField { object, field } => Ok(Statement::SetField {
+                    object: *object,
+                    field,
+                    value,
+                }),
+                Expression::Index { object, index } => Ok(Statement::SetIndex {
+                    object: *object,
+                    index: *index,
+                    value,
+                }),
+                _ => Err(ParseError::Message("Invalid assignment target".to_string())),
+            };
         }
 
         Ok(Statement::Expression(expr))
@@ -501,19 +498,19 @@ impl Parser {
                 let op = *op;
                 self.advance();
                 let right = self.parse_unary()?;
-                if op == Operator::Not {
-                    return Ok(Expression::Unary(Unary {
+                return if op == Operator::Not {
+                    Ok(Expression::Unary(Unary {
                         operator: Operator::Not,
                         expr: Box::new(right),
-                    }));
+                    }))
                 } else {
                     // Unary minus is 0 - expr
-                    return Ok(Expression::BinaryOperation(BinaryOperation {
+                    Ok(Expression::BinaryOperation(BinaryOperation {
                         left: Box::new(Expression::Literal(Literal::Value(Value::Int(0)))),
                         operator: Operator::Subtract,
                         right: Box::new(right),
-                    }));
-                }
+                    }))
+                };
             }
         }
         self.parse_postfix_expr()

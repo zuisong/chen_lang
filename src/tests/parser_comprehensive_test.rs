@@ -4,7 +4,7 @@ use crate::token::Operator;
 use crate::value::Value;
 
 // Helper to parse a string into statements
-fn parse_code(code: &str) -> Result<Vec<Statement>, crate::parser::ParserError> {
+fn parse_code(code: &str) -> Result<Vec<Statement>, parser::ParserError> {
     parser::parse_from_source(code)
 }
 

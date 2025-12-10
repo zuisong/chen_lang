@@ -11,7 +11,7 @@ struct Scope {
 }
 
 enum VarLocation {
-    Local(i32),  // Offset from FP
+    Local(i32),     // Offset from FP
     Global(String), // Global variable name
 }
 
@@ -88,7 +88,7 @@ impl<'a> Compiler<'a> {
 
     // Resolves a variable by searching from the innermost to outermost scope.
     fn resolve_variable(&self, name: &str) -> Option<VarLocation> {
-        for (i, scope) in self.scopes.iter().rev().enumerate() {
+        for scope in self.scopes.iter().rev() {
             if let Some(index) = scope.locals.get(name) {
                 // If found in a local scope
                 return Some(VarLocation::Local(*index));
@@ -180,10 +180,9 @@ impl<'a> Compiler<'a> {
                         .program
                         .instructions
                         .push(Instruction::MovePlusFP(offset as usize)),
-                    VarLocation::Global(name) => self
-                        .program
-                        .instructions
-                        .push(Instruction::Store(name)),
+                    VarLocation::Global(name) => {
+                        self.program.instructions.push(Instruction::Store(name))
+                    }
                 }
             }
             Statement::Return(r) => self.compile_return(r),

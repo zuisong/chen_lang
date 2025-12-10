@@ -600,41 +600,41 @@ impl Value {
     }
 }
 
-    /// Metatable support methods
+/// Metatable support methods
 impl Value {
-        /// Recursively search for a metamethod in the object's metatable chain.
-        /// Returns the metamethod Value if found, otherwise None.
-            pub fn get_metamethod_from_object(&self, metamethod_name: &str) -> Option<Value> {
-                let mut current_obj_owned = self.clone(); // Own the Value directly
-                loop {
-                    match current_obj_owned {
-                        Value::Object(table_ref) => {
-                            let table = table_ref.borrow();
-                            if let Some(metatable_ref) = &table.metatable {
-                                let metatable = metatable_ref.borrow();
-                                if let Some(metamethod_val) = metatable.data.get(metamethod_name) {
-                                    match metamethod_val {
-                                        Value::Function(_) | Value::NativeFunction(_) => {
-                                            return Some(metamethod_val.clone());
-                                        }
-                                        _ => {
-                                            // Found a value, but it's not a function, treat as not found
-                                            return None;
-                                        }
-                                    }
+    /// Recursively search for a metamethod in the object's metatable chain.
+    /// Returns the metamethod Value if found, otherwise None.
+    pub fn get_metamethod_from_object(&self, metamethod_name: &str) -> Option<Value> {
+        let mut current_obj_owned = self.clone(); // Own the Value directly
+        loop {
+            match current_obj_owned {
+                Value::Object(table_ref) => {
+                    let table = table_ref.borrow();
+                    if let Some(metatable_ref) = &table.metatable {
+                        let metatable = metatable_ref.borrow();
+                        if let Some(metamethod_val) = metatable.data.get(metamethod_name) {
+                            return match metamethod_val {
+                                Value::Function(_) | Value::NativeFunction(_) => {
+                                    Some(metamethod_val.clone())
                                 }
-                                // Continue search in the metatable's metatable (Lua's behavior for __index chain)
-                                current_obj_owned = Value::Object(metatable_ref.clone());
-                            } else {
-                                return None; // No metatable, end of chain
-                            }
+                                _ => {
+                                    // Found a value, but it's not a function, treat as not found
+                                    None
+                                }
+                            };
                         }
-                        _ => return None, // Not an object, cannot have a metatable
+                        // Continue search in the metatable's metatable (Lua's behavior for __index chain)
+                        current_obj_owned = Value::Object(metatable_ref.clone());
+                    } else {
+                        return None; // No metatable, end of chain
                     }
                 }
+                _ => return None, // Not an object, cannot have a metatable
             }
-        /// Get field with metatable support (__index metamethod)
-        pub fn get_field_with_meta(&self, key: &str) -> Value {
+        }
+    }
+    /// Get field with metatable support (__index metamethod)
+    pub fn get_field_with_meta(&self, key: &str) -> Value {
         match self {
             Value::Object(table_ref) => {
                 let table = table_ref.borrow();
@@ -656,7 +656,9 @@ impl Value {
                                 return Value::Object(index_table_ref.clone())
                                     .get_field_with_meta(key);
                             }
-                            // TODO: If __index is a function, call it (future feature)
+                            Value::Function(_) => {
+                                // TODO: If __index is a function, call it (future feature)
+                            }
                             _ => {}
                         }
                     }
@@ -697,7 +699,7 @@ impl Value {
             _ => Err(RuntimeError::InvalidOperation {
                 operator: "set_field".to_string(),
                 left_type: self.get_type(),
-                right_type: crate::value::ValueType::Null,
+                right_type: ValueType::Null,
             }),
         }
     }
@@ -770,7 +772,10 @@ mod tests {
         let a = Value::string("Hello".to_string());
         let b = Value::string(" World".to_string());
 
-        assert_eq!(a.add(&b).unwrap().unwrap_value(), Value::string("Hello World".to_string()));
+        assert_eq!(
+            a.add(&b).unwrap().unwrap_value(),
+            Value::string("Hello World".to_string())
+        );
     }
 
     #[test]

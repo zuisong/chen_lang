@@ -221,9 +221,7 @@ impl VM {
                 }
 
                 self.stack
-                    .push(Value::Object(std::rc::Rc::new(std::cell::RefCell::new(
-                        table_ref,
-                    ))));
+                    .push(Value::Object(Rc::new(std::cell::RefCell::new(table_ref))));
             }
 
             Instruction::Pop => {
@@ -236,8 +234,8 @@ impl VM {
                 } else {
                     return Err(RuntimeError::InvalidOperation {
                         operator: "dup".to_string(),
-                        left_type: crate::value::ValueType::Null,
-                        right_type: crate::value::ValueType::Null,
+                        left_type: ValueType::Null,
+                        right_type: ValueType::Null,
                     });
                 }
             }
@@ -269,8 +267,8 @@ impl VM {
                 } else {
                     return Err(RuntimeError::InvalidOperation {
                         operator: "store".to_string(),
-                        left_type: crate::value::ValueType::Null,
-                        right_type: crate::value::ValueType::Null,
+                        left_type: ValueType::Null,
+                        right_type: ValueType::Null,
                     });
                 }
             }
@@ -286,9 +284,9 @@ impl VM {
                     }
                     crate::value::OpResult::MetamethodCall(call_info) => {
                         self.stack.push(call_info.metamethod); // Push metamethod first
-                        self.stack.push(call_info.left);       // Then left arg
-                        self.stack.push(call_info.right);      // Then right arg
-                        
+                        self.stack.push(call_info.left); // Then left arg
+                        self.stack.push(call_info.right); // Then right arg
+
                         // CallStack expects func, arg1, arg2, so the metamethod is at func_idx.
                         // The arguments (left, right) are after it, so arg_count is 2.
 
@@ -310,9 +308,9 @@ impl VM {
                     }
                     crate::value::OpResult::MetamethodCall(call_info) => {
                         self.stack.push(call_info.metamethod); // Push metamethod first
-                        self.stack.push(call_info.left);       // Then left arg
-                        self.stack.push(call_info.right);      // Then right arg
-                        
+                        self.stack.push(call_info.left); // Then left arg
+                        self.stack.push(call_info.right); // Then right arg
+
                         // CallStack expects func, arg1, arg2, so the metamethod is at func_idx.
                         // The arguments (left, right) are after it, so arg_count is 2.
 
@@ -334,9 +332,9 @@ impl VM {
                     }
                     crate::value::OpResult::MetamethodCall(call_info) => {
                         self.stack.push(call_info.metamethod); // Push metamethod first
-                        self.stack.push(call_info.left);       // Then left arg
-                        self.stack.push(call_info.right);      // Then right arg
-                        
+                        self.stack.push(call_info.left); // Then left arg
+                        self.stack.push(call_info.right); // Then right arg
+
                         let call_stack_instr = Instruction::CallStack(2);
                         // Do NOT advance PC here.
                         return self.execute_instruction(&call_stack_instr, program);
@@ -421,35 +419,35 @@ impl VM {
             }
 
             Instruction::Jump(label) => {
-                if let Some(target) = program.syms.get(label) {
+                return if let Some(target) = program.syms.get(label) {
                     self.pc = (target.location as usize) - 1;
-                    return Ok(true); // 继续执行，但PC已更新
+                    Ok(true) // 继续执行，但PC已更新
                 } else {
-                    return Err(RuntimeError::UndefinedVariable(format!("label: {}", label)));
-                }
+                    Err(RuntimeError::UndefinedVariable(format!("label: {}", label)))
+                };
             }
 
             Instruction::JumpIfFalse(label) => {
                 let condition = self.stack.pop().unwrap_or(Value::null());
                 if !condition.is_truthy() {
-                    if let Some(target) = program.syms.get(label) {
+                    return if let Some(target) = program.syms.get(label) {
                         self.pc = (target.location as usize) - 1;
-                        return Ok(true);
+                        Ok(true)
                     } else {
-                        return Err(RuntimeError::UndefinedVariable(format!("label: {}", label)));
-                    }
+                        Err(RuntimeError::UndefinedVariable(format!("label: {}", label)))
+                    };
                 }
             }
 
             Instruction::JumpIfTrue(label) => {
                 let condition = self.stack.pop().unwrap_or(Value::null());
                 if condition.is_truthy() {
-                    if let Some(target) = program.syms.get(label) {
+                    return if let Some(target) = program.syms.get(label) {
                         self.pc = (target.location as usize) - 1;
-                        return Ok(true);
+                        Ok(true)
                     } else {
-                        return Err(RuntimeError::UndefinedVariable(format!("label: {}", label)));
-                    }
+                        Err(RuntimeError::UndefinedVariable(format!("label: {}", label)))
+                    };
                 }
             }
 
@@ -489,13 +487,17 @@ impl VM {
                         if *arg_count != 2 {
                             return Err(RuntimeError::InvalidOperation {
                                 operator: "set_meta".to_string(),
-                                left_type: crate::value::ValueType::Null,
-                                right_type: crate::value::ValueType::Null,
+                                left_type: ValueType::Null,
+                                right_type: ValueType::Null,
                             });
                         }
                         let metatable = self.stack.pop().unwrap_or(Value::null());
                         let obj = self.stack.pop().unwrap_or(Value::null());
-                        debug!("set_meta called: obj_type={:?}, metatable_type={:?}", obj.get_type(), metatable.get_type());
+                        debug!(
+                            "set_meta called: obj_type={:?}, metatable_type={:?}",
+                            obj.get_type(),
+                            metatable.get_type()
+                        );
                         obj.set_metatable(metatable)?;
                         self.stack.push(Value::null());
                     }
@@ -503,8 +505,8 @@ impl VM {
                         if *arg_count != 1 {
                             return Err(RuntimeError::InvalidOperation {
                                 operator: "get_meta".to_string(),
-                                left_type: crate::value::ValueType::Null,
-                                right_type: crate::value::ValueType::Null,
+                                left_type: ValueType::Null,
+                                right_type: ValueType::Null,
                             });
                         }
                         let obj = self.stack.pop().unwrap_or(Value::null());
@@ -532,27 +534,26 @@ impl VM {
                         };
 
                         // Check for NativeFunction in variables
-                        if target_symbol.is_none() {
-                            if let Some(Value::NativeFunction(native_fn)) =
+                        if target_symbol.is_none()
+                            && let Some(Value::NativeFunction(native_fn)) =
                                 self.variables.get(func_name)
-                            {
-                                // Native Call logic
-                                let args_start = self.stack.len().checked_sub(*arg_count).ok_or(
-                                    RuntimeError::StackUnderflow("Native call missing args".into()),
-                                )?;
-                                let args: Vec<Value> = self.stack.drain(args_start..).collect();
-                                let result = native_fn(args)?;
-                                self.stack.push(result);
-                                return Ok(true);
-                            }
+                        {
+                            // Native Call logic
+                            let args_start = self.stack.len().checked_sub(*arg_count).ok_or(
+                                RuntimeError::StackUnderflow("Native call missing args".into()),
+                            )?;
+                            let args: Vec<Value> = self.stack.drain(args_start..).collect();
+                            let result = native_fn(args)?;
+                            self.stack.push(result);
+                            return Ok(true);
                         }
 
-                        if let Some(target_symbol) = target_symbol {
+                        return if let Some(target_symbol) = target_symbol {
                             if *arg_count != target_symbol.narguments {
                                 return Err(RuntimeError::InvalidOperation {
                                     operator: "call".to_string(),
-                                    left_type: crate::value::ValueType::Null,
-                                    right_type: crate::value::ValueType::Null,
+                                    left_type: ValueType::Null,
+                                    right_type: ValueType::Null,
                                 });
                             }
 
@@ -568,17 +569,17 @@ impl VM {
 
                             // 4. 跳转到函数
                             self.pc = (target_symbol.location as usize) - 1;
-                            return Ok(true);
+                            Ok(true)
                         } else {
                             debug!(
                                 "Function label {} not found in {:?}",
                                 func_label, program.syms
                             );
-                            return Err(RuntimeError::UndefinedVariable(format!(
+                            Err(RuntimeError::UndefinedVariable(format!(
                                 "function: {}",
                                 func_name
-                            )));
-                        }
+                            )))
+                        };
                     }
                 }
             }
@@ -587,7 +588,7 @@ impl VM {
                 let return_value = self.stack.pop().unwrap_or(Value::null());
 
                 // 2. Pop the call frame
-                if let Some((return_pc, old_fp)) = self.call_stack.pop() {
+                return if let Some((return_pc, old_fp)) = self.call_stack.pop() {
                     // 3. Destroy the current stack frame
                     self.stack.truncate(self.fp);
 
@@ -598,12 +599,12 @@ impl VM {
                     // 5. Push return value onto the caller's stack
                     self.stack.push(return_value);
 
-                    return Ok(true);
+                    Ok(true)
                 } else {
                     // No more call frames, program is ending
                     debug!("Program end (no more call stack)");
-                    return Ok(false); // 停止执行
-                }
+                    Ok(false) // 停止执行
+                };
             }
 
             Instruction::Label(_) => {
@@ -637,9 +638,9 @@ impl VM {
                 let obj = self.stack.pop().unwrap_or(Value::null());
                 // Use metatable-aware field access
                 let value = if let Value::String(_) = obj {
-                    self.string_prototype.get_field_with_meta(&field)
+                    self.string_prototype.get_field_with_meta(field)
                 } else {
-                    obj.get_field_with_meta(&field)
+                    obj.get_field_with_meta(field)
                 };
                 self.stack.push(value);
             }
@@ -654,9 +655,9 @@ impl VM {
             Instruction::GetMethod(field) => {
                 let obj = self.stack.pop().unwrap_or(Value::null());
                 let value = if let Value::String(_) = obj {
-                    self.string_prototype.get_field_with_meta(&field)
+                    self.string_prototype.get_field_with_meta(field)
                 } else {
-                    obj.get_field_with_meta(&field)
+                    obj.get_field_with_meta(field)
                 };
                 self.stack.push(value);
                 self.stack.push(obj);
@@ -676,7 +677,7 @@ impl VM {
                         return Err(RuntimeError::InvalidOperation {
                             operator: "get_index".to_string(),
                             left_type: obj.get_type(),
-                            right_type: crate::value::ValueType::Null,
+                            right_type: ValueType::Null,
                         });
                     }
                 }
@@ -695,7 +696,7 @@ impl VM {
                         return Err(RuntimeError::InvalidOperation {
                             operator: "set_index".to_string(),
                             left_type: obj.get_type(),
-                            right_type: crate::value::ValueType::Null,
+                            right_type: ValueType::Null,
                         });
                     }
                 }
@@ -710,7 +711,7 @@ impl VM {
 
                 let func_val = self.stack.remove(func_idx);
 
-                match func_val {
+                return match func_val {
                     Value::Function(func_name) => {
                         // Reuse logic for user defined functions
                         // Note: We don't support builtins via CallStack yet (except NativeFunction now)
@@ -724,8 +725,8 @@ impl VM {
                             if *arg_count != target_symbol.narguments {
                                 return Err(RuntimeError::InvalidOperation {
                                     operator: "call_stack".to_string(),
-                                    left_type: crate::value::ValueType::Function,
-                                    right_type: crate::value::ValueType::Null,
+                                    left_type: ValueType::Function,
+                                    right_type: ValueType::Null,
                                 });
                             }
 
@@ -742,12 +743,12 @@ impl VM {
 
                             // 4. Jump
                             self.pc = (target_symbol.location as usize) - 1;
-                            return Ok(true);
+                            Ok(true)
                         } else {
-                            return Err(RuntimeError::UndefinedVariable(format!(
+                            Err(RuntimeError::UndefinedVariable(format!(
                                 "function: {}",
                                 func_name
-                            )));
+                            )))
                         }
                     }
                     Value::NativeFunction(native_fn) => {
@@ -757,16 +758,14 @@ impl VM {
                         let args: Vec<Value> = self.stack.drain(start_index..).collect();
                         let result = native_fn(args)?;
                         self.stack.push(result);
-                        return Ok(true);
+                        Ok(true)
                     }
-                    _ => {
-                        return Err(RuntimeError::InvalidOperation {
-                            operator: "call_stack".to_string(),
-                            left_type: func_val.get_type(),
-                            right_type: crate::value::ValueType::Null,
-                        });
-                    }
-                }
+                    _ => Err(RuntimeError::InvalidOperation {
+                        operator: "call_stack".to_string(),
+                        left_type: func_val.get_type(),
+                        right_type: ValueType::Null,
+                    }),
+                };
             }
         }
 
@@ -786,7 +785,7 @@ impl VM {
 
 fn create_array_prototype() -> Value {
     let mut table = crate::value::Table {
-        data: IndexMap::new(),
+        data: IndexMap::<String, Value>::new(),
         metatable: None,
     };
     table
@@ -794,18 +793,21 @@ fn create_array_prototype() -> Value {
         .insert("__type".to_string(), Value::string("Array".to_string()));
     table
         .data
+        // ...
+        .insert(
+            "push".to_string(),
+            Value::NativeFunction(Rc::new(Box::new(native_array_push))),
+        );
+    table.data.insert(
+        "pop".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(native_array_pop))),
+    );
+    table.data.insert(
+        "len".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(native_array_len))),
+    );
 
-// ...
-
-        .insert("push".to_string(), Value::NativeFunction(Rc::new(Box::new(native_array_push) as Box<NativeFnType>)));
-    table
-        .data
-        .insert("pop".to_string(), Value::NativeFunction(Rc::new(Box::new(native_array_pop) as Box<NativeFnType>)));
-    table
-        .data
-        .insert("len".to_string(), Value::NativeFunction(Rc::new(Box::new(native_array_len) as Box<NativeFnType>)));
-
-    let table_rc = std::rc::Rc::new(std::cell::RefCell::new(table));
+    let table_rc = Rc::new(std::cell::RefCell::new(table));
     let proto_val = Value::Object(table_rc.clone());
 
     // Set __index = self to allow method lookup on instances
@@ -820,8 +822,8 @@ fn create_array_prototype() -> Value {
 fn native_array_push(args: Vec<Value>) -> Result<Value, RuntimeError> {
     if args.is_empty() {
         return Err(RuntimeError::TypeMismatch {
-            expected: crate::value::ValueType::Object,
-            found: crate::value::ValueType::Null,
+            expected: ValueType::Object,
+            found: ValueType::Null,
             operation: "push".into(),
         });
     }
@@ -842,7 +844,7 @@ fn native_array_push(args: Vec<Value>) -> Result<Value, RuntimeError> {
         return Ok(Value::Int((idx + 1) as i32));
     }
     Err(RuntimeError::TypeMismatch {
-        expected: crate::value::ValueType::Object,
+        expected: ValueType::Object,
         found: obj.get_type(),
         operation: "push".into(),
     })
@@ -851,8 +853,8 @@ fn native_array_push(args: Vec<Value>) -> Result<Value, RuntimeError> {
 fn native_array_pop(args: Vec<Value>) -> Result<Value, RuntimeError> {
     if args.is_empty() {
         return Err(RuntimeError::TypeMismatch {
-            expected: crate::value::ValueType::Object,
-            found: crate::value::ValueType::Null,
+            expected: ValueType::Object,
+            found: ValueType::Null,
             operation: "pop".into(),
         });
     }
@@ -887,9 +889,10 @@ fn create_string_prototype() -> Value {
     table
         .data
         .insert("__type".to_string(), Value::string("String".to_string()));
-    table
-        .data
-        .insert("len".to_string(), Value::NativeFunction(Rc::new(Box::new(native_string_len) as Box<NativeFnType>)));
+    table.data.insert(
+        "len".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(native_string_len) as Box<NativeFnType>)),
+    );
     table.data.insert(
         "trim".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_string_trim) as Box<NativeFnType>)),
@@ -903,7 +906,7 @@ fn create_string_prototype() -> Value {
         Value::NativeFunction(Rc::new(Box::new(native_string_lower) as Box<NativeFnType>)),
     );
 
-    let table_rc = std::rc::Rc::new(std::cell::RefCell::new(table));
+    let table_rc = Rc::new(std::cell::RefCell::new(table));
     let proto_val = Value::Object(table_rc.clone());
 
     // Set __index = self
@@ -922,7 +925,7 @@ fn native_string_len(args: Vec<Value>) -> Result<Value, RuntimeError> {
     match &args[0] {
         Value::String(s) => Ok(Value::Int(s.chars().count() as i32)),
         _ => Err(RuntimeError::TypeMismatch {
-            expected: crate::value::ValueType::String,
+            expected: ValueType::String,
             found: args[0].get_type(),
             operation: "string.len".into(),
         }),
@@ -930,10 +933,10 @@ fn native_string_len(args: Vec<Value>) -> Result<Value, RuntimeError> {
 }
 
 fn native_string_trim(args: Vec<Value>) -> Result<Value, RuntimeError> {
-    match args.get(0) {
+    match args.first() {
         Some(Value::String(s)) => Ok(Value::string(s.trim().to_string())),
         Some(v) => Err(RuntimeError::TypeMismatch {
-            expected: crate::value::ValueType::String,
+            expected: ValueType::String,
             found: v.get_type(),
             operation: "string.trim".into(),
         }),
@@ -942,10 +945,10 @@ fn native_string_trim(args: Vec<Value>) -> Result<Value, RuntimeError> {
 }
 
 fn native_string_upper(args: Vec<Value>) -> Result<Value, RuntimeError> {
-    match args.get(0) {
+    match args.first() {
         Some(Value::String(s)) => Ok(Value::string(s.to_uppercase())),
         Some(v) => Err(RuntimeError::TypeMismatch {
-            expected: crate::value::ValueType::String,
+            expected: ValueType::String,
             found: v.get_type(),
             operation: "string.upper".into(),
         }),
@@ -954,10 +957,10 @@ fn native_string_upper(args: Vec<Value>) -> Result<Value, RuntimeError> {
 }
 
 fn native_string_lower(args: Vec<Value>) -> Result<Value, RuntimeError> {
-    match args.get(0) {
+    match args.first() {
         Some(Value::String(s)) => Ok(Value::string(s.to_lowercase())),
         Some(v) => Err(RuntimeError::TypeMismatch {
-            expected: crate::value::ValueType::String,
+            expected: ValueType::String,
             found: v.get_type(),
             operation: "string.lower".into(),
         }),
@@ -975,9 +978,10 @@ fn create_date_object() -> Value {
     table
         .data
         .insert("__type".to_string(), Value::string("Date".to_string()));
-    table
-        .data
-        .insert("new".to_string(), Value::NativeFunction(Rc::new(Box::new(native_date_new) as Box<NativeFnType>)));
+    table.data.insert(
+        "new".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(native_date_new) as Box<NativeFnType>)),
+    );
     table.data.insert(
         "format".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_date_format) as Box<NativeFnType>)),
@@ -987,7 +991,7 @@ fn create_date_object() -> Value {
         Value::NativeFunction(Rc::new(Box::new(native_date_timestamp) as Box<NativeFnType>)),
     );
 
-    let table_rc = std::rc::Rc::new(std::cell::RefCell::new(table));
+    let table_rc = Rc::new(std::cell::RefCell::new(table));
     let val = Value::Object(table_rc.clone());
     // Class acts as prototype for instances
     table_rc
@@ -1019,13 +1023,13 @@ fn native_date_new(args: Vec<Value>) -> Result<Value, RuntimeError> {
     data.insert("__timestamp".to_string(), Value::string(ts.to_string()));
     data.insert("__type".to_string(), Value::string("Date".to_string()));
 
-    let table_rc = std::rc::Rc::new(std::cell::RefCell::new(crate::value::Table {
+    let table_rc = Rc::new(std::cell::RefCell::new(crate::value::Table {
         data,
         metatable: None,
     }));
 
     // Set prototype
-    if let Some(Value::Object(cls_rc)) = args.get(0) {
+    if let Some(Value::Object(cls_rc)) = args.first() {
         table_rc.borrow_mut().metatable = Some(cls_rc.clone());
     }
 
@@ -1034,44 +1038,43 @@ fn native_date_new(args: Vec<Value>) -> Result<Value, RuntimeError> {
 
 fn native_date_format(args: Vec<Value>) -> Result<Value, RuntimeError> {
     // args[0] is instance
-    if let Some(obj) = args.get(0) {
-        if let Value::Object(table_rc) = obj {
-            let table = table_rc.borrow();
-            if let Some(Value::String(ts_str)) = table.data.get("__timestamp") {
-                if let Ok(ts_val) = ts_str.parse::<i64>() {
-                    if let Ok(ts) = Timestamp::from_millisecond(ts_val) {
-                        // Default format or arg
-                        let fmt = if args.len() > 1 {
-                            if let Value::String(s) = &args[1] {
-                                s.to_string()
-                            } else {
-                                "%Y-%m-%d %H:%M:%S".to_string()
-                            }
-                        } else {
-                            "%Y-%m-%d %H:%M:%S".to_string()
-                        };
-                        // Use system timezone for display
-                        let zoned = ts.to_zoned(jiff::tz::TimeZone::system());
-                        return Ok(Value::string(zoned.strftime(&fmt).to_string()));
-                    }
+    if let Some(obj) = args.first()
+        && let Value::Object(table_rc) = obj
+    {
+        let table = table_rc.borrow();
+        if let Some(Value::String(ts_str)) = table.data.get("__timestamp")
+            && let Ok(ts_val) = ts_str.parse::<i64>()
+            && let Ok(ts) = Timestamp::from_millisecond(ts_val)
+        {
+            // Default format or arg
+            let fmt = if args.len() > 1 {
+                if let Value::String(s) = &args[1] {
+                    s.to_string()
+                } else {
+                    "%Y-%m-%d %H:%M:%S".to_string()
                 }
-            }
+            } else {
+                "%Y-%m-%d %H:%M:%S".to_string()
+            };
+            // Use system timezone for display
+            let zoned = ts.to_zoned(jiff::tz::TimeZone::system());
+            return Ok(Value::string(zoned.strftime(&fmt).to_string()));
         }
     }
     Ok(Value::Null)
 }
 
 fn native_date_timestamp(args: Vec<Value>) -> Result<Value, RuntimeError> {
-    if let Some(obj) = args.get(0) {
-        if let Value::Object(table_rc) = obj {
-            let table = table_rc.borrow();
-            if let Some(Value::String(ts_str)) = table.data.get("__timestamp") {
-                if let Ok(ts_val) = ts_str.parse::<i32>() {
-                    return Ok(Value::Int(ts_val));
-                }
-                // Return as string if overflow i32?
-                return Ok(Value::string(ts_str.to_string()));
+    if let Some(obj) = args.first()
+        && let Value::Object(table_rc) = obj
+    {
+        let table = table_rc.borrow();
+        if let Some(Value::String(ts_str)) = table.data.get("__timestamp") {
+            if let Ok(ts_val) = ts_str.parse::<i32>() {
+                return Ok(Value::Int(ts_val));
             }
+            // Return as string if overflow i32?
+            return Ok(Value::string(ts_str.to_string()));
         }
     }
     Ok(Value::Null)
@@ -1092,7 +1095,7 @@ fn create_json_object() -> Value {
         "stringify".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_json_stringify) as Box<NativeFnType>)),
     );
-    Value::Object(std::rc::Rc::new(std::cell::RefCell::new(table)))
+    Value::Object(Rc::new(std::cell::RefCell::new(table)))
 }
 
 fn native_json_parse(args: Vec<Value>) -> Result<Value, RuntimeError> {
@@ -1137,24 +1140,20 @@ fn json_to_chen(v: serde_json::Value) -> Value {
             // We should ideally set Array prototype here... but we don't have access to VM.array_prototype
             // Objects created by JSON.parse won't have methods unless we fix this.
             // Limitation accepted for now.
-            Value::Object(std::rc::Rc::new(std::cell::RefCell::new(
-                crate::value::Table {
-                    data,
-                    metatable: None,
-                },
-            )))
+            Value::Object(Rc::new(std::cell::RefCell::new(crate::value::Table {
+                data,
+                metatable: None,
+            })))
         }
         serde_json::Value::Object(obj) => {
             let mut data = IndexMap::new();
             for (k, v) in obj {
                 data.insert(k, json_to_chen(v));
             }
-            Value::Object(std::rc::Rc::new(std::cell::RefCell::new(
-                crate::value::Table {
-                    data,
-                    metatable: None,
-                },
-            )))
+            Value::Object(Rc::new(std::cell::RefCell::new(crate::value::Table {
+                data,
+                metatable: None,
+            })))
         }
     }
 }
@@ -1172,17 +1171,14 @@ fn chen_to_json(v: &Value) -> serde_json::Value {
             let table = rc.borrow();
 
             // Special handling for Date objects
-            if let Some(Value::String(type_name)) = table.data.get("__type") {
-                if **type_name == "Date" {
-                    if let Some(Value::String(ts_str)) = table.data.get("__timestamp") {
-                        if let Ok(ts_val) = ts_str.parse::<i64>() {
-                            if let Ok(ts) = Timestamp::from_millisecond(ts_val) {
-                                // Default JSON format for Date is ISO 8601 string
-                                return serde_json::Value::String(ts.to_string());
-                            }
-                        }
-                    }
-                }
+            if let Some(Value::String(type_name)) = table.data.get("__type")
+                && **type_name == "Date"
+                && let Some(Value::String(ts_str)) = table.data.get("__timestamp")
+                && let Ok(ts_val) = ts_str.parse::<i64>()
+                && let Ok(ts) = Timestamp::from_millisecond(ts_val)
+            {
+                // Default JSON format for Date is ISO 8601 string
+                return serde_json::Value::String(ts.to_string());
             }
 
             // Check if array-like (all numeric keys)

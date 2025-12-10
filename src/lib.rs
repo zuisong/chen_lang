@@ -27,8 +27,6 @@ impl Write for SharedWriter {
     }
 }
 
-use crate::expression::*;
-
 /// 编译器模块
 pub mod compiler;
 /// 表达式模块
@@ -117,8 +115,5 @@ pub fn run_captured(code: String) -> Result<String, ChenError> {
 #[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub fn run_wasm(code: String) -> String {
-    match run_captured(code) {
-        Ok(output) => output,
-        Err(e) => format!("Error: {}", e),
-    }
+    run_captured(code).unwrap_or_else(|e| format!("Error: {}", e))
 }
