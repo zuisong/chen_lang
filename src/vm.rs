@@ -1,7 +1,7 @@
+use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 use indexmap::IndexMap;
 use jiff::Timestamp;
@@ -136,6 +136,11 @@ impl Default for VM {
         Self::new()
     }
 }
+
+use native_json::create_json_object;
+use native_date::create_date_object;
+use crate::vm::native_array_prototype::create_array_prototype;
+use crate::vm::native_string_prototype::create_string_prototype;
 
 impl VM {
     pub fn new() -> Self {
@@ -686,15 +691,12 @@ impl VM {
                                     for (i, k) in table.data.keys().enumerate() {
                                         data.insert(i.to_string(), Value::string(k.clone()));
                                     }
-                                    
-                                    let mut res_table = crate::value::Table {
-                                        data,
-                                        metatable: None,
-                                    };
+
+                                    let mut res_table = crate::value::Table { data, metatable: None };
                                     if let Value::Object(proto_rc) = &array_proto {
                                         res_table.metatable = Some(proto_rc.clone());
                                     }
-                                    
+
                                     return Ok(Value::Object(Rc::new(RefCell::new(res_table))));
                                 }
                                 Err(ValueError::TypeMismatch {
@@ -747,10 +749,7 @@ impl VM {
                                         data.insert(i.to_string(), Value::string(k.clone()));
                                     }
 
-                                    let mut res_table = crate::value::Table {
-                                        data,
-                                        metatable: None,
-                                    };
+                                    let mut res_table = crate::value::Table { data, metatable: None };
                                     if let Value::Object(proto_rc) = &array_proto {
                                         res_table.metatable = Some(proto_rc.clone());
                                     }
@@ -894,423 +893,16 @@ impl VM {
     }
 }
 
-fn create_array_prototype() -> Value {
-    let mut table = crate::value::Table {
-        data: IndexMap::<String, Value>::new(),
-        metatable: None,
-    };
-    table
-        .data
-        .insert("__type".to_string(), Value::string("Array".to_string()));
-    table
-        .data
-        // ...
-        .insert(
-            "push".to_string(),
-            Value::NativeFunction(Rc::new(Box::new(native_array_push))),
-        );
-    table.data.insert(
-        "pop".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_array_pop))),
-    );
-    table.data.insert(
-        "len".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_array_len))),
-    );
 
-    let table_rc = Rc::new(std::cell::RefCell::new(table));
-    let proto_val = Value::Object(table_rc.clone());
+mod native_array_prototype;
 
-    // Set __index = self to allow method lookup on instances
-    table_rc
-        .borrow_mut()
-        .data
-        .insert("__index".to_string(), proto_val.clone());
 
-    proto_val
-}
+mod native_string_prototype;
 
-fn native_array_push(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if args.is_empty() {
-        Err(ValueError::TypeMismatch {
-            expected: ValueType::Object,
-            found: ValueType::Null,
-            operation: "push".into(),
-        })?;
-    }
 
-    let obj = &args[0];
-    if let Value::Object(table_rc) = obj {
-        let mut table = table_rc.borrow_mut();
-        // Since we are pushing to "Array", and we use IndexMap as dense vectorish thing:
-        // Key is current len.
-        let idx = table.data.len();
-        let val = if args.len() > 1 { args[1].clone() } else { Value::Null };
+mod native_date;
 
-        table.data.insert(idx.to_string(), val);
-        return Ok(Value::Int((idx + 1) as i32));
-    }
-    Err(ValueError::TypeMismatch {
-        expected: ValueType::Object,
-        found: obj.get_type(),
-        operation: "push".into(),
-    })?
-}
-
-fn native_array_pop(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if args.is_empty() {
-        Err(ValueError::TypeMismatch {
-            expected: ValueType::Object,
-            found: ValueType::Null,
-            operation: "pop".into(),
-        })?;
-    }
-    let obj = &args[0];
-    if let Value::Object(table_rc) = obj {
-        let mut table = table_rc.borrow_mut();
-        if let Some((_, val)) = table.data.pop() {
-            return Ok(val);
-        }
-        return Ok(Value::Null);
-    }
-    Ok(Value::Null)
-}
-
-fn native_array_len(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if args.is_empty() {
-        return Ok(Value::Int(0));
-    }
-    let obj = &args[0];
-    if let Value::Object(table_rc) = obj {
-        let table = table_rc.borrow();
-        return Ok(Value::Int(table.data.len() as i32));
-    }
-    Ok(Value::Int(0))
-}
-
-fn create_string_prototype() -> Value {
-    let mut table = crate::value::Table {
-        data: IndexMap::new(),
-        metatable: None,
-    };
-    table
-        .data
-        .insert("__type".to_string(), Value::string("String".to_string()));
-    table.data.insert(
-        "len".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_len) as Box<NativeFnType>)),
-    );
-    table.data.insert(
-        "trim".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_trim) as Box<NativeFnType>)),
-    );
-    table.data.insert(
-        "upper".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_upper) as Box<NativeFnType>)),
-    );
-    table.data.insert(
-        "lower".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_lower) as Box<NativeFnType>)),
-    );
-
-    let table_rc = Rc::new(std::cell::RefCell::new(table));
-    let proto_val = Value::Object(table_rc.clone());
-
-    // Set __index = self
-    table_rc
-        .borrow_mut()
-        .data
-        .insert("__index".to_string(), proto_val.clone());
-
-    proto_val
-}
-
-fn native_string_len(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if args.is_empty() {
-        return Ok(Value::Int(0));
-    }
-    match &args[0] {
-        Value::String(s) => Ok(Value::Int(s.chars().count() as i32)),
-        _ => Err(ValueError::TypeMismatch {
-            expected: ValueType::String,
-            found: args[0].get_type(),
-            operation: "string.len".into(),
-        })?,
-    }
-}
-
-fn native_string_trim(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    match args.first() {
-        Some(Value::String(s)) => Ok(Value::string(s.trim().to_string())),
-        Some(v) => Err(ValueError::TypeMismatch {
-            expected: ValueType::String,
-            found: v.get_type(),
-            operation: "string.trim".into(),
-        }
-        .into()),
-        None => Err(VMRuntimeError::StackUnderflow("string.trim".into())),
-    }
-}
-
-fn native_string_upper(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    match args.first() {
-        Some(Value::String(s)) => Ok(Value::string(s.to_uppercase())),
-        Some(v) => Err(crate::vm::VMRuntimeError::ValueError(ValueError::TypeMismatch {
-            expected: ValueType::String,
-            found: v.get_type(),
-            operation: "string.upper".into(),
-        })),
-        None => Err(VMRuntimeError::StackUnderflow("string.upper".into())),
-    }
-}
-
-fn native_string_lower(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    match args.first() {
-        Some(Value::String(s)) => Ok(Value::string(s.to_lowercase())),
-        Some(v) => Err(ValueError::TypeMismatch {
-            expected: ValueType::String,
-            found: v.get_type(),
-            operation: "string.lower".into(),
-        })?,
-        None => Err(VMRuntimeError::StackUnderflow("string.lower".into())),
-    }
-}
-
-// --- Date Implementation ---
-
-fn create_date_object() -> Value {
-    let mut table = crate::value::Table {
-        data: IndexMap::new(),
-        metatable: None,
-    };
-    table
-        .data
-        .insert("__type".to_string(), Value::string("Date".to_string()));
-    table.data.insert(
-        "new".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_date_new) as Box<NativeFnType>)),
-    );
-    table.data.insert(
-        "format".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_date_format) as Box<NativeFnType>)),
-    );
-    table.data.insert(
-        "timestamp".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_date_timestamp) as Box<NativeFnType>)),
-    );
-
-    let table_rc = Rc::new(std::cell::RefCell::new(table));
-    let val = Value::Object(table_rc.clone());
-    // Class acts as prototype for instances
-    table_rc.borrow_mut().data.insert("__index".to_string(), val.clone());
-    val
-}
-
-fn native_date_new(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    let mut ts = Timestamp::now().as_millisecond();
-    // args[0] is Date class itself
-    if args.len() > 1 {
-        match &args[1] {
-            // Support creating from string or timestamp if we had it
-            Value::String(s) => {
-                if let Ok(parsed) = s.parse::<Timestamp>() {
-                    ts = parsed.as_millisecond();
-                }
-            }
-            // Temporarily support int if fits?
-            Value::Int(n) => ts = *n as i64,
-            _ => {}
-        }
-    }
-
-    // Create Instance
-    let mut data = IndexMap::new();
-    data.insert("__timestamp".to_string(), Value::string(ts.to_string()));
-    data.insert("__type".to_string(), Value::string("Date".to_string()));
-
-    let table_rc = Rc::new(std::cell::RefCell::new(crate::value::Table { data, metatable: None }));
-
-    // Set prototype
-    if let Some(Value::Object(cls_rc)) = args.first() {
-        table_rc.borrow_mut().metatable = Some(cls_rc.clone());
-    }
-
-    Ok(Value::Object(table_rc))
-}
-
-fn native_date_format(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    // args[0] is instance
-    if let Some(obj) = args.first()
-        && let Value::Object(table_rc) = obj
-    {
-        let table = table_rc.borrow();
-        if let Some(Value::String(ts_str)) = table.data.get("__timestamp")
-            && let Ok(ts_val) = ts_str.parse::<i64>()
-            && let Ok(ts) = Timestamp::from_millisecond(ts_val)
-        {
-            // Default format or arg
-            let fmt = if args.len() > 1 {
-                if let Value::String(s) = &args[1] {
-                    s.to_string()
-                } else {
-                    "%Y-%m-%d %H:%M:%S".to_string()
-                }
-            } else {
-                "%Y-%m-%d %H:%M:%S".to_string()
-            };
-            // Use system timezone for display
-            let zoned = ts.to_zoned(jiff::tz::TimeZone::system());
-            return Ok(Value::string(zoned.strftime(&fmt).to_string()));
-        }
-    }
-    Ok(Value::Null)
-}
-
-fn native_date_timestamp(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if let Some(obj) = args.first()
-        && let Value::Object(table_rc) = obj
-    {
-        let table = table_rc.borrow();
-        if let Some(Value::String(ts_str)) = table.data.get("__timestamp") {
-            if let Ok(ts_val) = ts_str.parse::<i32>() {
-                return Ok(Value::Int(ts_val));
-            }
-            // Return as string if overflow i32?
-            return Ok(Value::string(ts_str.to_string()));
-        }
-    }
-    Ok(Value::Null)
-}
-
-// --- JSON Implementation ---
-
-fn create_json_object() -> Value {
-    let mut table = crate::value::Table {
-        data: IndexMap::new(),
-        metatable: None,
-    };
-    table.data.insert(
-        "parse".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_json_parse) as Box<NativeFnType>)),
-    );
-    table.data.insert(
-        "stringify".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_json_stringify) as Box<NativeFnType>)),
-    );
-    Value::Object(Rc::new(std::cell::RefCell::new(table)))
-}
-
-fn native_json_parse(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    // args[0] is JSON object, args[1] is string
-    if let Some(Value::String(s)) = args.get(1) {
-        let v: serde_json::Value = serde_json::from_str(s).map_err(|_e| ValueError::InvalidOperation {
-            operator: "JSON.parse".into(),
-            left_type: ValueType::String,
-            right_type: ValueType::Null,
-        })?;
-        return Ok(json_to_chen(v));
-    }
-    Ok(Value::Null)
-}
-
-fn native_json_stringify(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if let Some(val) = args.get(1) {
-        let j = chen_to_json(val);
-        return Ok(Value::string(j.to_string()));
-    }
-    Ok(Value::Null)
-}
-
-fn json_to_chen(v: serde_json::Value) -> Value {
-    match v {
-        serde_json::Value::Null => Value::Null,
-        serde_json::Value::Bool(b) => Value::bool(b), // assuming wrapper
-        serde_json::Value::Number(n) => {
-            if n.is_i64() {
-                Value::Int(n.as_i64().unwrap() as i32) // Truncate :S
-            } else {
-                Value::Float(Decimal::from_f64(n.as_f64().unwrap()).unwrap_or_default())
-            }
-        }
-        serde_json::Value::String(s) => Value::string(s),
-        serde_json::Value::Array(arr) => {
-            let mut data = IndexMap::new();
-            for (i, val) in arr.into_iter().enumerate() {
-                data.insert(i.to_string(), json_to_chen(val));
-            }
-            // We should ideally set Array prototype here... but we don't have access to VM.array_prototype
-            // Objects created by JSON.parse won't have methods unless we fix this.
-            // Limitation accepted for now.
-            Value::Object(Rc::new(std::cell::RefCell::new(crate::value::Table {
-                data,
-                metatable: None,
-            })))
-        }
-        serde_json::Value::Object(obj) => {
-            let mut data = IndexMap::new();
-            for (k, v) in obj {
-                data.insert(k, json_to_chen(v));
-            }
-            Value::Object(Rc::new(std::cell::RefCell::new(crate::value::Table {
-                data,
-                metatable: None,
-            })))
-        }
-    }
-}
-
-fn chen_to_json(v: &Value) -> serde_json::Value {
-    match v {
-        Value::Null => serde_json::Value::Null,
-        Value::Bool(b) => serde_json::Value::Bool(*b),
-        Value::Int(i) => serde_json::Value::Number((*i).into()),
-        Value::Float(f) => serde_json::Number::from_f64(f.to_f64().unwrap())
-            .map(serde_json::Value::Number)
-            .unwrap_or(serde_json::Value::Null),
-        Value::String(s) => serde_json::Value::String(s.to_string()),
-        Value::Object(rc) => {
-            let table = rc.borrow();
-
-            // Special handling for Date objects
-            if let Some(Value::String(type_name)) = table.data.get("__type")
-                && **type_name == "Date"
-                && let Some(Value::String(ts_str)) = table.data.get("__timestamp")
-                && let Ok(ts_val) = ts_str.parse::<i64>()
-                && let Ok(ts) = Timestamp::from_millisecond(ts_val)
-            {
-                // Default JSON format for Date is ISO 8601 string
-                return serde_json::Value::String(ts.to_string());
-            }
-
-            // Check if array-like (all numeric keys)
-            // Simple heuristic: if empty or has "0"
-            let is_array = !table.data.is_empty() && table.data.contains_key("0");
-            if is_array {
-                let mut arr = Vec::new();
-                // Naive iteration (keys might not be sorted or complete)
-                // But IndexMap preserves insertion order.
-                // If it's a valid Array object, "0", "1"...
-                for (_, val) in &table.data {
-                    if let Value::String(_) = val {
-                        // Skip non-value fields like __type?
-                        // Actually Arrays have properties only "0".."N".
-                        // But we might have "__index" etc? No, those are in metatable/prototype.
-                        // Only explicit fields are in data.
-                    }
-                    arr.push(chen_to_json(val));
-                }
-                serde_json::Value::Array(arr)
-            } else {
-                let mut map = serde_json::Map::new();
-                for (k, val) in &table.data {
-                    map.insert(k.clone(), chen_to_json(val));
-                }
-                serde_json::Value::Object(map)
-            }
-        }
-        _ => serde_json::Value::Null, // Function etc
-    }
-}
+mod native_json;
 
 impl Program {
     /// 添加指令
@@ -1320,101 +912,5 @@ impl Program {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
+mod tests;
 
-    #[test]
-    fn test_simple_arithmetic() {
-        let mut program = Program::default();
-        program.add_instruction(Instruction::Push(Value::int(5)));
-        program.add_instruction(Instruction::Push(Value::int(3)));
-        program.add_instruction(Instruction::Add);
-
-        let mut vm = VM::new();
-        let result = vm.execute(&program);
-
-        match result {
-            Ok(value) => assert_eq!(value, Value::int(8)),
-            Err(_) => panic!("Expected success"),
-        }
-    }
-
-    #[test]
-    fn test_variable_operations() {
-        let mut program = Program::default();
-        program.add_instruction(Instruction::Push(Value::int(42)));
-        program.add_instruction(Instruction::Store("x".to_string()));
-        program.add_instruction(Instruction::Load("x".to_string()));
-
-        let mut vm = VM::new();
-        let result = vm.execute(&program);
-
-        match result {
-            Ok(value) => assert_eq!(value, Value::int(42)),
-            Err(_) => panic!("Expected success"),
-        }
-    }
-
-    #[test]
-    fn test_float_operations() {
-        let mut program = Program::default();
-        program.add_instruction(Instruction::Push(Value::float(Decimal::from_str("3.5").unwrap())));
-        program.add_instruction(Instruction::Push(Value::int(2)));
-        program.add_instruction(Instruction::Add);
-
-        let mut vm = VM::new();
-        let result = vm.execute(&program);
-
-        match result {
-            Ok(value) => assert_eq!(value, Value::float(Decimal::from_str("5.5").unwrap())),
-            Err(_) => panic!("Expected success"),
-        }
-    }
-
-    #[test]
-    fn test_string_operations() {
-        let mut program = Program::default();
-        program.add_instruction(Instruction::Push(Value::string("Hello".to_string())));
-        program.add_instruction(Instruction::Push(Value::string(" World".to_string())));
-        program.add_instruction(Instruction::Add);
-
-        let mut vm = VM::new();
-        let result = vm.execute(&program);
-
-        match result {
-            Ok(value) => assert_eq!(value, Value::string("Hello World".to_string())),
-            Err(_) => panic!("Expected success"),
-        }
-    }
-
-    #[test]
-    fn test_comparison_operations() {
-        let mut program = Program::default();
-        program.add_instruction(Instruction::Push(Value::int(5)));
-        program.add_instruction(Instruction::Push(Value::int(3)));
-        program.add_instruction(Instruction::LessThan);
-
-        let mut vm = VM::new();
-        let result = vm.execute(&program);
-
-        match result {
-            Ok(value) => assert_eq!(value, Value::bool(false)),
-            Err(_) => panic!("Expected success"),
-        }
-    }
-
-    #[test]
-    fn test_builtin_functions() {
-        let mut program = Program::default();
-        program.add_instruction(Instruction::Push(Value::string("Hello".to_string())));
-        program.add_instruction(Instruction::Call("print".to_string(), 1));
-
-        let mut vm = VM::new();
-        let result = vm.execute(&program);
-
-        match result {
-            Ok(value) => assert_eq!(value, Value::null()),
-            Err(_) => panic!("Expected success"),
-        }
-    }
-}

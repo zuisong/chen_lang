@@ -452,25 +452,26 @@ impl Parser {
     fn parse_unary(&mut self) -> Result<Expression, ParseError> {
         let start_line = self.line;
         if let Some(Token::Operator(op)) = self.peek()
-            && matches!(op, Operator::Not | Operator::Subtract) {
-                let op = *op;
-                self.advance();
-                let right = self.parse_unary()?;
-                return if op == Operator::Not {
-                    Ok(Expression::Unary(Unary {
-                        operator: Operator::Not,
-                        expr: Box::new(right),
-                        line: start_line,
-                    }))
-                } else {
-                    Ok(Expression::BinaryOperation(BinaryOperation {
-                        left: Box::new(Expression::Literal(Literal::Value(Value::Int(0)), start_line)),
-                        operator: Operator::Subtract,
-                        right: Box::new(right),
-                        line: start_line,
-                    }))
-                };
-            }
+            && matches!(op, Operator::Not | Operator::Subtract)
+        {
+            let op = *op;
+            self.advance();
+            let right = self.parse_unary()?;
+            return if op == Operator::Not {
+                Ok(Expression::Unary(Unary {
+                    operator: Operator::Not,
+                    expr: Box::new(right),
+                    line: start_line,
+                }))
+            } else {
+                Ok(Expression::BinaryOperation(BinaryOperation {
+                    left: Box::new(Expression::Literal(Literal::Value(Value::Int(0)), start_line)),
+                    operator: Operator::Subtract,
+                    right: Box::new(right),
+                    line: start_line,
+                }))
+            };
+        }
         self.parse_postfix_expr()
     }
 
