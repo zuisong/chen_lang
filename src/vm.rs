@@ -82,13 +82,18 @@ pub enum Instruction {
 pub struct Program {
     pub instructions: Vec<Instruction>,
     pub syms: IndexMap<String, Symbol>, // 符号表
+    pub lines: IndexMap<usize, u32>,    // 行号映射 (Instruction Index -> Line Number)
 }
 
 /// VM执行结果
 #[derive(Debug)]
 pub enum VMResult {
     Ok(Value),
-    Error(RuntimeError),
+    Error {
+        error: RuntimeError,
+        line: u32,
+        pc: usize,
+    },
 }
 
 /// 虚拟机实现
@@ -160,8 +165,13 @@ impl VM {
                     }
                 }
                 Err(error) => {
-                    debug!("Execution error at PC {}: {}", self.pc, error);
-                    return VMResult::Error(error);
+                    let line = *program.lines.get(&self.pc).unwrap_or(&0);
+                    debug!("Execution error at PC {} (Line {}): {}", self.pc, line, error);
+                    return VMResult::Error {
+                        error,
+                        line,
+                        pc: self.pc,
+                    };
                 }
             }
 
@@ -1234,7 +1244,7 @@ mod tests {
 
         match result {
             VMResult::Ok(value) => assert_eq!(value, Value::int(8)),
-            VMResult::Error(_) => panic!("Expected success"),
+            VMResult::Error { .. } => panic!("Expected success"),
         }
     }
 
@@ -1250,7 +1260,7 @@ mod tests {
 
         match result {
             VMResult::Ok(value) => assert_eq!(value, Value::int(42)),
-            VMResult::Error(_) => panic!("Expected success"),
+            VMResult::Error { .. } => panic!("Expected success"),
         }
     }
 
@@ -1266,7 +1276,7 @@ mod tests {
 
         match result {
             VMResult::Ok(value) => assert_eq!(value, Value::float(5.5)),
-            VMResult::Error(_) => panic!("Expected success"),
+            VMResult::Error { .. } => panic!("Expected success"),
         }
     }
 
@@ -1282,7 +1292,7 @@ mod tests {
 
         match result {
             VMResult::Ok(value) => assert_eq!(value, Value::string("Hello World".to_string())),
-            VMResult::Error(_) => panic!("Expected success"),
+            VMResult::Error { .. } => panic!("Expected success"),
         }
     }
 
@@ -1298,7 +1308,7 @@ mod tests {
 
         match result {
             VMResult::Ok(value) => assert_eq!(value, Value::bool(false)),
-            VMResult::Error(_) => panic!("Expected success"),
+            VMResult::Error { .. } => panic!("Expected success"),
         }
     }
 
@@ -1313,7 +1323,7 @@ mod tests {
 
         match result {
             VMResult::Ok(value) => assert_eq!(value, Value::null()),
-            VMResult::Error(_) => panic!("Expected success"),
+            VMResult::Error { .. } => panic!("Expected success"),
         }
     }
 }

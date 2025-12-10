@@ -12,16 +12,11 @@ use crate::expression::Ast;
 use crate::token::*;
 
 // 私有子模块 - 手写解析器
-#[cfg(not(feature = "pest-parser"))]
 mod handwritten;
 
 // 私有子模块 - Pest 解析器
 #[cfg(feature = "pest-parser")]
 mod pest_impl;
-
-// Re-export Rule type for use in error types
-#[cfg(feature = "pest-parser")]
-pub use pest_impl::Rule;
 
 /// 统一的解析器错误类型
 #[derive(Error, Debug)]
@@ -31,7 +26,6 @@ pub enum ParserError {
     Token(#[from] TokenError),
 
     /// 手写解析器错误
-    #[cfg(not(feature = "pest-parser"))]
     #[error(transparent)]
     Handwritten(#[from] handwritten::ParseError),
 

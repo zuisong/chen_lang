@@ -50,12 +50,18 @@ pub enum ChenError {
     Token(#[from] token::TokenError),
     #[error(transparent)]
     Parser(#[from] parser::ParserError),
-    #[error(transparent)]
-    Runtime(#[from] value::RuntimeError),
+    #[error("Runtime error at line {1}: {0}")]
+    Runtime(#[source] value::RuntimeError, u32),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Utf8(#[from] std::string::FromUtf8Error),
+}
+
+impl From<value::RuntimeError> for ChenError {
+    fn from(e: value::RuntimeError) -> Self {
+        ChenError::Runtime(e, 0)
+    }
 }
 
 #[test]
@@ -78,8 +84,8 @@ pub fn run(code: String) -> Result<(), ChenError> {
         vm::VMResult::Ok(value) => {
             debug!("Execution result: {:?}", value);
         }
-        vm::VMResult::Error(error) => {
-            return Err(ChenError::Runtime(error));
+        vm::VMResult::Error { error, line, .. } => {
+            return Err(ChenError::Runtime(error, line));
         }
     }
     Ok(())
@@ -101,9 +107,9 @@ pub fn run_captured(code: String) -> Result<String, ChenError> {
             vm::VMResult::Ok(value) => {
                 debug!("Execution result: {:?}", value);
             }
-            vm::VMResult::Error(error) => {
+            vm::VMResult::Error { error, line, .. } => {
                 let mut guard = output.lock().unwrap();
-                writeln!(guard, "Runtime error: {:?}", error)?;
+                writeln!(guard, "Runtime error at line {}: {:?}", line, error)?;
             }
         }
     }

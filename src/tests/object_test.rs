@@ -16,7 +16,7 @@ mod object_tests {
             VMResult::Ok(value) => {
                 assert!(matches!(value, Value::Object(_)));
             }
-            VMResult::Error(e) => panic!("Expected success, got error: {}", e),
+            VMResult::Error { error: e, .. } => panic!("Expected success, got error: {}", e),
         }
     }
 
@@ -43,7 +43,7 @@ mod object_tests {
             VMResult::Ok(value) => {
                 assert_eq!(value, Value::string("Chen".to_string()));
             }
-            VMResult::Error(e) => panic!("Expected success, got error: {}", e),
+            VMResult::Error { error: e, .. } => panic!("Expected success, got error: {}", e),
         }
     }
 
@@ -72,7 +72,7 @@ mod object_tests {
             VMResult::Ok(value) => {
                 assert_eq!(value, Value::int(25));
             }
-            VMResult::Error(e) => panic!("Expected success, got error: {}", e),
+            VMResult::Error { error: e, .. } => panic!("Expected success, got error: {}", e),
         }
     }
 

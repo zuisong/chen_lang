@@ -27,18 +27,18 @@ fn test_operator_precedence_mul_add() {
         assert_eq!(bin_op.operator, Operator::Add);
         match (*bin_op.left, *bin_op.right) {
             (
-                Expression::Literal(Literal::Value(Value::Int(1))),
+                Expression::Literal(Literal::Value(Value::Int(1)), _),
                 Expression::BinaryOperation(right_op),
             ) => {
                 assert_eq!(right_op.operator, Operator::Multiply);
-                assert_eq!(
-                    *right_op.left,
-                    Expression::Literal(Literal::Value(Value::Int(2)))
-                );
-                assert_eq!(
-                    *right_op.right,
-                    Expression::Literal(Literal::Value(Value::Int(3)))
-                );
+                
+                // Check left operand (2)
+                if let Expression::Literal(Literal::Value(Value::Int(2)), _) = *right_op.left {
+                } else { panic!("Expected 2") }
+
+                // Check right operand (3)
+                 if let Expression::Literal(Literal::Value(Value::Int(3)), _) = *right_op.right {
+                } else { panic!("Expected 3") }
             }
             _ => panic!("AST structure incorrect for 1 + 2 * 3"),
         }
@@ -57,17 +57,14 @@ fn test_operator_precedence_paren() {
         match (*bin_op.left, *bin_op.right) {
             (
                 Expression::BinaryOperation(left_op),
-                Expression::Literal(Literal::Value(Value::Int(3))),
+                Expression::Literal(Literal::Value(Value::Int(3)), _),
             ) => {
                 assert_eq!(left_op.operator, Operator::Add);
-                assert_eq!(
-                    *left_op.left,
-                    Expression::Literal(Literal::Value(Value::Int(1)))
-                );
-                assert_eq!(
-                    *left_op.right,
-                    Expression::Literal(Literal::Value(Value::Int(2)))
-                );
+                 if let Expression::Literal(Literal::Value(Value::Int(1)), _) = *left_op.left {
+                } else { panic!("Expected 1") }
+
+                 if let Expression::Literal(Literal::Value(Value::Int(2)), _) = *left_op.right {
+                } else { panic!("Expected 2") }
             }
             _ => panic!("AST structure incorrect for (1 + 2) * 3"),
         }
@@ -84,7 +81,7 @@ fn test_logical_precedence() {
     if let Expression::BinaryOperation(bin_op) = expr {
         assert_eq!(bin_op.operator, Operator::Or);
         // left is true
-        if let Expression::Literal(Literal::Value(Value::Bool(true))) = *bin_op.left {
+        if let Expression::Literal(Literal::Value(Value::Bool(true)), _) = *bin_op.left {
         } else {
             panic!("Left should be true");
         }
@@ -105,7 +102,7 @@ fn test_if_expression() {
     let expr = parse_expr_str("if true { 1 } else { 0 }");
 
     if let Expression::If(if_expr) = expr {
-        if let Expression::Literal(Literal::Value(Value::Bool(true))) = *if_expr.test {
+        if let Expression::Literal(Literal::Value(Value::Bool(true)), _) = *if_expr.test {
         } else {
             panic!("Condition failed");
         }
@@ -137,7 +134,7 @@ fn test_syntax_error_unexpected_token() {
 fn test_function_call_no_args() {
     let expr = parse_expr_str("myFunc()");
     if let Expression::FunctionCall(call) = expr {
-        if let Expression::Identifier(name) = *call.callee {
+        if let Expression::Identifier(name, _) = *call.callee {
             assert_eq!(name, "myFunc");
         } else {
             panic!("Expected Identifier callee");
@@ -152,7 +149,7 @@ fn test_function_call_no_args() {
 fn test_function_call_with_args() {
     let expr = parse_expr_str("add(1, 2)");
     if let Expression::FunctionCall(call) = expr {
-        if let Expression::Identifier(name) = *call.callee {
+        if let Expression::Identifier(name, _) = *call.callee {
             assert_eq!(name, "add");
         } else {
             panic!("Expected Identifier callee");
@@ -167,7 +164,7 @@ fn test_function_call_with_args() {
 fn test_object_literal() {
     // #{ x: 1, y: 2 }
     let expr = parse_expr_str("#{ x: 1, y: 2 }");
-    if let Expression::ObjectLiteral(fields) = expr {
+    if let Expression::ObjectLiteral(fields, _) = expr {
         assert_eq!(fields.len(), 2);
         assert_eq!(fields[0].0, "x");
         assert_eq!(fields[1].0, "y");
@@ -179,9 +176,9 @@ fn test_object_literal() {
 #[test]
 fn test_get_field() {
     let expr = parse_expr_str("obj.x");
-    if let Expression::GetField { object, field } = expr {
+    if let Expression::GetField { object, field, .. } = expr {
         assert_eq!(field, "x");
-        if let Expression::Identifier(name) = *object {
+        if let Expression::Identifier(name, _) = *object {
             assert_eq!(name, "obj");
         } else {
             panic!("Object base should be identifier");
@@ -198,9 +195,10 @@ fn test_set_field() {
         object,
         field,
         value: _,
+        ..
     } = &stmts[0]
     {
-        if let Expression::Identifier(name) = object {
+        if let Expression::Identifier(name, _) = object {
             assert_eq!(name, "obj");
         } else {
             panic!("Object base should be identifier");
@@ -214,8 +212,8 @@ fn test_set_field() {
 #[test]
 fn test_index_access() {
     let expr = parse_expr_str("arr[0]");
-    if let Expression::Index { object, index: _ } = expr {
-        if let Expression::Identifier(name) = *object {
+    if let Expression::Index { object, index: _, .. } = expr {
+        if let Expression::Identifier(name, _) = *object {
             assert_eq!(name, "arr");
         }
     } else {

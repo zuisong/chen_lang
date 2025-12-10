@@ -26,7 +26,7 @@ impl Scope {
 
 // The Compiler struct holds the state of the compilation process.
 struct Compiler<'a> {
-    raw: &'a [char],
+    _raw: &'a [char],
     program: Program,
     scopes: Vec<Scope>,
     locals_count: usize, // For current function's local stack frame
@@ -51,7 +51,7 @@ impl<'a> Compiler<'a> {
         let scopes = vec![Scope::new(true)];
 
         Self {
-            raw,
+            _raw: raw,
             program: Program::default(),
             scopes,
             locals_count: 0,
@@ -95,12 +95,17 @@ impl<'a> Compiler<'a> {
             }
             if scope.is_global_scope {
                 // If reached global scope and not found locally, it's a global variable
-                // and it wasn't defined in `locals` map because global vars don't have FP offsets.
-                // We return Global here assuming it either exists or will be a runtime error.
                 return Some(VarLocation::Global(name.to_string()));
             }
         }
         None // Not found in any scope
+    }
+
+    // --- Helper for emitting instructions with line numbers ---
+    fn emit(&mut self, instr: Instruction, line: u32) {
+        let idx = self.program.instructions.len();
+        self.program.instructions.push(instr);
+        self.program.lines.insert(idx, line);
     }
 
     // --- Compilation Methods ---
@@ -123,9 +128,8 @@ impl<'a> Compiler<'a> {
 
         if !function_declarations.is_empty() {
             let end_label = "program_end".to_string();
-            self.program
-                .instructions
-                .push(Instruction::Jump(end_label.clone()));
+            // Use 0 as line number for implicit jumps
+            self.emit(Instruction::Jump(end_label.clone()), 0);
 
             for fd in function_declarations {
                 self.compile_declaration(fd);
@@ -145,6 +149,7 @@ impl<'a> Compiler<'a> {
     fn compile_statement(&mut self, stmt: Statement) {
         match stmt {
             Statement::FunctionDeclaration(fd) => {
+                let line = fd.line;
                 let func_name = fd
                     .name
                     .clone()
@@ -152,15 +157,10 @@ impl<'a> Compiler<'a> {
                 let unique_id = self.program.instructions.len();
                 let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
 
-                // 1. Jump over the function definition
-                self.program
-                    .instructions
-                    .push(Instruction::Jump(skip_label.clone()));
+                self.emit(Instruction::Jump(skip_label.clone()), line);
 
-                // 2. Compile the function body
                 self.compile_declaration(fd);
 
-                // 3. Define label target
                 self.program.syms.insert(
                     skip_label,
                     Symbol {
@@ -170,60 +170,82 @@ impl<'a> Compiler<'a> {
                     },
                 );
 
-                // 4. Define variable for the function
                 let var_location = self.define_variable(func_name.clone());
-                self.program
-                    .instructions
-                    .push(Instruction::Push(crate::value::Value::Function(func_name)));
+                self.emit(
+                    Instruction::Push(crate::value::Value::Function(func_name)),
+                    line,
+                );
                 match var_location {
-                    VarLocation::Local(offset) => self
-                        .program
-                        .instructions
-                        .push(Instruction::MovePlusFP(offset as usize)),
-                    VarLocation::Global(name) => {
-                        self.program.instructions.push(Instruction::Store(name))
+                    VarLocation::Local(offset) => {
+                        self.emit(Instruction::MovePlusFP(offset as usize), line)
                     }
+                    VarLocation::Global(name) => self.emit(Instruction::Store(name), line),
                 }
             }
             Statement::Return(r) => self.compile_return(r),
             Statement::Local(loc) => self.compile_local(loc),
             Statement::Expression(e) => {
+                // To access the line number of expression 'e', we need to check its variant.
+                // But e is moved into compile_expression.
+                // We can't easily extract line without matching.
+                // However, compile_expression handles emission.
+                // But we need to Pop the result.
+                // We need the line number for Pop.
+                // We can extract line number via a helper?
+                // Or just use 0/approx line.
+                // Let's implement `get_line` for Expression.
+                let line = self.get_expression_line(&e);
                 self.compile_expression(e);
-                self.program.instructions.push(Instruction::Pop);
+                self.emit(Instruction::Pop, line);
             }
             Statement::Loop(e) => self.compile_loop(e),
             Statement::Assign(e) => self.compile_assign(e),
-            Statement::Break => {
+            Statement::Break(line) => {
                 let labels = self.loop_stack.last().expect("break outside of loop");
-                self.program
-                    .instructions
-                    .push(Instruction::Jump(labels.end.clone()));
+                self.emit(Instruction::Jump(labels.end.clone()), line);
             }
-            Statement::Continue => {
+            Statement::Continue(line) => {
                 let labels = self.loop_stack.last().expect("continue outside of loop");
-                self.program
-                    .instructions
-                    .push(Instruction::Jump(labels.start.clone()));
+                self.emit(Instruction::Jump(labels.start.clone()), line);
             }
             Statement::SetField {
                 object,
                 field,
                 value,
+                line,
             } => {
                 self.compile_expression(object);
                 self.compile_expression(value);
-                self.program.instructions.push(Instruction::SetField(field));
+                self.emit(Instruction::SetField(field), line);
             }
             Statement::SetIndex {
                 object,
                 index,
                 value,
+                line,
             } => {
                 self.compile_expression(object);
                 self.compile_expression(index);
                 self.compile_expression(value);
-                self.program.instructions.push(Instruction::SetIndex);
+                self.emit(Instruction::SetIndex, line);
             }
+        }
+    }
+
+    fn get_expression_line(&self, expr: &Expression) -> u32 {
+        match expr {
+            Expression::FunctionCall(fc) => fc.line,
+            Expression::BinaryOperation(bin) => bin.line,
+            Expression::Literal(_, line) => *line,
+            Expression::Unary(u) => u.line,
+            Expression::Identifier(_, line) => *line,
+            Expression::Block(_, line) => *line,
+            Expression::If(if_expr) => if_expr.line,
+            Expression::ObjectLiteral(_, line) => *line,
+            Expression::ArrayLiteral(_, line) => *line,
+            Expression::GetField { line, .. } => *line,
+            Expression::Index { line, .. } => *line,
+            Expression::Function(fd) => fd.line,
         }
     }
 
@@ -231,65 +253,65 @@ impl<'a> Compiler<'a> {
         match exp {
             Expression::BinaryOperation(bop) => self.compile_binary_operation(bop),
             Expression::FunctionCall(fc) => self.compile_function_call(fc),
-            Expression::Literal(lit) => self.compile_literal(lit),
-            Expression::Identifier(ident) => {
+            Expression::Literal(lit, line) => self.compile_literal(lit, line),
+            Expression::Identifier(ident, line) => {
                 if let Some(var_location) = self.resolve_variable(&ident) {
                     match var_location {
                         VarLocation::Local(offset) => {
-                            self.program
-                                .instructions
-                                .push(Instruction::DupPlusFP(offset));
+                            self.emit(Instruction::DupPlusFP(offset), line);
                         }
                         VarLocation::Global(name) => {
-                            self.program.instructions.push(Instruction::Load(name));
+                            self.emit(Instruction::Load(name), line);
                         }
                     }
                 } else {
-                    // This case should theoretically be caught by resolve_variable returning Global for top-level.
-                    // But if it's truly not found, it's an error.
-                    // For now, let's assume it should be Load for any unresolved identifier,
-                    // which will cause a runtime error if it doesn't exist.
-                    self.program.instructions.push(Instruction::Load(ident));
+                    self.emit(Instruction::Load(ident), line);
                 }
             }
             Expression::Unary(unary) => {
+                let line = unary.line;
                 self.compile_expression(*unary.expr);
                 match unary.operator {
-                    Operator::Not => self.program.instructions.push(Instruction::Not),
+                    Operator::Not => self.emit(Instruction::Not, line),
                     _ => panic!("Unsupported unary operator"),
                 }
             }
-            Expression::Block(stmts) => self.compile_block_expression(stmts),
+            Expression::Block(stmts, line) => self.compile_block_expression(stmts, line),
             Expression::If(if_expr) => self.compile_if(if_expr),
-            Expression::ObjectLiteral(fields) => {
-                // 创建空对象
-                self.program.instructions.push(Instruction::NewObject);
-                // 为每个字段设置值
+            Expression::ObjectLiteral(fields, line) => {
+                self.emit(Instruction::NewObject, line);
                 for (key, val) in fields {
-                    self.program.instructions.push(Instruction::Dup); // 复制对象引用
-                    self.compile_expression(val); // 编译值
-                    self.program.instructions.push(Instruction::SetField(key)); // 设置字段
+                    self.emit(Instruction::Dup, line);
+                    self.compile_expression(val);
+                    self.emit(Instruction::SetField(key), line);
                 }
             }
-            Expression::ArrayLiteral(elements) => {
+            Expression::ArrayLiteral(elements, line) => {
                 let count = elements.len();
                 for elem in elements {
                     self.compile_expression(elem);
                 }
-                self.program
-                    .instructions
-                    .push(Instruction::BuildArray(count));
+                self.emit(Instruction::BuildArray(count), line);
             }
-            Expression::GetField { object, field } => {
+            Expression::GetField {
+                object,
+                field,
+                line,
+            } => {
                 self.compile_expression(*object);
-                self.program.instructions.push(Instruction::GetField(field));
+                self.emit(Instruction::GetField(field), line);
             }
-            Expression::Index { object, index } => {
+            Expression::Index {
+                object,
+                index,
+                line,
+            } => {
                 self.compile_expression(*object);
                 self.compile_expression(*index);
-                self.program.instructions.push(Instruction::GetIndex);
+                self.emit(Instruction::GetIndex, line);
             }
             Expression::Function(mut fd) => {
+                let line = fd.line;
                 let func_name = fd
                     .name
                     .take()
@@ -299,9 +321,7 @@ impl<'a> Compiler<'a> {
                 let unique_id = self.program.instructions.len();
                 let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
 
-                self.program
-                    .instructions
-                    .push(Instruction::Jump(skip_label.clone()));
+                self.emit(Instruction::Jump(skip_label.clone()), line);
                 self.compile_declaration(fd);
 
                 self.program.syms.insert(
@@ -313,14 +333,15 @@ impl<'a> Compiler<'a> {
                     },
                 );
 
-                self.program
-                    .instructions
-                    .push(Instruction::Push(crate::value::Value::Function(func_name)));
+                self.emit(
+                    Instruction::Push(crate::value::Value::Function(func_name)),
+                    line,
+                );
             }
         }
     }
 
-    fn compile_block_expression(&mut self, stmts: Vec<Statement>) {
+    fn compile_block_expression(&mut self, stmts: Vec<Statement>, line: u32) {
         self.begin_scope();
         let len = stmts.len();
         for (i, stmt) in stmts.into_iter().enumerate() {
@@ -329,10 +350,8 @@ impl<'a> Compiler<'a> {
                     Statement::Expression(e) => self.compile_expression(e),
                     _ => {
                         self.compile_statement(stmt);
-                        // Block must return a value, so push Null if the last statement is not an expression
-                        self.program
-                            .instructions
-                            .push(Instruction::Push(crate::value::Value::Null));
+                        // Block must return a value
+                        self.emit(Instruction::Push(crate::value::Value::Null), line);
                     }
                 }
             } else {
@@ -340,55 +359,52 @@ impl<'a> Compiler<'a> {
             }
         }
         if len == 0 {
-            self.program
-                .instructions
-                .push(Instruction::Push(crate::value::Value::Null));
+            self.emit(Instruction::Push(crate::value::Value::Null), line);
         }
         self.end_scope();
     }
 
-    fn compile_literal(&mut self, lit: Literal) {
+    fn compile_literal(&mut self, lit: Literal, line: u32) {
         match lit {
             Literal::Value(val) => {
-                self.program.instructions.push(Instruction::Push(val));
+                self.emit(Instruction::Push(val), line);
             }
         }
     }
 
     fn compile_local(&mut self, local: Local) {
+        let line = local.line;
         self.compile_expression(local.expression);
         let var_location = self.define_variable(local.name);
         match var_location {
             VarLocation::Local(offset) => {
-                self.program
-                    .instructions
-                    .push(Instruction::MovePlusFP(offset as usize));
+                self.emit(Instruction::MovePlusFP(offset as usize), line);
             }
             VarLocation::Global(name) => {
-                self.program.instructions.push(Instruction::Store(name));
+                self.emit(Instruction::Store(name), line);
             }
         }
     }
 
     fn compile_assign(&mut self, assign: Assign) {
+        let line = assign.line;
         self.compile_expression(*assign.expr);
         let var_location = self
             .resolve_variable(&assign.name)
-            .expect("Undefined variable"); // Should catch undefined at compile time
+            .expect("Undefined variable");
 
         match var_location {
             VarLocation::Local(offset) => {
-                self.program
-                    .instructions
-                    .push(Instruction::MovePlusFP(offset as usize));
+                self.emit(Instruction::MovePlusFP(offset as usize), line);
             }
             VarLocation::Global(name) => {
-                self.program.instructions.push(Instruction::Store(name));
+                self.emit(Instruction::Store(name), line);
             }
         }
     }
 
     fn compile_binary_operation(&mut self, bop: BinaryOperation) {
+        let line = bop.line;
         self.compile_expression(*bop.left);
         self.compile_expression(*bop.right);
         let instruction = match bop.operator {
@@ -407,70 +423,65 @@ impl<'a> Compiler<'a> {
             Operator::Or => Instruction::Or,
             _ => panic!("Unable to compile binary operation: {:?}", bop.operator),
         };
-        self.program.instructions.push(instruction);
+        self.emit(instruction, line);
     }
 
     fn compile_function_call(&mut self, fc: FunctionCall) {
+        let line = fc.line;
         let len = fc.arguments.len();
         let arguments = fc.arguments;
         let callee = *fc.callee;
 
         match callee {
-            Expression::GetField { object, field } => {
-                // Method Call Optimization: obj.method(...) -> GetMethod -> CallStack(len+1)
+            Expression::GetField { object, field, .. } => {
                 self.compile_expression(*object);
-                self.program
-                    .instructions
-                    .push(Instruction::GetMethod(field));
+                self.emit(Instruction::GetMethod(field), line);
 
                 for arg in arguments {
                     self.compile_expression(arg);
                 }
 
-                // +1 argument for 'self'
-                self.program
-                    .instructions
-                    .push(Instruction::CallStack(len + 1));
+                self.emit(Instruction::CallStack(len + 1), line);
             }
             other_callee => {
-                // Standard function call
-
-                // Check if we can optimize to direct Call (Identifier referring to Global/Builtin)
-                let is_optimized_call = if let Expression::Identifier(ref name) = other_callee {
+                // Optimized call
+                let is_optimized_call = if let Expression::Identifier(ref name, _) = other_callee {
                     match self.resolve_variable(name) {
                         Some(VarLocation::Local(_)) => false,
-                        _ => true, // Global or Unknown -> Use direct Call, VM handles builtins/globals
+                        _ => true,
                     }
                 } else {
                     false
                 };
 
                 if is_optimized_call {
-                    if let Expression::Identifier(name) = other_callee {
+                    if let Expression::Identifier(name, _) = other_callee {
                         for arg in arguments {
                             self.compile_expression(arg);
                         }
-                        self.program.instructions.push(Instruction::Call(name, len));
+                        self.emit(Instruction::Call(name, len), line);
                     } else {
-                        unreachable!("Logic error: is_optimized_call implies Identifier");
+                        unreachable!();
                     }
                 } else {
                     self.compile_expression(other_callee);
                     for arg in arguments {
                         self.compile_expression(arg);
                     }
-                    self.program.instructions.push(Instruction::CallStack(len));
+                    self.emit(Instruction::CallStack(len), line);
                 }
             }
         }
     }
 
     fn compile_return(&mut self, ret: Return) {
+        let line = ret.line;
         self.compile_expression(ret.expression);
-        self.program.instructions.push(Instruction::Return);
+        self.emit(Instruction::Return, line);
     }
 
     fn compile_declaration(&mut self, fd: FunctionDeclaration) {
+        let line = fd.line;
         self.begin_scope();
         let function_index = self.program.instructions.len() as i32;
         let narguments = fd.parameters.len();
@@ -480,7 +491,7 @@ impl<'a> Compiler<'a> {
 
         for param in fd.parameters {
             if let VarLocation::Local(_) = self.define_variable(param) {
-                // Parameters are always local
+                // ok
             } else {
                 panic!("Function parameter cannot be global");
             }
@@ -496,9 +507,7 @@ impl<'a> Compiler<'a> {
                         }
                         _ => {
                             self.compile_statement(stmt);
-                            self.program
-                                .instructions
-                                .push(Instruction::Push(crate::value::Value::Null));
+                            self.emit(Instruction::Push(crate::value::Value::Null), line);
                         }
                     }
                 } else {
@@ -506,19 +515,15 @@ impl<'a> Compiler<'a> {
                 }
             }
         } else {
-            self.program
-                .instructions
-                .push(Instruction::Push(crate::value::Value::Null));
+            self.emit(Instruction::Push(crate::value::Value::Null), line);
         }
 
         let nlocals = self.locals_count;
         self.end_scope();
         self.locals_count = old_locals_count;
 
-        // Implicit return: return the value on top of the stack
-        self.program.instructions.push(Instruction::Return);
-
-        self.program.instructions.push(Instruction::Return);
+        self.emit(Instruction::Return, line);
+        self.emit(Instruction::Return, line); // Safety?
 
         self.program.syms.insert(
             format!(
@@ -534,23 +539,19 @@ impl<'a> Compiler<'a> {
     }
 
     fn compile_if(&mut self, if_stmt: If) {
+        let line = if_stmt.line;
         self.compile_expression(*if_stmt.test);
 
         let unique_id = self.program.instructions.len();
         let else_label = format!("else_{}", unique_id);
         let end_label = format!("end_{}", unique_id);
 
-        self.program
-            .instructions
-            .push(Instruction::JumpIfFalse(else_label.clone()));
+        self.emit(Instruction::JumpIfFalse(else_label.clone()), line);
 
-        self.compile_block_expression(if_stmt.body);
+        self.compile_block_expression(if_stmt.body, line);
 
-        self.program
-            .instructions
-            .push(Instruction::Jump(end_label.clone()));
+        self.emit(Instruction::Jump(end_label.clone()), line);
 
-        // Else label location
         self.program.syms.insert(
             else_label.clone(),
             Symbol {
@@ -561,15 +562,11 @@ impl<'a> Compiler<'a> {
         );
 
         if !if_stmt.else_body.is_empty() {
-            self.compile_block_expression(if_stmt.else_body);
+            self.compile_block_expression(if_stmt.else_body, line);
         } else {
-            // If expression with no else branch must return Null
-            self.program
-                .instructions
-                .push(Instruction::Push(crate::value::Value::Null));
+            self.emit(Instruction::Push(crate::value::Value::Null), line);
         }
 
-        // End label location
         self.program.syms.insert(
             end_label,
             Symbol {
@@ -581,6 +578,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn compile_loop(&mut self, loop_: Loop) {
+        let line = loop_.line;
         let loop_start = format!("loop_start_{}", self.program.instructions.len());
         let loop_end = format!("loop_end_{}", self.program.instructions.len());
 
@@ -599,9 +597,7 @@ impl<'a> Compiler<'a> {
         });
 
         self.compile_expression(loop_.test);
-        self.program
-            .instructions
-            .push(Instruction::JumpIfFalse(loop_end.clone()));
+        self.emit(Instruction::JumpIfFalse(loop_end.clone()), line);
 
         self.begin_scope();
         for stmt in loop_.body {
@@ -610,9 +606,7 @@ impl<'a> Compiler<'a> {
         self.end_scope();
         self.loop_stack.pop();
 
-        self.program
-            .instructions
-            .push(Instruction::Jump(loop_start.clone()));
+        self.emit(Instruction::Jump(loop_start.clone()), line);
 
         self.program.syms.insert(
             loop_end.clone(),
