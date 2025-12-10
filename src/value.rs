@@ -715,22 +715,22 @@ mod tests {
 
     #[test]
     fn test_float_operations() {
-        let a = Value::float(Decimal::from_f32(5.5).unwrap());
+        let a = Value::float(dec!(5.5));
         let b = Value::int(2);
 
         assert_eq!(
             a.add(&b).unwrap().unwrap_value(),
-            Value::float(Decimal::from_f32(7.5).unwrap())
+            Value::float(dec!(7.5))
         );
         assert_eq!(
             a.subtract(&b).unwrap().unwrap_value(),
-            Value::float(Decimal::from_f32(3.5).unwrap())
+            Value::float(dec!(3.5))
         );
         assert_eq!(
             a.multiply(&b).unwrap().unwrap_value(),
-            Value::float(Decimal::from_f32(11.0).unwrap())
+            Value::float(dec!(11.0))
         );
-        assert_eq!(a.divide(&b).unwrap(), Value::float(Decimal::from_f32(2.75).unwrap()));
+        assert_eq!(a.divide(&b).unwrap(), Value::float(dec!(2.75)));
     }
 
     #[test]
@@ -768,12 +768,12 @@ mod tests {
     #[test]
     fn test_type_conversions() {
         let int_val = Value::int(42);
-        let float_val = Value::float(Decimal::from_f32(3.14).unwrap());
+        let float_val = Value::float(dec!(3.14));
 
-        assert_eq!(int_val.to_float(), Some(Decimal::from(42)));
+        assert_eq!(int_val.to_float(), Some(dec!(42)));
         assert_eq!(float_val.to_int(), Some(3));
         assert_eq!(int_val.to_int(), Some(42));
-        assert_eq!(float_val.to_float(), Some(Decimal::from_f32(3.14).unwrap()));
+        assert_eq!(float_val.to_float(), Some(dec!(3.14)));
     }
 
     #[test]
