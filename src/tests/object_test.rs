@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod object_tests {
+    use pretty_assertions::assert_matches;
     use crate::value::Value;
     use crate::vm::{Instruction, Program, VM};
 
@@ -12,12 +13,7 @@ mod object_tests {
         let mut vm = VM::new();
         let result = vm.execute(&program);
 
-        match result {
-            Ok(value) => {
-                assert!(matches!(value, Value::Object(_)));
-            }
-            Err(e) => panic!("Expected success, got error: {:?}", e),
-        }
+        assert_matches!(result, Ok(Value::Object(_)), "Expected success");
     }
 
     /// 测试 VM 指令：SetField 和 GetField
@@ -39,12 +35,8 @@ mod object_tests {
         let mut vm = VM::new();
         let result = vm.execute(&program);
 
-        match result {
-            Ok(value) => {
-                assert_eq!(value, Value::string("Chen".to_string()));
-            }
-            Err(e) => panic!("Expected success, got error: {:?}", e),
-        }
+        let value = result.unwrap_or_else(|e| panic!("Expected success, got error: {:?}", e));
+        assert_eq!(value, Value::string("Chen".to_string()));
     }
 
     /// 测试 VM 指令：SetIndex 和 GetIndex
@@ -68,12 +60,8 @@ mod object_tests {
         let mut vm = VM::new();
         let result = vm.execute(&program);
 
-        match result {
-            Ok(value) => {
-                assert_eq!(value, Value::int(25));
-            }
-            Err(e) => panic!("Expected success, got error: {:?}", e),
-        }
+        let value = result.unwrap_or_else(|e| panic!("Expected success, got error: {:?}", e));
+        assert_eq!(value, Value::int(25));
     }
 
     /// 测试基础对象字面量和字段访问
@@ -235,7 +223,7 @@ println(person.city)"#;
         let obj1 = #{ a: 1 }
         let obj2 = #{ a: 1 }
         let obj3 = obj1
-        
+
         println(obj1 == obj2) # Should be false (different references)
         println(obj1 == obj3) # Should be true (same reference)
         "#;
@@ -286,14 +274,14 @@ println(person.city)"#;
         let code = r#"
         let grand = #{ __index: #{ name: "Grandpa" } }
         let parent = #{ __index: #{ age: 50 } }
-        
+
         # Chain: parent -> grand
         set_meta(parent.__index, grand)
-        
+
         let child = #{ }
         # Chain: child -> parent
         set_meta(child, parent)
-        
+
         println("Age: " + child.age)
         println("Name: " + child.name)
         "#;
@@ -312,14 +300,14 @@ println(person.city)"#;
         let code = r#"
         let meta = #{ __index: #{ x: 1 } }
         let obj = #{ }
-        
+
         # 1. Initial should be null
         if get_meta(obj) == null {
             println("Initial: null")
         } else {
             println("Initial: not null")
         }
-        
+
         # 2. Set meta
         set_meta(obj, meta)
         let m = get_meta(obj)
@@ -328,9 +316,9 @@ println(person.city)"#;
         } else {
             println("Meta match: false")
         }
-        
+
         println("Field x: " + obj.x)
-        
+
         # 3. Clear meta
         set_meta(obj, null)
         if get_meta(obj) == null {
@@ -338,7 +326,7 @@ println(person.city)"#;
         } else {
             println("Cleared: not null")
         }
-        
+
         if obj.x == null {
             println("Field x cleared: null")
         } else {
@@ -364,10 +352,10 @@ println(person.city)"#;
         def greet(self, name) {
             return "Hello " + name
         }
-        
+
         let obj = #{ }
         obj.say = greet
-        
+
         println(obj.say("World"))
         "#;
 
@@ -404,11 +392,11 @@ println(person.city)"#;
         def speak(self) {
             return "I am an object"
         }
-        
+
         let proto = #{ speak: speak }
         let obj = #{ }
         set_meta(obj, #{ __index: proto })
-        
+
         println(obj.speak())
         "#;
 
@@ -425,10 +413,10 @@ println(person.city)"#;
         def increment(self) {
             self.count = self.count + 1
         }
-        
+
         let counter = #{ count: 0 }
         counter.inc = increment
-        
+
         counter.inc()
         println(counter.count)
         counter.inc()
@@ -458,13 +446,13 @@ println(person.city)"#;
             let methods = #{
                 str: point_str
             }
-            
+
             # 2. 创建实例
             let instance = #{ x: x, y: y }
-            
+
             # 3. 建立继承关系
             set_meta(instance, #{ __index: methods })
-            
+
             return instance
         }
 
@@ -495,10 +483,10 @@ fn test_nested_function_class() {
             let methods = #{
                 str: point_str
             }
-            
+
             let instance = #{ x: x, y: y }
             set_meta(instance, #{ __index: methods })
-            
+
             return instance
         }
 
