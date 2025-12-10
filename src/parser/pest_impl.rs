@@ -36,25 +36,26 @@ pub fn parse(input: &str) -> Result<Ast, Box<pest::error::Error<Rule>>> {
 }
 
 fn parse_statement(pair: Pair<Rule>) -> Statement {
+    let line = pair.as_span().start_pos().line_col().0 as u32;
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
-        Rule::declaration => parse_declaration(inner),
-        Rule::assignment => parse_assignment(inner),
-        Rule::for_loop => parse_for_loop(inner),
-        Rule::function_def => parse_function_def(inner),
-        Rule::return_stmt => parse_return_stmt(inner),
-        Rule::break_stmt => Statement::Break,
-        Rule::continue_stmt => Statement::Continue,
+        Rule::declaration => parse_declaration(inner, line),
+        Rule::assignment => parse_assignment(inner, line),
+        Rule::for_loop => parse_for_loop(inner, line),
+        Rule::function_def => parse_function_def(inner, line),
+        Rule::return_stmt => parse_return_stmt(inner, line),
+        Rule::break_stmt => Statement::Break(line),
+        Rule::continue_stmt => Statement::Continue(line),
         Rule::expression => Statement::Expression(parse_expression(inner)),
         _ => unreachable!("Unexpected statement rule: {:?}", inner.as_rule()),
     }
 }
 
-fn parse_declaration(pair: Pair<Rule>) -> Statement {
+fn parse_declaration(pair: Pair<Rule>, line: u32) -> Statement {
     let inner = pair.into_inner();
 
     let mut name = String::new();
-    let mut expr = Expression::Literal(Literal::Value(Value::Null));
+    let mut expr = Expression::Literal(Literal::Value(Value::Null), line);
 
     for p in inner {
         match p.as_rule() {
@@ -65,15 +66,19 @@ fn parse_declaration(pair: Pair<Rule>) -> Statement {
         }
     }
 
-    Statement::Local(Local { name, expression: expr })
+    Statement::Local(Local {
+        name,
+        expression: expr,
+        line,
+    })
 }
 
-fn parse_assignment(pair: Pair<Rule>) -> Statement {
+fn parse_assignment(pair: Pair<Rule>, line: u32) -> Statement {
     // assignment = { assignment_target ~ assign ~ expression }
     // assignment_target = { identifier ~ postfix* }
     let mut inner = pair.into_inner();
     let target_pair = inner.next().unwrap();
-    let mut expr = Expression::Literal(Literal::Value(Value::Null));
+    let mut expr = Expression::Literal(Literal::Value(Value::Null), line);
 
     let lvalue = parse_assignment_target(target_pair);
 
@@ -84,19 +89,22 @@ fn parse_assignment(pair: Pair<Rule>) -> Statement {
     }
 
     match lvalue {
-        Expression::Identifier(name) => Statement::Assign(Assign {
+        Expression::Identifier(name, _) => Statement::Assign(Assign {
             name,
             expr: Box::new(expr),
+            line,
         }),
-        Expression::GetField { object, field } => Statement::SetField {
+        Expression::GetField { object, field, .. } => Statement::SetField {
             object: *object,
             field,
             value: expr,
+            line,
         },
-        Expression::Index { object, index } => Statement::SetIndex {
+        Expression::Index { object, index, .. } => Statement::SetIndex {
             object: *object,
             index: *index,
             value: expr,
+            line,
         },
         _ => unreachable!("Invalid l-value in assignment: {:?}", lvalue),
     }
@@ -104,9 +112,10 @@ fn parse_assignment(pair: Pair<Rule>) -> Statement {
 
 fn parse_assignment_target(pair: Pair<Rule>) -> Expression {
     // assignment_target = { identifier ~ postfix* }
+    let line = pair.as_span().start_pos().line_col().0 as u32;
     let mut inner = pair.into_inner();
     let identifier_pair = inner.next().unwrap();
-    let mut expr = Expression::Identifier(identifier_pair.as_str().to_string());
+    let mut expr = Expression::Identifier(identifier_pair.as_str().to_string(), line);
 
     for p in inner {
         match p.as_rule() {
@@ -117,9 +126,9 @@ fn parse_assignment_target(pair: Pair<Rule>) -> Expression {
     expr
 }
 
-fn parse_for_loop(pair: Pair<Rule>) -> Statement {
+fn parse_for_loop(pair: Pair<Rule>, line: u32) -> Statement {
     let inner = pair.into_inner();
-    let mut test = Expression::Literal(Literal::Value(Value::Bool(false)));
+    let mut test = Expression::Literal(Literal::Value(Value::Bool(false)), line);
     let mut body = Vec::new();
 
     for p in inner {
@@ -131,10 +140,11 @@ fn parse_for_loop(pair: Pair<Rule>) -> Statement {
         }
     }
 
-    Statement::Loop(Loop { test, body })
+    Statement::Loop(Loop { test, body, line })
 }
 
 fn build_function_declaration(pair: Pair<Rule>) -> FunctionDeclaration {
+    let line = pair.as_span().start_pos().line_col().0 as u32;
     let inner = pair.into_inner();
     let mut name = None;
     let mut parameters = Vec::new();
@@ -154,22 +164,32 @@ fn build_function_declaration(pair: Pair<Rule>) -> FunctionDeclaration {
         }
     }
 
-    FunctionDeclaration { name, parameters, body }
+    FunctionDeclaration {
+        name,
+        parameters,
+        body,
+        line,
+    }
 }
 
-fn parse_function_def(pair: Pair<Rule>) -> Statement {
+fn parse_function_def(pair: Pair<Rule>, _line: u32) -> Statement {
+    // The line from statement is passed but FunctionDeclaration also has its own line derived inside.
+    // We can use the passed line or derive again. Derive is cleaner for helper.
     let decl = build_function_declaration(pair);
     Statement::FunctionDeclaration(decl)
 }
 
-fn parse_return_stmt(pair: Pair<Rule>) -> Statement {
-    let mut expr = Expression::Literal(Literal::Value(Value::Null));
+fn parse_return_stmt(pair: Pair<Rule>, line: u32) -> Statement {
+    let mut expr = Expression::Literal(Literal::Value(Value::Null), line);
     for p in pair.into_inner() {
         if p.as_rule() == Rule::expression {
             expr = parse_expression(p);
         }
     }
-    Statement::Return(Return { expression: expr })
+    Statement::Return(Return {
+        expression: expr,
+        line,
+    })
 }
 
 fn parse_block(pair: Pair<Rule>) -> Vec<Statement> {
@@ -194,6 +214,7 @@ fn parse_binary_op<F>(pair: Pair<Rule>, parse_sub: F) -> Expression
 where
     F: Fn(Pair<Rule>) -> Expression,
 {
+    let line = pair.as_span().start_pos().line_col().0 as u32;
     let mut inner = pair.into_inner();
     let mut left = parse_sub(inner.next().unwrap());
 
@@ -221,6 +242,7 @@ where
             left: Box::new(left),
             operator: op,
             right: Box::new(right),
+            line,
         });
     }
     left
@@ -252,6 +274,7 @@ fn parse_factor(pair: Pair<Rule>) -> Expression {
 
 fn parse_unary(pair: Pair<Rule>) -> Expression {
     // unary = { (not | subtract) ~ unary | primary }
+    let line = pair.as_span().start_pos().line_col().0 as u32;
     let mut inner = pair.into_inner();
     let first = inner.next().unwrap();
 
@@ -261,15 +284,17 @@ fn parse_unary(pair: Pair<Rule>) -> Expression {
             Expression::Unary(Unary {
                 operator: Operator::Not,
                 expr: Box::new(expr),
+                line,
             })
         }
         Rule::subtract => {
             let expr = parse_unary(inner.next().unwrap());
             // -x is 0 - x
             Expression::BinaryOperation(BinaryOperation {
-                left: Box::new(Expression::Literal(Literal::Value(Value::Int(0)))),
+                left: Box::new(Expression::Literal(Literal::Value(Value::Int(0)), line)),
                 operator: Operator::Subtract,
                 right: Box::new(expr),
+                line,
             })
         }
         Rule::primary => parse_primary(first),
@@ -293,31 +318,43 @@ fn parse_primary(pair: Pair<Rule>) -> Expression {
 }
 
 fn parse_array_literal(pair: Pair<Rule>) -> Expression {
+    let line = pair.as_span().start_pos().line_col().0 as u32;
     let mut elements = Vec::new();
     for p in pair.into_inner() {
         if p.as_rule() == Rule::expression {
             elements.push(parse_expression(p));
         }
     }
-    Expression::ArrayLiteral(elements)
+    Expression::ArrayLiteral(elements, line)
 }
 
 fn parse_atom(pair: Pair<Rule>) -> Expression {
     // atom = { float | integer | bool | string | identifier | "(" ~ expression ~ ")" | if_expr | block | object_literal }
+    let line = pair.as_span().start_pos().line_col().0 as u32;
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
-        Rule::float => Expression::Literal(Literal::Value(Value::Float(inner.as_str().parse().unwrap()))),
-        Rule::integer => Expression::Literal(Literal::Value(Value::Int(inner.as_str().parse().unwrap()))),
-        Rule::bool => Expression::Literal(Literal::Value(Value::Bool(inner.as_str() == "true"))),
+        Rule::float => Expression::Literal(
+            Literal::Value(Value::Float(inner.as_str().parse().unwrap())),
+            line,
+        ),
+        Rule::integer => Expression::Literal(
+            Literal::Value(Value::Int(inner.as_str().parse().unwrap())),
+            line,
+        ),
+        Rule::bool => Expression::Literal(
+            Literal::Value(Value::Bool(inner.as_str() == "true")),
+            line,
+        ),
         Rule::string => {
             let s = inner.as_str();
+            // TODO: Better string unescaping
             let content = &s[1..s.len() - 1];
-            Expression::Literal(Literal::Value(Value::string(content.to_string())))
+            Expression::Literal(Literal::Value(Value::string(content.to_string())), line)
         }
-        Rule::identifier => Expression::Identifier(inner.as_str().to_string()),
+        Rule::identifier => Expression::Identifier(inner.as_str().to_string(), line),
         Rule::expression => parse_expression(inner), // ( expr )
         Rule::if_expr => parse_if_expr(inner),
-        Rule::block => Expression::Block(parse_block(inner)),
+        Rule::block => Expression::Block(parse_block(inner), line),
         Rule::object_literal => parse_object_literal(inner),
         Rule::function_def => Expression::Function(build_function_declaration(inner)),
         Rule::array_literal => parse_array_literal(inner),
@@ -327,6 +364,7 @@ fn parse_atom(pair: Pair<Rule>) -> Expression {
 
 fn parse_postfix(base: Expression, pair: Pair<Rule>) -> Expression {
     // postfix = { call_suffix | dot_suffix | index_suffix }
+    let line = pair.as_span().start_pos().line_col().0 as u32;
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
         Rule::call_suffix => {
@@ -343,6 +381,7 @@ fn parse_postfix(base: Expression, pair: Pair<Rule>) -> Expression {
             Expression::FunctionCall(FunctionCall {
                 callee: Box::new(base),
                 arguments: args,
+                line,
             })
         }
         Rule::dot_suffix => {
@@ -351,6 +390,7 @@ fn parse_postfix(base: Expression, pair: Pair<Rule>) -> Expression {
             Expression::GetField {
                 object: Box::new(base),
                 field,
+                line,
             }
         }
         Rule::index_suffix => {
@@ -359,6 +399,7 @@ fn parse_postfix(base: Expression, pair: Pair<Rule>) -> Expression {
             Expression::Index {
                 object: Box::new(base),
                 index: Box::new(idx_expr),
+                line,
             }
         }
         _ => unreachable!("Unexpected rule in postfix"),
@@ -367,6 +408,7 @@ fn parse_postfix(base: Expression, pair: Pair<Rule>) -> Expression {
 
 fn parse_object_literal(pair: Pair<Rule>) -> Expression {
     // object_literal = { "#{" ~ (pair ~ ("," ~ pair)*)? ~ "}" }
+    let line = pair.as_span().start_pos().line_col().0 as u32;
     let mut fields = Vec::new();
 
     for p in pair.into_inner() {
@@ -378,12 +420,13 @@ fn parse_object_literal(pair: Pair<Rule>) -> Expression {
         }
     }
 
-    Expression::ObjectLiteral(fields)
+    Expression::ObjectLiteral(fields, line)
 }
 
 fn parse_if_expr(pair: Pair<Rule>) -> Expression {
+    let line = pair.as_span().start_pos().line_col().0 as u32;
     let inner = pair.into_inner();
-    let mut test = Expression::Literal(Literal::Value(Value::Null));
+    let mut test = Expression::Literal(Literal::Value(Value::Null), line);
     let mut body = Vec::new();
     let mut else_body = Vec::new();
 
@@ -406,5 +449,6 @@ fn parse_if_expr(pair: Pair<Rule>) -> Expression {
         test: Box::new(test),
         body,
         else_body,
+        line,
     })
 }

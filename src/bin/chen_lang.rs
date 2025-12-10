@@ -41,7 +41,7 @@ enum SubCommand {
     },
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> anyhow::Result<()> {
     let matches = Args::parse();
     let _ = tracing_subscriber::registry()
         .with(
