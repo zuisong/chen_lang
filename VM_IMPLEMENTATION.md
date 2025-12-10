@@ -41,6 +41,11 @@
   - 集成测试 (`tests/`) 覆盖了函数、闭包、对象、继承、运算符重载等复杂场景。
   - 新增 `demo_codes/point_objects.ch` 演示了完整的对象系统用法。
 
+### 5. 错误报告 (Error Reporting)
+- **Source Mapping**: 实现了源代码行号映射。
+- **运行时错误**: 当 VM 抛出错误时，现在会报告具体的源代码行号（例如 `Runtime error at line 4: UndefinedVariable("x")`）。
+- **AST增强**: 修改了 AST 节点以携带行号信息。
+
 ## 运行示例
 
 ### 对象与运算符重载
@@ -75,8 +80,7 @@ print(i + j)' | cargo run --bin chen_lang -- run -
 
 ## 后续改进方向
 
-1. **错误处理**: 提供更友好的运行时错误堆栈跟踪。
-2. **更多元方法**: 支持 `__tostring` (用于 `print`), `__eq` 等。
+1. **更多元方法**: 支持 `__tostring` (用于 `print`), `__eq` 等。
 3. **性能优化**: 
    - 引入常量池。
    - 优化 `GetField` 的字符串查找 (String interning)。
