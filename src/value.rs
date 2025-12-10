@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::fmt;
+use std::fmt::Debug;
 use std::rc::Rc;
 
 use indexmap::IndexMap;
@@ -12,10 +13,10 @@ pub struct Table {
 }
 
 /// 原生函数类型
-pub type NativeFn = fn(Vec<Value>) -> Result<Value, RuntimeError>;
+pub type NativeFnType = dyn Fn(Vec<Value>) -> Result<Value, RuntimeError> + 'static + Send + Sync;
 
 /// 运行时值类型 - 统一表示所有数据类型
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Value {
     Int(i32),
     Float(f32),
@@ -26,7 +27,7 @@ pub enum Value {
     /// 函数引用 (函数名 - Chen 语言定义的函数)
     Function(String),
     /// 原生函数 (Rust 定义的函数)
-    NativeFunction(NativeFn),
+    NativeFunction(Rc<Box<NativeFnType>>),
     Null,
 }
 
@@ -152,7 +153,7 @@ impl PartialEq for Value {
             (Value::Object(a), Value::Object(b)) => Rc::ptr_eq(a, b),
             // 函数比较：名称比较
             (Value::Function(a), Value::Function(b)) => a == b,
-            (Value::NativeFunction(a), Value::NativeFunction(b)) => std::ptr::fn_addr_eq(*a, *b),
+            (Value::NativeFunction(a), Value::NativeFunction(b)) => Rc::ptr_eq(a, b),
             // 混合类型比较：int和float可以比较
             (Value::Int(a), Value::Float(b)) => (*a as f32 - b).abs() < f32::EPSILON,
             (Value::Float(a), Value::Int(b)) => (a - *b as f32).abs() < f32::EPSILON,
@@ -187,6 +188,21 @@ impl fmt::Display for Value {
             Value::Function(name) => write!(f, "<function {}>", name),
             Value::NativeFunction(_) => write!(f, "<native function>"),
             Value::Null => write!(f, "null"),
+        }
+    }
+}
+
+impl Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Int(n) => write!(f, "Int({})", n),
+            Value::Float(fl) => write!(f, "Float({})", fl),
+            Value::Bool(b) => write!(f, "Bool({})", b),
+            Value::String(s) => write!(f, "String(\"{}\")", s),
+            Value::Object(obj) => write!(f, "Object({:?})", obj.borrow()),
+            Value::Function(name) => write!(f, "Function({})", name),
+            Value::NativeFunction(_) => write!(f, "NativeFunction(<native fn>)"),
+            Value::Null => write!(f, "Null"),
         }
     }
 }
@@ -281,63 +297,135 @@ impl fmt::Display for RuntimeError {
 
 impl std::error::Error for RuntimeError {}
 
+/// 表示算术操作的结果，可以是直接的 Value，也可以是需要调用元方法的指示
+#[derive(Debug, Clone)]
+pub enum OpResult {
+    Value(Value),
+    MetamethodCall(MetamethodCallInfo),
+}
+
+/// 包含元方法调用所需的信息
+#[derive(Debug, Clone)]
+pub struct MetamethodCallInfo {
+    pub metamethod: Value,
+    pub left: Value,
+    pub right: Value,
+}
+
+impl OpResult {
+    /// Helper for tests that expect a direct Value result. Panics if it's a MetamethodCall.
+    pub fn unwrap_value(self) -> Value {
+        match self {
+            OpResult::Value(val) => val,
+            OpResult::MetamethodCall(_) => {
+                panic!("OpResult::unwrap_value() called on a MetamethodCall variant")
+            }
+        }
+    }
+}
+
 /// 算术运算实现
 impl Value {
-    pub fn add(&self, other: &Value) -> Result<Value, RuntimeError> {
+    pub fn add(&self, other: &Value) -> Result<OpResult, RuntimeError> {
         match (self, other) {
-            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a + b)),
-            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
-            (Value::Int(a), Value::Float(b)) => Ok(Value::Float(*a as f32 + b)),
-            (Value::Float(a), Value::Int(b)) => Ok(Value::Float(a + *b as f32)),
+            (Value::Int(a), Value::Int(b)) => Ok(OpResult::Value(Value::Int(a + b))),
+            (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(a + b))),
+            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(*a as f32 + b))),
+            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::Float(a + *b as f32))),
             (Value::String(a), Value::String(b)) => {
                 let mut result = String::as_str(a).to_string();
                 result.push_str(String::as_str(b));
-                Ok(Value::string(result))
+                Ok(OpResult::Value(Value::string(result)))
             }
             // 字符串连接：任何类型都可以与字符串相加
             (Value::String(a), _) => {
                 let mut result = String::as_str(a).to_string();
                 result.push_str(&other.to_string());
-                Ok(Value::string(result))
+                Ok(OpResult::Value(Value::string(result)))
             }
             (_, Value::String(b)) => {
                 let mut result = self.to_string();
                 result.push_str(String::as_str(b));
-                Ok(Value::string(result))
+                Ok(OpResult::Value(Value::string(result)))
             }
-            _ => Err(RuntimeError::InvalidOperation {
-                operator: "+".to_string(),
-                left_type: self.get_type(),
-                right_type: other.get_type(),
-            }),
+            // Metamethod lookup for __add
+            (left_val, right_val) => {
+                let metamethod = left_val
+                    .get_metamethod_from_object("__add")
+                    .or_else(|| right_val.get_metamethod_from_object("__add"));
+
+                if let Some(metamethod_func) = metamethod {
+                    Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                        metamethod: metamethod_func,
+                        left: left_val.clone(),
+                        right: right_val.clone(),
+                    }))
+                } else {
+                    Err(RuntimeError::InvalidOperation {
+                        operator: "+".to_string(),
+                        left_type: self.get_type(),
+                        right_type: other.get_type(),
+                    })
+                }
+            }
         }
     }
 
-    pub fn subtract(&self, other: &Value) -> Result<Value, RuntimeError> {
+    pub fn subtract(&self, other: &Value) -> Result<OpResult, RuntimeError> {
         match (self, other) {
-            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a - b)),
-            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a - b)),
-            (Value::Int(a), Value::Float(b)) => Ok(Value::Float(*a as f32 - b)),
-            (Value::Float(a), Value::Int(b)) => Ok(Value::Float(a - *b as f32)),
-            _ => Err(RuntimeError::InvalidOperation {
-                operator: "-".to_string(),
-                left_type: self.get_type(),
-                right_type: other.get_type(),
-            }),
+            (Value::Int(a), Value::Int(b)) => Ok(OpResult::Value(Value::Int(a - b))),
+            (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(a - b))),
+            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(*a as f32 - b))),
+            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::Float(a - *b as f32))),
+            // Metamethod lookup for __sub
+            (left_val, right_val) => {
+                let metamethod = left_val
+                    .get_metamethod_from_object("__sub")
+                    .or_else(|| right_val.get_metamethod_from_object("__sub"));
+
+                if let Some(metamethod_func) = metamethod {
+                    Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                        metamethod: metamethod_func,
+                        left: left_val.clone(),
+                        right: right_val.clone(),
+                    }))
+                } else {
+                    Err(RuntimeError::InvalidOperation {
+                        operator: "-".to_string(),
+                        left_type: self.get_type(),
+                        right_type: other.get_type(),
+                    })
+                }
+            }
         }
     }
 
-    pub fn multiply(&self, other: &Value) -> Result<Value, RuntimeError> {
+    pub fn multiply(&self, other: &Value) -> Result<OpResult, RuntimeError> {
         match (self, other) {
-            (Value::Int(a), Value::Int(b)) => Ok(Value::Int(a * b)),
-            (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a * b)),
-            (Value::Int(a), Value::Float(b)) => Ok(Value::Float(*a as f32 * b)),
-            (Value::Float(a), Value::Int(b)) => Ok(Value::Float(a * *b as f32)),
-            _ => Err(RuntimeError::InvalidOperation {
-                operator: "*".to_string(),
-                left_type: self.get_type(),
-                right_type: other.get_type(),
-            }),
+            (Value::Int(a), Value::Int(b)) => Ok(OpResult::Value(Value::Int(a * b))),
+            (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(a * b))),
+            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(*a as f32 * b))),
+            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::Float(a * *b as f32))),
+            // Metamethod lookup for __mul
+            (left_val, right_val) => {
+                let metamethod = left_val
+                    .get_metamethod_from_object("__mul")
+                    .or_else(|| right_val.get_metamethod_from_object("__mul"));
+
+                if let Some(metamethod_func) = metamethod {
+                    Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                        metamethod: metamethod_func,
+                        left: left_val.clone(),
+                        right: right_val.clone(),
+                    }))
+                } else {
+                    Err(RuntimeError::InvalidOperation {
+                        operator: "*".to_string(),
+                        left_type: self.get_type(),
+                        right_type: other.get_type(),
+                    })
+                }
+            }
         }
     }
 
@@ -512,10 +600,41 @@ impl Value {
     }
 }
 
-/// Metatable support methods
+    /// Metatable support methods
 impl Value {
-    /// Get field with metatable support (__index metamethod)
-    pub fn get_field_with_meta(&self, key: &str) -> Value {
+        /// Recursively search for a metamethod in the object's metatable chain.
+        /// Returns the metamethod Value if found, otherwise None.
+            pub fn get_metamethod_from_object(&self, metamethod_name: &str) -> Option<Value> {
+                let mut current_obj_owned = self.clone(); // Own the Value directly
+                loop {
+                    match current_obj_owned {
+                        Value::Object(table_ref) => {
+                            let table = table_ref.borrow();
+                            if let Some(metatable_ref) = &table.metatable {
+                                let metatable = metatable_ref.borrow();
+                                if let Some(metamethod_val) = metatable.data.get(metamethod_name) {
+                                    match metamethod_val {
+                                        Value::Function(_) | Value::NativeFunction(_) => {
+                                            return Some(metamethod_val.clone());
+                                        }
+                                        _ => {
+                                            // Found a value, but it's not a function, treat as not found
+                                            return None;
+                                        }
+                                    }
+                                }
+                                // Continue search in the metatable's metatable (Lua's behavior for __index chain)
+                                current_obj_owned = Value::Object(metatable_ref.clone());
+                            } else {
+                                return None; // No metatable, end of chain
+                            }
+                        }
+                        _ => return None, // Not an object, cannot have a metatable
+                    }
+                }
+            }
+        /// Get field with metatable support (__index metamethod)
+        pub fn get_field_with_meta(&self, key: &str) -> Value {
         match self {
             Value::Object(table_ref) => {
                 let table = table_ref.borrow();
@@ -628,9 +747,9 @@ mod tests {
         let a = Value::int(5);
         let b = Value::int(3);
 
-        assert_eq!(a.add(&b).unwrap(), Value::int(8));
-        assert_eq!(a.subtract(&b).unwrap(), Value::int(2));
-        assert_eq!(a.multiply(&b).unwrap(), Value::int(15));
+        assert_eq!(a.add(&b).unwrap().unwrap_value(), Value::int(8));
+        assert_eq!(a.subtract(&b).unwrap().unwrap_value(), Value::int(2));
+        assert_eq!(a.multiply(&b).unwrap().unwrap_value(), Value::int(15));
         assert_eq!(a.divide(&b).unwrap(), Value::int(1));
         assert_eq!(a.modulo(&b).unwrap(), Value::int(2));
     }
@@ -640,9 +759,9 @@ mod tests {
         let a = Value::float(5.5);
         let b = Value::int(2);
 
-        assert_eq!(a.add(&b).unwrap(), Value::float(7.5));
-        assert_eq!(a.subtract(&b).unwrap(), Value::float(3.5));
-        assert_eq!(a.multiply(&b).unwrap(), Value::float(11.0));
+        assert_eq!(a.add(&b).unwrap().unwrap_value(), Value::float(7.5));
+        assert_eq!(a.subtract(&b).unwrap().unwrap_value(), Value::float(3.5));
+        assert_eq!(a.multiply(&b).unwrap().unwrap_value(), Value::float(11.0));
         assert_eq!(a.divide(&b).unwrap(), Value::float(2.75));
     }
 
@@ -651,7 +770,7 @@ mod tests {
         let a = Value::string("Hello".to_string());
         let b = Value::string(" World".to_string());
 
-        assert_eq!(a.add(&b).unwrap(), Value::string("Hello World".to_string()));
+        assert_eq!(a.add(&b).unwrap().unwrap_value(), Value::string("Hello World".to_string()));
     }
 
     #[test]

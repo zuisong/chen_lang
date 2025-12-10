@@ -1,11 +1,11 @@
 use std::io::Write;
+use std::rc::Rc;
 
 use indexmap::IndexMap;
 use jiff::Timestamp;
 use tracing::debug;
 
-use crate::value::ValueType;
-use crate::value::{RuntimeError, Value};
+use crate::value::{NativeFnType, RuntimeError, Value, ValueType};
 
 #[derive(Debug, Clone)]
 pub struct Symbol {
@@ -278,22 +278,70 @@ impl VM {
             Instruction::Add => {
                 let right = self.stack.pop().unwrap_or(Value::null());
                 let left = self.stack.pop().unwrap_or(Value::null());
-                let result = left.add(&right)?;
-                self.stack.push(result);
+                let op_result = left.add(&right)?;
+
+                match op_result {
+                    crate::value::OpResult::Value(value) => {
+                        self.stack.push(value);
+                    }
+                    crate::value::OpResult::MetamethodCall(call_info) => {
+                        self.stack.push(call_info.metamethod); // Push metamethod first
+                        self.stack.push(call_info.left);       // Then left arg
+                        self.stack.push(call_info.right);      // Then right arg
+                        
+                        // CallStack expects func, arg1, arg2, so the metamethod is at func_idx.
+                        // The arguments (left, right) are after it, so arg_count is 2.
+
+                        let call_stack_instr = Instruction::CallStack(2);
+                        self.pc += 1; // Advance PC to not re-execute Add
+                        return self.execute_instruction(&call_stack_instr, program);
+                    }
+                }
             }
 
             Instruction::Subtract => {
                 let right = self.stack.pop().unwrap_or(Value::null());
                 let left = self.stack.pop().unwrap_or(Value::null());
-                let result = left.subtract(&right)?;
-                self.stack.push(result);
+                let op_result = left.subtract(&right)?;
+
+                match op_result {
+                    crate::value::OpResult::Value(value) => {
+                        self.stack.push(value);
+                    }
+                    crate::value::OpResult::MetamethodCall(call_info) => {
+                        self.stack.push(call_info.metamethod); // Push metamethod first
+                        self.stack.push(call_info.left);       // Then left arg
+                        self.stack.push(call_info.right);      // Then right arg
+                        
+                        // CallStack expects func, arg1, arg2, so the metamethod is at func_idx.
+                        // The arguments (left, right) are after it, so arg_count is 2.
+
+                        let call_stack_instr = Instruction::CallStack(2);
+                        self.pc += 1; // Advance PC to not re-execute Add
+                        return self.execute_instruction(&call_stack_instr, program);
+                    }
+                }
             }
 
             Instruction::Multiply => {
                 let right = self.stack.pop().unwrap_or(Value::null());
                 let left = self.stack.pop().unwrap_or(Value::null());
-                let result = left.multiply(&right)?;
-                self.stack.push(result);
+                let op_result = left.multiply(&right)?;
+
+                match op_result {
+                    crate::value::OpResult::Value(value) => {
+                        self.stack.push(value);
+                    }
+                    crate::value::OpResult::MetamethodCall(call_info) => {
+                        self.stack.push(call_info.metamethod); // Push metamethod first
+                        self.stack.push(call_info.left);       // Then left arg
+                        self.stack.push(call_info.right);      // Then right arg
+                        
+                        let call_stack_instr = Instruction::CallStack(2);
+                        self.pc += 1;
+                        return self.execute_instruction(&call_stack_instr, program);
+                    }
+                }
             }
 
             Instruction::Divide => {
@@ -745,13 +793,16 @@ fn create_array_prototype() -> Value {
         .insert("__type".to_string(), Value::string("Array".to_string()));
     table
         .data
-        .insert("push".to_string(), Value::NativeFunction(native_array_push));
+
+// ...
+
+        .insert("push".to_string(), Value::NativeFunction(Rc::new(Box::new(native_array_push) as Box<NativeFnType>)));
     table
         .data
-        .insert("pop".to_string(), Value::NativeFunction(native_array_pop));
+        .insert("pop".to_string(), Value::NativeFunction(Rc::new(Box::new(native_array_pop) as Box<NativeFnType>)));
     table
         .data
-        .insert("len".to_string(), Value::NativeFunction(native_array_len));
+        .insert("len".to_string(), Value::NativeFunction(Rc::new(Box::new(native_array_len) as Box<NativeFnType>)));
 
     let table_rc = std::rc::Rc::new(std::cell::RefCell::new(table));
     let proto_val = Value::Object(table_rc.clone());
@@ -837,18 +888,18 @@ fn create_string_prototype() -> Value {
         .insert("__type".to_string(), Value::string("String".to_string()));
     table
         .data
-        .insert("len".to_string(), Value::NativeFunction(native_string_len));
+        .insert("len".to_string(), Value::NativeFunction(Rc::new(Box::new(native_string_len) as Box<NativeFnType>)));
     table.data.insert(
         "trim".to_string(),
-        Value::NativeFunction(native_string_trim),
+        Value::NativeFunction(Rc::new(Box::new(native_string_trim) as Box<NativeFnType>)),
     );
     table.data.insert(
         "upper".to_string(),
-        Value::NativeFunction(native_string_upper),
+        Value::NativeFunction(Rc::new(Box::new(native_string_upper) as Box<NativeFnType>)),
     );
     table.data.insert(
         "lower".to_string(),
-        Value::NativeFunction(native_string_lower),
+        Value::NativeFunction(Rc::new(Box::new(native_string_lower) as Box<NativeFnType>)),
     );
 
     let table_rc = std::rc::Rc::new(std::cell::RefCell::new(table));
@@ -925,14 +976,14 @@ fn create_date_object() -> Value {
         .insert("__type".to_string(), Value::string("Date".to_string()));
     table
         .data
-        .insert("new".to_string(), Value::NativeFunction(native_date_new));
+        .insert("new".to_string(), Value::NativeFunction(Rc::new(Box::new(native_date_new) as Box<NativeFnType>)));
     table.data.insert(
         "format".to_string(),
-        Value::NativeFunction(native_date_format),
+        Value::NativeFunction(Rc::new(Box::new(native_date_format) as Box<NativeFnType>)),
     );
     table.data.insert(
         "timestamp".to_string(),
-        Value::NativeFunction(native_date_timestamp),
+        Value::NativeFunction(Rc::new(Box::new(native_date_timestamp) as Box<NativeFnType>)),
     );
 
     let table_rc = std::rc::Rc::new(std::cell::RefCell::new(table));
@@ -1034,11 +1085,11 @@ fn create_json_object() -> Value {
     };
     table.data.insert(
         "parse".to_string(),
-        Value::NativeFunction(native_json_parse),
+        Value::NativeFunction(Rc::new(Box::new(native_json_parse) as Box<NativeFnType>)),
     );
     table.data.insert(
         "stringify".to_string(),
-        Value::NativeFunction(native_json_stringify),
+        Value::NativeFunction(Rc::new(Box::new(native_json_stringify) as Box<NativeFnType>)),
     );
     Value::Object(std::rc::Rc::new(std::cell::RefCell::new(table)))
 }
