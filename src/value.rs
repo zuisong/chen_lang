@@ -18,7 +18,7 @@ pub struct Table {
 }
 
 /// 原生函数类型
-pub type NativeFnType = dyn Fn(Vec<Value>) -> Result<Value, VMRuntimeError> + 'static + Send + Sync;
+pub type NativeFnType = dyn Fn(Vec<Value>) -> Result<Value, VMRuntimeError> + 'static;
 
 /// 运行时值类型 - 统一表示所有数据类型
 #[derive(Clone)]

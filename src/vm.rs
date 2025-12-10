@@ -1,6 +1,7 @@
 use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::rc::Rc;
+use std::cell::RefCell;
 
 use indexmap::IndexMap;
 use jiff::Timestamp;
@@ -659,11 +660,54 @@ impl VM {
             Instruction::GetField(field) => {
                 let obj = self.stack.pop().unwrap_or(Value::null());
                 // Use metatable-aware field access
-                let value = if let Value::String(_) = obj {
+                let mut value = if let Value::String(_) = obj {
                     self.string_prototype.get_field_with_meta(field)
                 } else {
                     obj.get_field_with_meta(field)
                 };
+
+                if let Value::Null = value {
+                    if let Value::Object(_) = obj {
+                        if field == "keys" {
+                            let array_proto = self.array_prototype.clone();
+                            value = Value::NativeFunction(Rc::new(Box::new(move |args| {
+                                if args.is_empty() {
+                                    return Err(ValueError::TypeMismatch {
+                                        expected: ValueType::Object,
+                                        found: ValueType::Null,
+                                        operation: "keys".into(),
+                                    }
+                                    .into());
+                                }
+                                let obj = &args[0];
+                                if let Value::Object(table_rc) = obj {
+                                    let table = table_rc.borrow();
+                                    let mut data = IndexMap::new();
+                                    for (i, k) in table.data.keys().enumerate() {
+                                        data.insert(i.to_string(), Value::string(k.clone()));
+                                    }
+                                    
+                                    let mut res_table = crate::value::Table {
+                                        data,
+                                        metatable: None,
+                                    };
+                                    if let Value::Object(proto_rc) = &array_proto {
+                                        res_table.metatable = Some(proto_rc.clone());
+                                    }
+                                    
+                                    return Ok(Value::Object(Rc::new(RefCell::new(res_table))));
+                                }
+                                Err(ValueError::TypeMismatch {
+                                    expected: ValueType::Object,
+                                    found: obj.get_type(),
+                                    operation: "keys".into(),
+                                }
+                                .into())
+                            })));
+                        }
+                    }
+                }
+
                 self.stack.push(value);
             }
 
@@ -676,11 +720,54 @@ impl VM {
 
             Instruction::GetMethod(field) => {
                 let obj = self.stack.pop().unwrap_or(Value::null());
-                let value = if let Value::String(_) = obj {
+                let mut value = if let Value::String(_) = obj {
                     self.string_prototype.get_field_with_meta(field)
                 } else {
                     obj.get_field_with_meta(field)
                 };
+
+                if let Value::Null = value {
+                    if let Value::Object(_) = obj {
+                        if field == "keys" {
+                            let array_proto = self.array_prototype.clone();
+                            value = Value::NativeFunction(Rc::new(Box::new(move |args| {
+                                if args.is_empty() {
+                                    return Err(ValueError::TypeMismatch {
+                                        expected: ValueType::Object,
+                                        found: ValueType::Null,
+                                        operation: "keys".into(),
+                                    }
+                                    .into());
+                                }
+                                let obj = &args[0];
+                                if let Value::Object(table_rc) = obj {
+                                    let table = table_rc.borrow();
+                                    let mut data = IndexMap::new();
+                                    for (i, k) in table.data.keys().enumerate() {
+                                        data.insert(i.to_string(), Value::string(k.clone()));
+                                    }
+
+                                    let mut res_table = crate::value::Table {
+                                        data,
+                                        metatable: None,
+                                    };
+                                    if let Value::Object(proto_rc) = &array_proto {
+                                        res_table.metatable = Some(proto_rc.clone());
+                                    }
+
+                                    return Ok(Value::Object(Rc::new(RefCell::new(res_table))));
+                                }
+                                Err(ValueError::TypeMismatch {
+                                    expected: ValueType::Object,
+                                    found: obj.get_type(),
+                                    operation: "keys".into(),
+                                }
+                                .into())
+                            })));
+                        }
+                    }
+                }
+
                 self.stack.push(value);
                 self.stack.push(obj);
             }
