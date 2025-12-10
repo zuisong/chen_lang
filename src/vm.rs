@@ -293,7 +293,7 @@ impl VM {
                         // The arguments (left, right) are after it, so arg_count is 2.
 
                         let call_stack_instr = Instruction::CallStack(2);
-                        self.pc += 1; // Advance PC to not re-execute Add
+                        // Do NOT advance PC here. CallStack uses current PC as return address.
                         return self.execute_instruction(&call_stack_instr, program);
                     }
                 }
@@ -317,7 +317,7 @@ impl VM {
                         // The arguments (left, right) are after it, so arg_count is 2.
 
                         let call_stack_instr = Instruction::CallStack(2);
-                        self.pc += 1; // Advance PC to not re-execute Add
+                        // Do NOT advance PC here. CallStack uses current PC as return address.
                         return self.execute_instruction(&call_stack_instr, program);
                     }
                 }
@@ -338,7 +338,7 @@ impl VM {
                         self.stack.push(call_info.right);      // Then right arg
                         
                         let call_stack_instr = Instruction::CallStack(2);
-                        self.pc += 1;
+                        // Do NOT advance PC here.
                         return self.execute_instruction(&call_stack_instr, program);
                     }
                 }
@@ -495,6 +495,7 @@ impl VM {
                         }
                         let metatable = self.stack.pop().unwrap_or(Value::null());
                         let obj = self.stack.pop().unwrap_or(Value::null());
+                        debug!("set_meta called: obj_type={:?}, metatable_type={:?}", obj.get_type(), metatable.get_type());
                         obj.set_metatable(metatable)?;
                         self.stack.push(Value::null());
                     }

@@ -7,12 +7,19 @@ use crate::vm::{Instruction, Program, Symbol};
 // A scope holds the local variables for a block or function.
 struct Scope {
     locals: HashMap<String, i32>,
+    is_global_scope: bool, // true for the outermost scope
+}
+
+enum VarLocation {
+    Local(i32),  // Offset from FP
+    Global(String), // Global variable name
 }
 
 impl Scope {
-    fn new() -> Self {
+    fn new(is_global: bool) -> Self {
         Self {
             locals: HashMap::new(),
+            is_global_scope: is_global,
         }
     }
 }
@@ -22,7 +29,7 @@ struct Compiler<'a> {
     raw: &'a [char],
     program: Program,
     scopes: Vec<Scope>,
-    locals_count: usize,
+    locals_count: usize, // For current function's local stack frame
     loop_stack: Vec<LoopLabels>,
 }
 
@@ -40,8 +47,8 @@ pub fn compile(raw: &[char], ast: Ast) -> Program {
 
 impl<'a> Compiler<'a> {
     fn new(raw: &'a [char]) -> Self {
-        // Start with one scope for the global-like top-level script.
-        let scopes = vec![Scope::new()];
+        // Start with one global scope.
+        let scopes = vec![Scope::new(true)];
 
         Self {
             raw,
@@ -55,7 +62,7 @@ impl<'a> Compiler<'a> {
     // --- Scope Management ---
 
     fn begin_scope(&mut self) {
-        self.scopes.push(Scope::new());
+        self.scopes.push(Scope::new(false));
     }
 
     fn end_scope(&mut self) {
@@ -63,22 +70,37 @@ impl<'a> Compiler<'a> {
     }
 
     // Defines a variable in the current scope.
-    fn define_variable(&mut self, name: String) -> i32 {
-        let scope = self.scopes.last_mut().unwrap();
-        let index = self.locals_count as i32;
-        scope.locals.insert(name, index);
-        self.locals_count += 1;
-        index
+    // Returns its location (offset for local, name for global).
+    fn define_variable(&mut self, name: String) -> VarLocation {
+        let current_scope_idx = self.scopes.len() - 1;
+        let is_global = self.scopes[current_scope_idx].is_global_scope;
+
+        if is_global {
+            VarLocation::Global(name)
+        } else {
+            let scope = self.scopes.last_mut().unwrap();
+            let index = self.locals_count as i32;
+            scope.locals.insert(name, index);
+            self.locals_count += 1;
+            VarLocation::Local(index)
+        }
     }
 
     // Resolves a variable by searching from the innermost to outermost scope.
-    fn resolve_variable(&self, name: &str) -> Option<i32> {
-        for scope in self.scopes.iter().rev() {
+    fn resolve_variable(&self, name: &str) -> Option<VarLocation> {
+        for (i, scope) in self.scopes.iter().rev().enumerate() {
             if let Some(index) = scope.locals.get(name) {
-                return Some(*index);
+                // If found in a local scope
+                return Some(VarLocation::Local(*index));
+            }
+            if scope.is_global_scope {
+                // If reached global scope and not found locally, it's a global variable
+                // and it wasn't defined in `locals` map because global vars don't have FP offsets.
+                // We return Global here assuming it either exists or will be a runtime error.
+                return Some(VarLocation::Global(name.to_string()));
             }
         }
-        None
+        None // Not found in any scope
     }
 
     // --- Compilation Methods ---
@@ -148,14 +170,21 @@ impl<'a> Compiler<'a> {
                     },
                 );
 
-                // 4. Define local variable for the function
-                let index = self.define_variable(func_name.clone());
+                // 4. Define variable for the function
+                let var_location = self.define_variable(func_name.clone());
                 self.program
                     .instructions
                     .push(Instruction::Push(crate::value::Value::Function(func_name)));
-                self.program
-                    .instructions
-                    .push(Instruction::MovePlusFP(index as usize));
+                match var_location {
+                    VarLocation::Local(offset) => self
+                        .program
+                        .instructions
+                        .push(Instruction::MovePlusFP(offset as usize)),
+                    VarLocation::Global(name) => self
+                        .program
+                        .instructions
+                        .push(Instruction::Store(name)),
+                }
             }
             Statement::Return(r) => self.compile_return(r),
             Statement::Local(loc) => self.compile_local(loc),
@@ -205,11 +234,22 @@ impl<'a> Compiler<'a> {
             Expression::FunctionCall(fc) => self.compile_function_call(fc),
             Expression::Literal(lit) => self.compile_literal(lit),
             Expression::Identifier(ident) => {
-                if let Some(offset) = self.resolve_variable(&ident) {
-                    self.program
-                        .instructions
-                        .push(Instruction::DupPlusFP(offset));
+                if let Some(var_location) = self.resolve_variable(&ident) {
+                    match var_location {
+                        VarLocation::Local(offset) => {
+                            self.program
+                                .instructions
+                                .push(Instruction::DupPlusFP(offset));
+                        }
+                        VarLocation::Global(name) => {
+                            self.program.instructions.push(Instruction::Load(name));
+                        }
+                    }
                 } else {
+                    // This case should theoretically be caught by resolve_variable returning Global for top-level.
+                    // But if it's truly not found, it's an error.
+                    // For now, let's assume it should be Load for any unresolved identifier,
+                    // which will cause a runtime error if it doesn't exist.
                     self.program.instructions.push(Instruction::Load(ident));
                 }
             }
@@ -318,20 +358,35 @@ impl<'a> Compiler<'a> {
 
     fn compile_local(&mut self, local: Local) {
         self.compile_expression(local.expression);
-        let index = self.define_variable(local.name);
-        self.program
-            .instructions
-            .push(Instruction::MovePlusFP(index as usize));
+        let var_location = self.define_variable(local.name);
+        match var_location {
+            VarLocation::Local(offset) => {
+                self.program
+                    .instructions
+                    .push(Instruction::MovePlusFP(offset as usize));
+            }
+            VarLocation::Global(name) => {
+                self.program.instructions.push(Instruction::Store(name));
+            }
+        }
     }
 
     fn compile_assign(&mut self, assign: Assign) {
         self.compile_expression(*assign.expr);
-        let offset = self
+        let var_location = self
             .resolve_variable(&assign.name)
-            .expect("Undefined variable");
-        self.program
-            .instructions
-            .push(Instruction::MovePlusFP(offset as usize));
+            .expect("Undefined variable"); // Should catch undefined at compile time
+
+        match var_location {
+            VarLocation::Local(offset) => {
+                self.program
+                    .instructions
+                    .push(Instruction::MovePlusFP(offset as usize));
+            }
+            VarLocation::Global(name) => {
+                self.program.instructions.push(Instruction::Store(name));
+            }
+        }
     }
 
     fn compile_binary_operation(&mut self, bop: BinaryOperation) {
@@ -383,7 +438,10 @@ impl<'a> Compiler<'a> {
 
                 // Check if we can optimize to direct Call (Identifier referring to Global/Builtin)
                 let is_optimized_call = if let Expression::Identifier(ref name) = other_callee {
-                    self.resolve_variable(name).is_none()
+                    match self.resolve_variable(name) {
+                        Some(VarLocation::Local(_)) => false,
+                        _ => true, // Global or Unknown -> Use direct Call, VM handles builtins/globals
+                    }
                 } else {
                     false
                 };
@@ -422,7 +480,11 @@ impl<'a> Compiler<'a> {
         self.locals_count = 0;
 
         for param in fd.parameters {
-            self.define_variable(param);
+            if let VarLocation::Local(_) = self.define_variable(param) {
+                // Parameters are always local
+            } else {
+                panic!("Function parameter cannot be global");
+            }
         }
 
         let len = fd.body.len();
