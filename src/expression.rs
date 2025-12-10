@@ -106,6 +106,13 @@ pub enum Statement {
     },
     Break(u32),
     Continue(u32),
+    /// Try-Catch-Finally 异常处理
+    TryCatch(TryCatch),
+    /// Throw 抛出异常
+    Throw {
+        value: Expression,
+        line: u32,
+    },
 }
 
 pub type Ast = Vec<Statement>;
@@ -135,5 +142,19 @@ pub struct Loop {
     pub test: Expression,
     /// 循环语句里面要执行的语句块
     pub body: Vec<Statement>,
+    pub line: u32,
+}
+
+/// Try-Catch-Finally 异常处理
+#[derive(Debug, PartialEq, Clone)]
+pub struct TryCatch {
+    /// try 块中的语句
+    pub try_body: Vec<Statement>,
+    /// catch 块中的错误变量名
+    pub error_name: Option<String>,
+    /// catch 块中的语句
+    pub catch_body: Vec<Statement>,
+    /// finally 块中的语句(可选)
+    pub finally_body: Option<Vec<Statement>>,
     pub line: u32,
 }

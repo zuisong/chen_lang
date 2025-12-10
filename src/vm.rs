@@ -85,6 +85,11 @@ pub enum Instruction {
 
     // Array creation (Syntactic sugar for object with numeric keys)
     BuildArray(usize),
+
+    // Exception handling
+    Throw,                        // Throw an exception
+    PushExceptionHandler(String), // Push exception handler (catch label)
+    PopExceptionHandler,          // Pop exception handler
 }
 
 /// 程序表示
@@ -106,6 +111,8 @@ pub enum VMRuntimeError {
     UndefinedLabel(String),
     #[error(transparent)]
     ValueError(#[from] ValueError),
+    #[error("Uncaught exception: {0}")]
+    UncaughtException(String),
 }
 
 /// 包含上下文信息的运行时错误
@@ -124,6 +131,14 @@ impl Display for RuntimeErrorWithContext {
 /// VM执行结果
 pub type VMResult = Result<Value, RuntimeErrorWithContext>;
 
+/// Exception handler entry
+#[derive(Debug, Clone)]
+struct ExceptionHandler {
+    catch_label: String,
+    stack_size: usize,
+    fp: usize,
+}
+
 /// 虚拟机实现
 pub struct VM {
     stack: Vec<Value>,                  // 操作数栈
@@ -134,6 +149,7 @@ pub struct VM {
     stdout: Box<dyn Write>,             // 标准输出
     array_prototype: Value,             // 数组原型对象
     string_prototype: Value,            // 字符串原型对象
+    exception_handlers: Vec<ExceptionHandler>, // 异常处理器栈
 }
 
 impl Default for VM {
@@ -163,6 +179,7 @@ impl VM {
             stdout: Box::new(std::io::stdout()),
             array_prototype: create_array_prototype(),
             string_prototype: create_string_prototype(),
+            exception_handlers: Vec::new(),
         }
     }
 
@@ -180,6 +197,7 @@ impl VM {
             stdout: writer,
             array_prototype: create_array_prototype(),
             string_prototype: create_string_prototype(),
+            exception_handlers: Vec::new(),
         }
     }
 
@@ -882,6 +900,43 @@ impl VM {
                         right_type: ValueType::Null,
                     })),
                 };
+            }
+
+            Instruction::Throw => {
+                let error_value = self.stack.pop().unwrap_or(Value::string("Unknown error".to_string()));
+                
+                // Find the nearest exception handler
+                if let Some(handler) = self.exception_handlers.pop() {
+                    // Restore stack state
+                    self.stack.truncate(handler.stack_size);
+                    self.fp = handler.fp;
+                    
+                    // Push error value onto stack
+                    self.stack.push(error_value);
+                    
+                    // Jump to catch block
+                    return if let Some(target) = program.syms.get(&handler.catch_label) {
+                        self.pc = (target.location as usize) - 1;
+                        Ok(true)
+                    } else {
+                        Err(VMRuntimeError::UndefinedLabel(format!("catch label: {}", handler.catch_label)))
+                    };
+                }
+                
+                // No handler found, convert to runtime error
+                return Err(VMRuntimeError::UncaughtException(error_value.to_string()));
+            }
+
+            Instruction::PushExceptionHandler(catch_label) => {
+                self.exception_handlers.push(ExceptionHandler {
+                    catch_label: catch_label.clone(),
+                    stack_size: self.stack.len(),
+                    fp: self.fp,
+                });
+            }
+
+            Instruction::PopExceptionHandler => {
+                self.exception_handlers.pop();
             }
         }
 

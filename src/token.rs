@@ -42,6 +42,14 @@ pub enum Keyword {
     BREAK,
     /// continue
     CONTINUE,
+    /// try
+    TRY,
+    /// catch
+    CATCH,
+    /// finally
+    FINALLY,
+    /// throw
+    THROW,
 }
 
 /// 操作符
@@ -188,6 +196,10 @@ fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
                     "for" => Token::Keyword(Keyword::FOR),
                     "break" => Token::Keyword(Keyword::BREAK),
                     "continue" => Token::Keyword(Keyword::CONTINUE),
+                    "try" => Token::Keyword(Keyword::TRY),
+                    "catch" => Token::Keyword(Keyword::CATCH),
+                    "finally" => Token::Keyword(Keyword::FINALLY),
+                    "throw" => Token::Keyword(Keyword::THROW),
                     "true" => Token::Bool(true),
                     "false" => Token::Bool(false),
                     _ => Token::Identifier(s.to_string()),
@@ -292,6 +304,10 @@ fn parse_token(input: &str, loc: &Location) -> Result<(Token, Location), TokenEr
                 "for" => Token::Keyword(Keyword::FOR),
                 "break" => Token::Keyword(Keyword::BREAK),
                 "continue" => Token::Keyword(Keyword::CONTINUE),
+                "try" => Token::Keyword(Keyword::TRY),
+                "catch" => Token::Keyword(Keyword::CATCH),
+                "finally" => Token::Keyword(Keyword::FINALLY),
+                "throw" => Token::Keyword(Keyword::THROW),
                 "true" => Token::Bool(true),
                 "false" => Token::Bool(false),
                 _ => Token::Identifier(s),

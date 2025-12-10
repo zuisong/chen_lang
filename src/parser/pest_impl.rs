@@ -46,6 +46,8 @@ fn parse_statement(pair: Pair<Rule>) -> Statement {
         Rule::return_stmt => parse_return_stmt(inner, line),
         Rule::break_stmt => Statement::Break(line),
         Rule::continue_stmt => Statement::Continue(line),
+        Rule::try_catch => parse_try_catch(inner),
+        Rule::throw_stmt => parse_throw_stmt(inner),
         Rule::expression => Statement::Expression(parse_expression(inner)),
         _ => unreachable!("Unexpected statement rule: {:?}", inner.as_rule()),
     }
@@ -203,8 +205,14 @@ fn parse_block(pair: Pair<Rule>) -> Vec<Statement> {
 
 fn parse_expression(pair: Pair<Rule>) -> Expression {
     // expression = { logical_or }
-    let inner = pair.into_inner().next().unwrap();
-    parse_logical_or(inner)
+    // Check if there's an inner element, if not, treat current pair as logical_or
+    let mut inner = pair.clone().into_inner();
+    if let Some(first) = inner.next() {
+        parse_logical_or(first)
+    } else {
+        // If no inner element, the pair itself might be the expression content
+        parse_logical_or(pair)
+    }
 }
 
 fn parse_binary_op<F>(pair: Pair<Rule>, parse_sub: F) -> Expression
@@ -213,7 +221,16 @@ where
 {
     let line = pair.as_span().start_pos().line_col().0 as u32;
     let mut inner = pair.into_inner();
-    let mut left = parse_sub(inner.next().unwrap());
+    
+    let first = match inner.next() {
+        Some(p) => p,
+        None => {
+            // This should not happen with correct grammar, but handle gracefully
+            return Expression::Literal(Literal::Value(Value::Null), line);
+        }
+    };
+    
+    let mut left = parse_sub(first);
 
     while let Some(op_pair) = inner.next() {
         let op = match op_pair.as_str() {
@@ -440,3 +457,84 @@ fn parse_if_expr(pair: Pair<Rule>) -> Expression {
         line,
     })
 }
+
+fn parse_try_catch(pair: Pair<Rule>) -> Statement {
+    // try_catch = { TRY ~ block ~ CATCH ~ identifier? ~ block ~ (FINALLY ~ block)? }
+    // Note: TRY, CATCH, FINALLY are atomic rules (@{...}) so they appear in into_inner()
+    let line = pair.as_span().start_pos().line_col().0 as u32;
+    
+    // Collect all items, filtering out keyword rules
+    let items: Vec<_> = pair.into_inner()
+        .filter(|p| !matches!(p.as_rule(), Rule::TRY | Rule::CATCH | Rule::FINALLY))
+        .collect();
+    
+    let mut iter = items.into_iter();
+    
+    // First item should be try block
+    let try_body = if let Some(try_block_pair) = iter.next() {
+        parse_block(try_block_pair)
+    } else {
+        Vec::new()
+    };
+    
+    // Parse optional error variable name and catch block
+    let mut error_name = None;
+    let mut catch_body = Vec::new();
+    
+    if let Some(next_pair) = iter.next() {
+        match next_pair.as_rule() {
+            Rule::identifier => {
+                error_name = Some(next_pair.as_str().to_string());
+                // Next must be catch block
+                if let Some(catch_block_pair) = iter.next() {
+                    catch_body = parse_block(catch_block_pair);
+                }
+            }
+            Rule::block => {
+                // No error variable, this is the catch block
+                catch_body = parse_block(next_pair);
+            }
+            _ => {}
+        }
+    }
+    
+    // Parse optional finally block
+    let finally_body = iter.next().map(parse_block);
+    
+    Statement::TryCatch(TryCatch {
+        try_body,
+        error_name,
+        catch_body,
+        finally_body,
+        line,
+    })
+}
+
+fn parse_throw_stmt(pair: Pair<Rule>) -> Statement {
+    // throw_stmt = { THROW ~ NEWLINE* ~ expression }
+    // Note: THROW is an atomic rule (@{...}) so it appears in into_inner()
+    let line = pair.as_span().start_pos().line_col().0 as u32;
+    let mut inner = pair.into_inner();
+    
+    // Skip THROW keyword if present
+    let mut expr_pair = inner.next();
+    while let Some(ref p) = expr_pair {
+        if p.as_rule() == Rule::THROW {
+            expr_pair = inner.next();
+        } else {
+            break;
+        }
+    }
+    
+    let value = if let Some(p) = expr_pair {
+        match p.as_rule() {
+            Rule::expression => parse_expression(p),
+            _ => parse_logical_or(p),
+        }
+    } else {
+        Expression::Literal(Literal::Value(Value::string("Unknown error".to_string())), line)
+    };
+    
+    Statement::Throw { value, line }
+}
+

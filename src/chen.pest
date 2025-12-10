@@ -17,11 +17,15 @@ TRUE = @{ "true" ~ !(ASCII_ALPHANUMERIC | "_") }
 FALSE = @{ "false" ~ !(ASCII_ALPHANUMERIC | "_") }
 BREAK = @{ "break" ~ !(ASCII_ALPHANUMERIC | "_") }
 CONTINUE = @{ "continue" ~ !(ASCII_ALPHANUMERIC | "_") }
+TRY = @{ "try" ~ !(ASCII_ALPHANUMERIC | "_") }
+CATCH = @{ "catch" ~ !(ASCII_ALPHANUMERIC | "_") }
+FINALLY = @{ "finally" ~ !(ASCII_ALPHANUMERIC | "_") }
+THROW = @{ "throw" ~ !(ASCII_ALPHANUMERIC | "_") }
 // NULL removed
 
 // 标识符 (不能是关键字)
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
-keyword = { LET | FOR | DEF | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE }
+keyword = { LET | FOR | DEF | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | THROW }
 
 // 字面量
 integer = @{ "-"? ~ ASCII_DIGIT+ }
@@ -94,6 +98,8 @@ statement = {
     return_stmt |
     break_stmt |
     continue_stmt |
+    try_catch |
+    throw_stmt |
     assignment |
     expression
 }
@@ -107,6 +113,8 @@ function_def = { DEF ~ identifier? ~ "(" ~ NEWLINE* ~ parameters? ~ NEWLINE* ~ "
 return_stmt = { RETURN ~ NEWLINE* ~ expression }
 break_stmt = { BREAK }
 continue_stmt = { CONTINUE }
+try_catch = { TRY ~ block ~ CATCH ~ identifier? ~ block ~ (FINALLY ~ block)? }
+throw_stmt = { THROW ~ NEWLINE* ~ expression }
 
 // 复合结构
 block = { "{" ~ NEWLINE* ~ (statement ~ stmt_sep)* ~ statement? ~ NEWLINE* ~ "}" }

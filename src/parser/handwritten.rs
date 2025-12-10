@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::expression::{
     Assign, Ast, BinaryOperation, Expression, FunctionCall, FunctionDeclaration, If, Literal, Local, Loop, Return,
-    Statement, Unary,
+    Statement, TryCatch, Unary,
 };
 use crate::token::Keyword;
 use crate::token::Operator;
@@ -161,6 +161,12 @@ impl Parser {
         }
         if self.match_token(&Token::Keyword(Keyword::CONTINUE)) {
             return Ok(Statement::Continue(start_line));
+        }
+        if self.match_token(&Token::Keyword(Keyword::TRY)) {
+            return self.parse_try_catch();
+        }
+        if self.match_token(&Token::Keyword(Keyword::THROW)) {
+            return self.parse_throw();
         }
 
         // Assignment or Expression
@@ -616,6 +622,65 @@ impl Parser {
         self.skip_newlines();
         self.consume(&Token::RSquare, "Expected ']' after array elements")?;
         Ok(Expression::ArrayLiteral(elements, start_line))
+    }
+
+    fn parse_try_catch(&mut self) -> Result<Statement, ParseError> {
+        let start_line = self.line;
+        
+        // Parse try block
+        self.skip_newlines();
+        self.consume(&Token::LBig, "Expected '{' after 'try'")?;
+        let try_body = self.parse_block()?;
+        self.consume(&Token::RBig, "Expected '}' after try block")?;
+        
+        // Parse catch
+        self.skip_newlines();
+        self.consume(&Token::Keyword(Keyword::CATCH), "Expected 'catch' after try block")?;
+        
+        // Optional error variable name
+        let error_name = if let Some(Token::Identifier(name)) = self.peek() {
+            let n = name.clone();
+            self.advance();
+            Some(n)
+        } else {
+            None
+        };
+        
+        // Parse catch block
+        self.skip_newlines();
+        self.consume(&Token::LBig, "Expected '{' after 'catch'")?;
+        let catch_body = self.parse_block()?;
+        self.consume(&Token::RBig, "Expected '}' after catch block")?;
+        
+        // Optional finally block
+        self.skip_newlines();
+        let finally_body = if self.match_token(&Token::Keyword(Keyword::FINALLY)) {
+            self.skip_newlines();
+            self.consume(&Token::LBig, "Expected '{' after 'finally'")?;
+            let body = self.parse_block()?;
+            self.consume(&Token::RBig, "Expected '}' after finally block")?;
+            Some(body)
+        } else {
+            None
+        };
+        
+        Ok(Statement::TryCatch(TryCatch {
+            try_body,
+            error_name,
+            catch_body,
+            finally_body,
+            line: start_line,
+        }))
+    }
+
+    fn parse_throw(&mut self) -> Result<Statement, ParseError> {
+        let start_line = self.line;
+        let value = self.parse_expression_logic()?;
+        
+        Ok(Statement::Throw {
+            value,
+            line: start_line,
+        })
     }
 }
 

@@ -233,6 +233,11 @@ impl<'a> Compiler<'a> {
                 self.compile_expression(value);
                 self.emit(Instruction::SetIndex, line);
             }
+            Statement::TryCatch(tc) => self.compile_try_catch(tc),
+            Statement::Throw { value, line } => {
+                self.compile_expression(value);
+                self.emit(Instruction::Throw, line);
+            }
         }
     }
 
@@ -596,6 +601,104 @@ impl<'a> Compiler<'a> {
 
         self.program.syms.insert(
             loop_end.clone(),
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+            },
+        );
+    }
+
+    fn compile_try_catch(&mut self, tc: TryCatch) {
+        let line = tc.line;
+        let unique_id = self.unique_id();
+        let catch_label = format!("catch_{}", unique_id);
+        let finally_label = format!("finally_{}", unique_id);
+        let end_label = format!("end_try_{}", unique_id);
+
+        // Set up exception handler
+        self.emit(Instruction::PushExceptionHandler(catch_label.clone()), line);
+
+        // Compile try block
+        self.begin_scope();
+        for stmt in tc.try_body {
+            self.compile_statement(stmt);
+        }
+        self.end_scope();
+
+        // Pop exception handler if no exception occurred
+        self.emit(Instruction::PopExceptionHandler, line);
+
+        // Jump to finally or end
+        if tc.finally_body.is_some() {
+            self.emit(Instruction::Jump(finally_label.clone()), line);
+        } else {
+            self.emit(Instruction::Jump(end_label.clone()), line);
+        }
+
+        // Catch block
+        self.program.syms.insert(
+            catch_label.clone(),
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+            },
+        );
+
+        self.begin_scope();
+        
+        // Define error variable if provided
+        if let Some(error_name) = tc.error_name {
+            let var_location = self.define_variable(error_name);
+            match var_location {
+                VarLocation::Local(offset) => {
+                    self.emit(Instruction::MovePlusFP(offset as usize), line);
+                }
+                VarLocation::Global(name) => {
+                    self.emit(Instruction::Store(name), line);
+                }
+            }
+        } else {
+            // Pop the error value if no variable to store it
+            self.emit(Instruction::Pop, line);
+        }
+
+        // Compile catch block
+        for stmt in tc.catch_body {
+            self.compile_statement(stmt);
+        }
+        
+        self.end_scope();
+
+        // Jump to finally or end after catch
+        if tc.finally_body.is_some() {
+            self.emit(Instruction::Jump(finally_label.clone()), line);
+        } else {
+            self.emit(Instruction::Jump(end_label.clone()), line);
+        }
+
+        // Finally block (if present)
+        if let Some(finally_body) = tc.finally_body {
+            self.program.syms.insert(
+                finally_label.clone(),
+                Symbol {
+                    location: self.program.instructions.len() as i32,
+                    narguments: 0,
+                    nlocals: 0,
+                },
+            );
+
+            self.begin_scope();
+            for stmt in finally_body {
+                self.compile_statement(stmt);
+            }
+            self.end_scope();
+        }
+
+        // End label
+        self.program.syms.insert(
+            end_label,
             Symbol {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
