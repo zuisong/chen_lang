@@ -23,8 +23,93 @@ impl Scope {
         }
     }
 }
-
-// The Compiler struct holds the state of the compilation process.
+///
+///
+///
+///
+/// Compiler 结构体的核心工作是将抽象语法树（AST）递归遍历并转换为线性的字节码指令序列（Program）。
+///
+///   以下是它如何利用各个字段将 AST 编译为指令的详细解释：
+///
+///   1. 结构体字段的作用
+///
+///    * `program: Program`:
+///        * 这是编译器的输出缓冲区。所有的 Instruction（如 Push, Add, Jump）都会被 emit 函数推入这个结构体中的
+///          instructions 向量。
+///        * 它还包含 syms（符号表），用于记录函数入口地址、跳转标签（Label）的位置。
+///    * `scopes: Vec<Scope>`:
+///        * 这是变量作用域栈。每当进入一个新的代码块（如函数体、if 块、loop 块），编译器就会调用 begin_scope
+///          推入一个新的 Scope。
+///        * 作用：它决定了变量是局部变量还是全局变量。
+///            * Scope 内部维护了一个 HashMap<String, i32>，将变量名映射到当前栈帧的偏移量（Offset）。
+///            * 编译器在编译 x = 1 时，会先从内层向外层查找
+///              scopes。如果在某层找到，说明是局部变量；如果直到最外层（Global
+///              Scope）都没找到，或者是在最外层定义的，就是全局变量。
+///    * `locals_count: usize`:
+///        * 作用：统计当前正在编译的函数内声明了多少个局部变量。
+///        * 编译过程：每当遇到 let x = ...，如果是在函数内，locals_count 就加 1。这个计数值最终会作为 nlocals
+///          存入函数的符号表信息中。VM 在调用该函数时，会根据这个值预分配栈空间（stack.resize）。
+///    * `loop_stack: Vec<LoopLabels>`:
+///        * 作用：处理 break 和 continue。
+///        * 编译过程：每当编译一个 loop（或 while/for），编译器会生成两个标签：start_label 和
+///          end_label，并将它们推入 loop_stack。
+///        * 当遇到 break 时，编译器查看栈顶的 end_label 并生成 Jump(end_label)。
+///        * 当遇到 continue 时，编译器查看栈顶的 start_label 并生成 Jump(start_label)。
+///    * `offset: usize`:
+///        * 这似乎是一个用于生成唯一 ID 的基数（配合 unique_id() 方法），防止不同编译单元生成的标签名冲突（例如
+///          label_1, label_2）。
+///
+///   ---
+///
+///   2. 编译流程举例
+///
+///   A. 算术表达式 (1 + 2)
+///   编译器调用 compile_expression：
+///    1. 递归编译左子树 1 -> 发射 Push(1)。
+///    2. 递归编译右子树 2 -> 发射 Push(2)。
+///    3. 根据操作符 + -> 发射 Instruction::Add。
+///        * VM 执行时：弹出 2，弹出 1，相加，结果 3 入栈。
+///
+///   B. 变量声明与使用 (let x = 10; print(x))
+///    1. 声明 (`let x = 10`):
+///        * 编译右值 10 -> 发射 Push(10)。
+///        * 调用 define_variable("x")。
+///        * 如果是局部变量：scopes 记录 x -> offset (比如 0)。发射 MovePlusFP(0)（把栈顶的 10 移动到 FP+0
+///          的位置）。
+///        * 如果是全局变量：发射 Store("x")。
+///    2. 使用 (`print(x)`):
+///        * 编译参数 x -> 调用 resolve_variable("x")。
+///        * 局部：查表得到 offset，发射 DupPlusFP(offset)（把 FP+0 的值复制到栈顶）。
+///        * 全局：发射 Load("x")。
+///        * 发射 Call("print", 1)。
+///
+///   C. 控制流 (if true { ... } else { ... })
+///    1. 编译条件 true -> 发射 Push(true)。
+///    2. 生成两个标签：else_label 和 end_label。
+///    3. 发射 JumpIfFalse(else_label)（如果条件为假，跳去 else）。
+///    4. 编译 If 块的代码。
+///    5. 发射 Jump(end_label)（执行完 If 块，跳过 else 块）。
+///    6. 插入标签位置：在 program.syms 中记录 else_label 指向当前指令索引。
+///    7. 编译 Else 块的代码。
+///    8. 插入标签位置：在 program.syms 中记录 end_label 指向当前指令索引。
+///
+///   D. 函数定义 (def foo() { ... })
+///    1. 生成跳过函数体的指令 Jump(skip_label)（防止程序顺序执行时误入函数定义）。
+///    2. 记录函数入口：在当前位置记录函数名 func_foo 到符号表。
+///    3. 调用 begin_scope()，重置 locals_count = 0。
+///    4. 将参数名注册到 Scope 中（作为最早的局部变量）。
+///    5. 编译函数体内的所有语句。
+///    6. 记录 nlocals（局部变量总数）。
+///    7. 发射 Return。
+///    8. 调用 end_scope()。
+///    9. 插入标签位置：记录 skip_label，让之前的 Jump 能跳到函数定义之后。
+///
+///   总结
+///   编译器本质上是一个状态机，它一边遍历 AST，一边维护上下文（Scope, Loop Stack），将树状结构的逻辑“压平”成 VM
+///   可以线性执行的指令流。局部变量通过编译时计算的栈偏移量（Stack
+///   Offset）来访问，从而避免了运行时的哈希表查找（相比全局变量更快）。
+///
+///
 struct Compiler<'a> {
     _raw: &'a [char],
     program: Program,

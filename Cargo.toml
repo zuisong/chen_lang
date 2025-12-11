@@ -19,6 +19,7 @@ wasm = ["dep:wasm-bindgen"]
 pest-parser = ["dep:pest", "dep:pest_derive"]
 default = ["binaries", "wasm"]
 
+
 [dependencies]
 thiserror = "2"
 winnow = "0.7"

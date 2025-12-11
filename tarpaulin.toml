@@ -1,0 +1,8 @@
+[feature_a_coverage]
+features = "pest-parser"
+
+[feature_a_and_b_coverage]
+features = "default"
+
+[report]
+out = ["Lcov"]

@@ -7,7 +7,7 @@ use crate::tokenizer::Keyword::{ELSE, FOR, IF, LET};
 use crate::tokenizer::Operator::{Add, Assign, Equals, Lt, Mod};
 use crate::tokenizer::Operator::{NotEquals, Or, Subtract};
 use crate::tokenizer::Token::{Identifier, Int, Keyword, LBig, LParen, NewLine, Operator, RBig, RParen, String};
-use crate::tokenizer::parse_with_winnow;
+use crate::tokenizer::winnow::parse_with_winnow;
 
 #[test]
 fn test() {
