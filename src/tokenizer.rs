@@ -20,6 +20,8 @@ pub enum TokenError {
     DecimalError(#[from] rust_decimal::Error),
     #[error("Parse error: {0}")]
     ParseError(String),
+    #[error("Parse error at line {line}: {msg}")]
+    ParseErrorWithLocation { msg: String, line: u32 },
     #[error("unknown error")]
     Unknown,
 }
@@ -304,16 +306,26 @@ fn parse_token(input: &str, loc: &Location) -> Result<(Token, Location), TokenEr
 }
 
 /// 代码转成token串
-pub fn tokenizer(code: String) -> Result<Vec<Token>, TokenError> {
+pub fn tokenizer(code: String) -> Result<Vec<(Token, u32)>, TokenError> {
     let mut input = code.as_str();
-
+    let mut current_line = 1;
     let mut tokens = vec![];
 
     loop {
         debug!(?input);
-        let (remain_input, token) = parse_with_winnow(input).map_err(|e| TokenError::ParseError(e.to_string()))?;
+        let start_line = current_line;
+        let (remain_input, token) = parse_with_winnow(input).map_err(|e| TokenError::ParseErrorWithLocation {
+            msg: e.to_string(),
+            line: current_line,
+        })?;
+
+        let consumed_len = input.len() - remain_input.len();
+        let consumed_text = &input[..consumed_len];
+        let newlines = consumed_text.matches('\n').count();
+        current_line += newlines as u32;
+
         if !matches!(token, Token::Comment | Token::Space) {
-            tokens.push(token);
+            tokens.push((token, start_line));
         }
         if remain_input.is_empty() {
             break;

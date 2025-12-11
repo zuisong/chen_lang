@@ -110,6 +110,33 @@ fn build_diagnostic(code: &str, file_id: usize, error: &ChenError) -> Diagnostic
                 Label::primary(file_id, range).with_message("Runtime error occurred here"),
             ])
         }
+        ChenError::Parser(parser::ParserError::Handwritten(err)) => match err {
+            parser::handwritten::ParseError::Message { msg, line } => {
+                let range = get_line_range(code, *line);
+                Diagnostic::error()
+                    .with_message(msg)
+                    .with_labels(vec![Label::primary(file_id, range).with_message("Parse error here")])
+            }
+            parser::handwritten::ParseError::UnexpectedToken { token, line } => {
+                let range = get_line_range(code, *line);
+                Diagnostic::error()
+                    .with_message(format!("Unexpected token: {:?}", token))
+                    .with_labels(vec![Label::primary(file_id, range).with_message("Unexpected token")])
+            }
+            _ => Diagnostic::error().with_message(error.to_string()),
+        },
+        ChenError::Token(tokenizer::TokenError::ParseErrorWithLocation { msg, line }) => {
+            let range = get_line_range(code, *line);
+            Diagnostic::error()
+                .with_message(msg)
+                .with_labels(vec![Label::primary(file_id, range).with_message("Token error")])
+        }
+        ChenError::Parser(parser::ParserError::Token(tokenizer::TokenError::ParseErrorWithLocation { msg, line })) => {
+            let range = get_line_range(code, *line);
+            Diagnostic::error()
+                .with_message(msg)
+                .with_labels(vec![Label::primary(file_id, range).with_message("Token error")])
+        }
         _ => Diagnostic::error().with_message(error.to_string()),
     }
 }

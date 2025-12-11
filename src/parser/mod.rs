@@ -12,7 +12,8 @@ use crate::expression::Ast;
 use crate::tokenizer::*;
 
 // 私有子模块 - 手写解析器
-mod handwritten;
+/// 手写解析器模块
+pub mod handwritten;
 
 // 私有子模块 - Pest 解析器
 #[cfg(feature = "pest-parser")]

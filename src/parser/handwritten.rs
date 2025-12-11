@@ -1,5 +1,9 @@
 #![deny(missing_docs)]
 
+//! 手写递归下降解析器模块
+//!
+//! 提供基于 Token 流的手写解析器实现。
+
 use thiserror::Error;
 
 use crate::expression::{
@@ -15,11 +19,21 @@ use crate::value::Value;
 /// 语法分析错误
 pub enum ParseError {
     /// 通用错误消息
-    #[error("{0}")]
-    Message(String),
+    #[error("Line {line}: {msg}")]
+    Message {
+        /// 错误消息内容
+        msg: String,
+        /// 发生错误的行号
+        line: u32,
+    },
     /// 遇到意外的 Token
-    #[error("Unexpected token: {0:?}")]
-    UnexpectedToken(Token),
+    #[error("Line {line}: Unexpected token: {token:?}")]
+    UnexpectedToken {
+        /// 遇到的 Token
+        token: Token,
+        /// 发生错误的行号
+        line: u32,
+    },
     /// 意外的输入结束
     #[error("Unexpected end of input")]
     UnexpectedEndOfInput,
@@ -27,19 +41,14 @@ pub enum ParseError {
 
 /// The Parser struct manages the state of parsing a stream of tokens.
 pub struct Parser {
-    tokens: Vec<Token>,
+    tokens: Vec<(Token, u32)>,
     current: usize,
-    line: u32,
 }
 
 impl Parser {
     /// Create a new parser from a vector of tokens.
-    pub fn new(tokens: Vec<Token>) -> Self {
-        Self {
-            tokens,
-            current: 0,
-            line: 1,
-        }
+    pub fn new(tokens: Vec<(Token, u32)>) -> Self {
+        Self { tokens, current: 0 }
     }
 
     /// Parse the tokens into an AST (list of statements).
@@ -50,12 +59,20 @@ impl Parser {
     // --- Helper Methods ---
 
     fn peek(&self) -> Option<&Token> {
-        self.tokens.get(self.current)
+        self.tokens.get(self.current).map(|(t, _)| t)
+    }
+
+    fn peek_line(&self) -> u32 {
+        if self.current < self.tokens.len() {
+            self.tokens[self.current].1
+        } else {
+            self.tokens.last().map(|(_, l)| *l).unwrap_or(1)
+        }
     }
 
     fn previous(&self) -> Option<&Token> {
         if self.current > 0 {
-            self.tokens.get(self.current - 1)
+            self.tokens.get(self.current - 1).map(|(t, _)| t)
         } else {
             None
         }
@@ -67,15 +84,6 @@ impl Parser {
 
     fn advance(&mut self) -> Option<&Token> {
         if !self.is_at_end() {
-            let token = &self.tokens[self.current];
-            match token {
-                Token::NewLine => self.line += 1,
-                Token::String(s) => {
-                    let newlines = s.chars().filter(|&c| c == '\n').count();
-                    self.line += newlines as u32;
-                }
-                _ => {}
-            }
             self.current += 1;
         }
         self.previous()
@@ -116,7 +124,10 @@ impl Parser {
         if self.check(token_type) {
             Ok(self.advance().unwrap())
         } else {
-            Err(ParseError::Message(message.to_string()))
+            Err(ParseError::Message {
+                msg: message.to_string(),
+                line: self.peek_line(),
+            })
         }
     }
 
@@ -142,7 +153,7 @@ impl Parser {
     }
 
     fn parse_statement(&mut self) -> Result<Statement, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         if self.match_token(&Token::Keyword(Keyword::LET)) {
             return self.parse_declare();
         }
@@ -193,7 +204,10 @@ impl Parser {
                     value,
                     line: start_line,
                 }),
-                _ => Err(ParseError::Message("Invalid assignment target".to_string())),
+                _ => Err(ParseError::Message {
+                    msg: "Invalid assignment target".to_string(),
+                    line: self.peek_line(),
+                }),
             };
         }
 
@@ -201,13 +215,14 @@ impl Parser {
     }
 
     fn parse_declare(&mut self) -> Result<Statement, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let name = if let Some(Token::Identifier(name)) = self.advance() {
             name.clone()
         } else {
-            return Err(ParseError::Message(
-                "Expected variable name after 'let'வுகளை".to_string(),
-            ));
+            return Err(ParseError::Message {
+                msg: "Expected variable name after 'let'".to_string(),
+                line: self.peek_line(),
+            });
         };
 
         self.consume(&Token::Operator(Operator::Assign), "Expected '=' after variable name")?;
@@ -222,7 +237,7 @@ impl Parser {
     }
 
     fn parse_return(&mut self) -> Result<Statement, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let expr = self.parse_expression_logic()?;
         Ok(Statement::Return(Return {
             expression: expr,
@@ -231,7 +246,7 @@ impl Parser {
     }
 
     fn parse_if(&mut self) -> Result<Expression, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let condition = self.parse_expression_logic()?;
 
         self.skip_newlines();
@@ -257,7 +272,7 @@ impl Parser {
     }
 
     fn parse_for(&mut self) -> Result<Statement, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let condition = self.parse_expression_logic()?;
 
         self.skip_newlines();
@@ -273,7 +288,7 @@ impl Parser {
     }
 
     fn parse_function_definition(&mut self) -> Result<FunctionDeclaration, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let name = if let Some(Token::Identifier(name)) = self.peek() {
             let n = name.clone();
             self.advance();
@@ -290,7 +305,10 @@ impl Parser {
                 if let Some(Token::Identifier(param)) = self.advance() {
                     parameters.push(param.clone());
                 } else {
-                    return Err(ParseError::Message("Expected parameter name".to_string()));
+                    return Err(ParseError::Message {
+                        msg: "Expected parameter name".to_string(),
+                        line: self.peek_line(),
+                    });
                 }
 
                 if !self.match_token(&Token::COMMA) {
@@ -316,15 +334,16 @@ impl Parser {
     fn parse_function(&mut self) -> Result<Statement, ParseError> {
         let decl = self.parse_function_definition()?;
         if decl.name.is_none() {
-            return Err(ParseError::Message(
-                "Function declaration as statement must have a name".to_string(),
-            ));
+            return Err(ParseError::Message {
+                msg: "Function declaration as statement must have a name".to_string(),
+                line: self.peek_line(),
+            });
         }
         Ok(Statement::FunctionDeclaration(decl))
     }
 
     fn parse_expression_logic(&mut self) -> Result<Expression, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         self.skip_newlines();
         if self.match_token(&Token::LBig) {
             let stmts = self.parse_block()?;
@@ -336,7 +355,7 @@ impl Parser {
     }
 
     fn parse_logical_or(&mut self) -> Result<Expression, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let mut left = self.parse_logical_and()?;
 
         while self.match_token(&Token::Operator(Operator::Or)) {
@@ -352,7 +371,7 @@ impl Parser {
     }
 
     fn parse_logical_and(&mut self) -> Result<Expression, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let mut left = self.parse_equality()?;
 
         while self.match_token(&Token::Operator(Operator::And)) {
@@ -368,7 +387,7 @@ impl Parser {
     }
 
     fn parse_equality(&mut self) -> Result<Expression, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let mut left = self.parse_comparison()?;
 
         while let Some(Token::Operator(op)) = self.peek() {
@@ -390,7 +409,7 @@ impl Parser {
     }
 
     fn parse_comparison(&mut self) -> Result<Expression, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let mut left = self.parse_term()?;
 
         while let Some(Token::Operator(op)) = self.peek() {
@@ -412,7 +431,7 @@ impl Parser {
     }
 
     fn parse_term(&mut self) -> Result<Expression, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let mut left = self.parse_factor()?;
 
         while let Some(Token::Operator(op)) = self.peek() {
@@ -434,7 +453,7 @@ impl Parser {
     }
 
     fn parse_factor(&mut self) -> Result<Expression, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let mut left = self.parse_unary()?;
 
         while let Some(Token::Operator(op)) = self.peek() {
@@ -456,7 +475,7 @@ impl Parser {
     }
 
     fn parse_unary(&mut self) -> Result<Expression, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         if let Some(Token::Operator(op)) = self.peek()
             && matches!(op, Operator::Not | Operator::Subtract)
         {
@@ -482,7 +501,7 @@ impl Parser {
     }
 
     fn parse_postfix_expr(&mut self) -> Result<Expression, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let mut expr = self.parse_primary()?;
 
         loop {
@@ -512,10 +531,13 @@ impl Parser {
                     expr = Expression::GetField {
                         object: Box::new(expr),
                         field: field.clone(),
-                        line: self.line,
+                        line: self.peek_line(),
                     };
                 } else {
-                    return Err(ParseError::Message("Expected identifier after '.'".to_string()));
+                    return Err(ParseError::Message {
+                        msg: "Expected identifier after '.'".to_string(),
+                        line: self.peek_line(),
+                    });
                 }
             } else if self.match_token(&Token::LSquare) {
                 self.skip_newlines();
@@ -525,7 +547,7 @@ impl Parser {
                 expr = Expression::Index {
                     object: Box::new(expr),
                     index: Box::new(index),
-                    line: self.line,
+                    line: self.peek_line(),
                 };
             } else {
                 break;
@@ -535,7 +557,7 @@ impl Parser {
     }
 
     fn parse_primary(&mut self) -> Result<Expression, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         self.skip_newlines();
         let token = self.advance().ok_or(ParseError::UnexpectedEndOfInput)?.clone();
 
@@ -559,12 +581,15 @@ impl Parser {
                 self.consume(&Token::RParen, "Expected ')' after expression")?;
                 Ok(expr)
             }
-            _ => Err(ParseError::UnexpectedToken(token)),
+            _ => Err(ParseError::UnexpectedToken {
+                token,
+                line: start_line,
+            }),
         }
     }
 
     fn parse_object_literal(&mut self) -> Result<Expression, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let mut fields = Vec::new();
         self.skip_newlines();
         if !self.check(&Token::RBig) {
@@ -582,9 +607,10 @@ impl Parser {
                         k
                     }
                     _ => {
-                        return Err(ParseError::Message(
-                            "Expected field name (identifier or integer)".to_string(),
-                        ));
+                        return Err(ParseError::Message {
+                            msg: "Expected field name (identifier or integer)".to_string(),
+                            line: self.peek_line(),
+                        });
                     }
                 };
 
@@ -604,7 +630,7 @@ impl Parser {
     }
 
     fn parse_array_literal(&mut self) -> Result<Expression, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let mut elements = Vec::new();
         self.skip_newlines();
         if !self.check(&Token::RSquare) {
@@ -625,7 +651,7 @@ impl Parser {
     }
 
     fn parse_try_catch(&mut self) -> Result<Statement, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
 
         // Parse try block
         self.skip_newlines();
@@ -674,7 +700,7 @@ impl Parser {
     }
 
     fn parse_throw(&mut self) -> Result<Statement, ParseError> {
-        let start_line = self.line;
+        let start_line = self.peek_line();
         let value = self.parse_expression_logic()?;
 
         Ok(Statement::Throw {
@@ -684,7 +710,15 @@ impl Parser {
     }
 }
 
-pub fn parse(tokens: Vec<Token>) -> Result<Ast, ParseError> {
+/// 解析 Token 流为 AST
+///
+/// # 参数
+/// - `tokens`: 带有行号信息的 Token 列表
+///
+/// # 返回
+/// - `Ok(Ast)`: 解析成功
+/// - `Err(ParseError)`: 解析失败
+pub fn parse(tokens: Vec<(Token, u32)>) -> Result<Ast, ParseError> {
     let mut parser = Parser::new(tokens);
     parser.parse()
 }

@@ -22,14 +22,25 @@ fn test() {
 #[test]
 fn test_parse_keyword() {
     assert_eq!(
-        tokenizer::tokenizer("println".to_string()).unwrap(),
+        tokenizer::tokenizer("println".to_string())
+            .unwrap()
+            .into_iter()
+            .map(|(t, _)| t)
+            .collect::<Vec<_>>(),
         vec![Identifier("println".to_string())]
     )
 }
 
 #[test]
 fn test_parse_for() {
-    assert_eq!(tokenizer::tokenizer("for".to_string()).unwrap(), vec![Keyword(FOR)])
+    assert_eq!(
+        tokenizer::tokenizer("for".to_string())
+            .unwrap()
+            .into_iter()
+            .map(|(t, _)| t)
+            .collect::<Vec<_>>(),
+        vec![Keyword(FOR)]
+    )
 }
 
 #[test]
@@ -49,7 +60,7 @@ for i<100{
     .to_string();
     #[rustfmt::skip]
     assert_eq!(
-        tokenizer::tokenizer(code).unwrap(),
+        tokenizer::tokenizer(code).unwrap().into_iter().map(|(t, _)| t).collect::<Vec<_>>(),
         vec![
             NewLine,
             Keyword(LET), Identifier("i".to_string()), Operator(Assign), Int(0), NewLine,
@@ -97,7 +108,7 @@ println(sum)
 
     #[rustfmt::skip]
     assert_eq!(
-        tokenizer::tokenizer(code).unwrap(),
+        tokenizer::tokenizer(code).unwrap().into_iter().map(|(t, _)| t).collect::<Vec<_>>(),
         vec![
             NewLine,NewLine,NewLine,
             Keyword(DEF), Identifier("aaa".to_string()), LParen, Identifier("n".to_string()), RParen, LBig, NewLine,
