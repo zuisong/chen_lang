@@ -1,7 +1,7 @@
 use std::clone::Clone;
 use std::fmt::Debug;
 
-use crate::token::Operator;
+use crate::tokenizer::Operator;
 use crate::value::Value;
 
 #[derive(Debug, PartialEq, Clone)]

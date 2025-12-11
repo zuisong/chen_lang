@@ -1,23 +1,35 @@
 use pretty_assertions::assert_eq;
+use pretty_assertions::assert_matches;
 
-use crate::token;
-use crate::token::Keyword::DEF;
-use crate::token::Keyword::{ELSE, FOR, IF, LET};
-use crate::token::Operator::{Add, Assign, Equals, Lt, Mod};
-use crate::token::Operator::{NotEquals, Or, Subtract};
-use crate::token::Token::{Identifier, Int, Keyword, LBig, LParen, NewLine, Operator, RBig, RParen, String};
+use crate::tokenizer;
+use crate::tokenizer::Keyword::DEF;
+use crate::tokenizer::Keyword::{ELSE, FOR, IF, LET};
+use crate::tokenizer::Operator::{Add, Assign, Equals, Lt, Mod};
+use crate::tokenizer::Operator::{NotEquals, Or, Subtract};
+use crate::tokenizer::Token::{Identifier, Int, Keyword, LBig, LParen, NewLine, Operator, RBig, RParen, String};
+use crate::tokenizer::parse_with_winnow;
+
+#[test]
+fn test() {
+    assert_matches!(parse_with_winnow("-1"), Ok(("1", Operator(Subtract))));
+    assert_matches!(parse_with_winnow("-a"), Ok(("a", Operator(Subtract))));
+    assert_matches!(parse_with_winnow("10a"), Ok(("a", Int(10))));
+    assert_matches!(parse_with_winnow("\"aaaa\""), Ok(("", String(ref a))) if a == "aaaa");
+    assert_matches!(parse_with_winnow("'aaaa'"),Ok(("", String(ref a))) if a == "aaaa");
+    assert_matches!(parse_with_winnow("''"), Ok(("", String(ref a))) if a.is_empty());
+}
 
 #[test]
 fn test_parse_keyword() {
     assert_eq!(
-        token::tokenlizer("println".to_string()).unwrap(),
+        tokenizer::tokenizer("println".to_string()).unwrap(),
         vec![Identifier("println".to_string())]
     )
 }
 
 #[test]
 fn test_parse_for() {
-    assert_eq!(token::tokenlizer("for".to_string()).unwrap(), vec![Keyword(FOR)])
+    assert_eq!(tokenizer::tokenizer("for".to_string()).unwrap(), vec![Keyword(FOR)])
 }
 
 #[test]
@@ -37,7 +49,7 @@ for i<100{
     .to_string();
     #[rustfmt::skip]
     assert_eq!(
-        token::tokenlizer(code).unwrap(),
+        tokenizer::tokenizer(code).unwrap(),
         vec![
             NewLine,
             Keyword(LET), Identifier("i".to_string()), Operator(Assign), Int(0), NewLine,
@@ -85,7 +97,7 @@ println(sum)
 
     #[rustfmt::skip]
     assert_eq!(
-        token::tokenlizer(code).unwrap(),
+        tokenizer::tokenizer(code).unwrap(),
         vec![
             NewLine,NewLine,NewLine,
             Keyword(DEF), Identifier("aaa".to_string()), LParen, Identifier("n".to_string()), RParen, LBig, NewLine,

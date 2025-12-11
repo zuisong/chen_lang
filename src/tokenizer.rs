@@ -138,7 +138,7 @@ pub enum Token {
     // 空格
     Space,
 }
-fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
+pub fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
     alt((
         literal("#{").value(Token::HashLBig),
         (literal("#"), till_line_ending).map(|_| Token::Comment),
@@ -208,24 +208,6 @@ fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
         )),
     ))
     .parse_peek(chars)
-}
-
-#[cfg(test)]
-mod tests {
-    use pretty_assertions::assert_matches;
-
-    use super::*;
-    use crate::token::parse_with_winnow;
-
-    #[test]
-    fn test() {
-        assert_matches!(parse_with_winnow("-1"), Ok(("1", Token::Operator(Operator::Subtract))));
-        assert_matches!(parse_with_winnow("-a"), Ok(("a", Token::Operator(Operator::Subtract))));
-        assert_matches!(parse_with_winnow("10a"), Ok(("a", Token::Int(10))));
-        assert_matches!(parse_with_winnow("\"aaaa\""), Ok(("", Token::String(ref a))) if a == "aaaa");
-        assert_matches!(parse_with_winnow("'aaaa'"),Ok(("", Token::String(ref a))) if a == "aaaa");
-        assert_matches!(parse_with_winnow("''"), Ok(("", Token::String(ref a))) if a.is_empty());
-    }
 }
 
 #[allow(unused)]
@@ -322,7 +304,7 @@ fn parse_token(input: &str, loc: &Location) -> Result<(Token, Location), TokenEr
 }
 
 /// 代码转成token串
-pub fn tokenlizer(code: String) -> Result<Vec<Token>, TokenError> {
+pub fn tokenizer(code: String) -> Result<Vec<Token>, TokenError> {
     let mut input = code.as_str();
 
     let mut tokens = vec![];

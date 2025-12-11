@@ -189,7 +189,7 @@ impl VM {
         variables.insert("Date".to_string(), create_date_object());
         variables.insert("JSON".to_string(), create_json_object());
         VM {
-            stack: Vec::new(),
+            stack: Vec::with_capacity(1024),
             variables,
             pc: 0,
             fp: 0,
@@ -697,40 +697,41 @@ impl VM {
 
                 if let Value::Null = value
                     && let Value::Object(_) = obj
-                        && field == "keys" {
-                            let array_proto = self.array_prototype.clone();
-                            value = Value::NativeFunction(Rc::new(Box::new(move |args| {
-                                if args.is_empty() {
-                                    return Err(ValueError::TypeMismatch {
-                                        expected: ValueType::Object,
-                                        found: ValueType::Null,
-                                        operation: "keys".into(),
-                                    }
-                                    .into());
-                                }
-                                let obj = &args[0];
-                                if let Value::Object(table_rc) = obj {
-                                    let table = table_rc.borrow();
-                                    let mut data = IndexMap::new();
-                                    for (i, k) in table.data.keys().enumerate() {
-                                        data.insert(i.to_string(), Value::string(k.clone()));
-                                    }
-
-                                    let mut res_table = crate::value::Table { data, metatable: None };
-                                    if let Value::Object(proto_rc) = &array_proto {
-                                        res_table.metatable = Some(proto_rc.clone());
-                                    }
-
-                                    return Ok(Value::Object(Rc::new(RefCell::new(res_table))));
-                                }
-                                Err(ValueError::TypeMismatch {
-                                    expected: ValueType::Object,
-                                    found: obj.get_type(),
-                                    operation: "keys".into(),
-                                }
-                                .into())
-                            })));
+                    && field == "keys"
+                {
+                    let array_proto = self.array_prototype.clone();
+                    value = Value::NativeFunction(Rc::new(Box::new(move |args| {
+                        if args.is_empty() {
+                            return Err(ValueError::TypeMismatch {
+                                expected: ValueType::Object,
+                                found: ValueType::Null,
+                                operation: "keys".into(),
+                            }
+                            .into());
                         }
+                        let obj = &args[0];
+                        if let Value::Object(table_rc) = obj {
+                            let table = table_rc.borrow();
+                            let mut data = IndexMap::new();
+                            for (i, k) in table.data.keys().enumerate() {
+                                data.insert(i.to_string(), Value::string(k.clone()));
+                            }
+
+                            let mut res_table = crate::value::Table { data, metatable: None };
+                            if let Value::Object(proto_rc) = &array_proto {
+                                res_table.metatable = Some(proto_rc.clone());
+                            }
+
+                            return Ok(Value::Object(Rc::new(RefCell::new(res_table))));
+                        }
+                        Err(ValueError::TypeMismatch {
+                            expected: ValueType::Object,
+                            found: obj.get_type(),
+                            operation: "keys".into(),
+                        }
+                        .into())
+                    })));
+                }
 
                 self.stack.push(value);
             }
@@ -752,40 +753,41 @@ impl VM {
 
                 if let Value::Null = value
                     && let Value::Object(_) = obj
-                        && field == "keys" {
-                            let array_proto = self.array_prototype.clone();
-                            value = Value::NativeFunction(Rc::new(Box::new(move |args| {
-                                if args.is_empty() {
-                                    return Err(ValueError::TypeMismatch {
-                                        expected: ValueType::Object,
-                                        found: ValueType::Null,
-                                        operation: "keys".into(),
-                                    }
-                                    .into());
-                                }
-                                let obj = &args[0];
-                                if let Value::Object(table_rc) = obj {
-                                    let table = table_rc.borrow();
-                                    let mut data = IndexMap::new();
-                                    for (i, k) in table.data.keys().enumerate() {
-                                        data.insert(i.to_string(), Value::string(k.clone()));
-                                    }
-
-                                    let mut res_table = crate::value::Table { data, metatable: None };
-                                    if let Value::Object(proto_rc) = &array_proto {
-                                        res_table.metatable = Some(proto_rc.clone());
-                                    }
-
-                                    return Ok(Value::Object(Rc::new(RefCell::new(res_table))));
-                                }
-                                Err(ValueError::TypeMismatch {
-                                    expected: ValueType::Object,
-                                    found: obj.get_type(),
-                                    operation: "keys".into(),
-                                }
-                                .into())
-                            })));
+                    && field == "keys"
+                {
+                    let array_proto = self.array_prototype.clone();
+                    value = Value::NativeFunction(Rc::new(Box::new(move |args| {
+                        if args.is_empty() {
+                            return Err(ValueError::TypeMismatch {
+                                expected: ValueType::Object,
+                                found: ValueType::Null,
+                                operation: "keys".into(),
+                            }
+                            .into());
                         }
+                        let obj = &args[0];
+                        if let Value::Object(table_rc) = obj {
+                            let table = table_rc.borrow();
+                            let mut data = IndexMap::new();
+                            for (i, k) in table.data.keys().enumerate() {
+                                data.insert(i.to_string(), Value::string(k.clone()));
+                            }
+
+                            let mut res_table = crate::value::Table { data, metatable: None };
+                            if let Value::Object(proto_rc) = &array_proto {
+                                res_table.metatable = Some(proto_rc.clone());
+                            }
+
+                            return Ok(Value::Object(Rc::new(RefCell::new(res_table))));
+                        }
+                        Err(ValueError::TypeMismatch {
+                            expected: ValueType::Object,
+                            found: obj.get_type(),
+                            operation: "keys".into(),
+                        }
+                        .into())
+                    })));
+                }
 
                 self.stack.push(value);
                 self.stack.push(obj);
@@ -961,4 +963,4 @@ impl Program {
 }
 
 #[cfg(test)]
-mod tests;
+mod vm_tests;

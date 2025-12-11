@@ -7,7 +7,7 @@ use pest::iterators::Pair;
 use pest_derive::Parser;
 
 use crate::expression::*;
-use crate::token::Operator;
+use crate::tokenizer::Operator;
 use crate::value::Value;
 
 #[derive(Parser)]

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::expression::*;
-use crate::token::Operator;
+use crate::tokenizer::Operator;
 use crate::vm::{Instruction, Program, Symbol};
 
 // A scope holds the local variables for a block or function.

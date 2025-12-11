@@ -9,7 +9,7 @@
 use thiserror::Error;
 
 use crate::expression::Ast;
-use crate::token::*;
+use crate::tokenizer::*;
 
 // 私有子模块 - 手写解析器
 mod handwritten;
@@ -56,7 +56,7 @@ pub enum ParserError {
 /// ```
 #[cfg(not(feature = "pest-parser"))]
 pub fn parse_from_source(code: &str) -> Result<Ast, ParserError> {
-    let tokens = tokenlizer(code.to_string())?;
+    let tokens = tokenizer(code.to_string())?;
     handwritten::parse(tokens).map_err(Into::into)
 }
 

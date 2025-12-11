@@ -6,9 +6,9 @@ use crate::expression::{
     Assign, Ast, BinaryOperation, Expression, FunctionCall, FunctionDeclaration, If, Literal, Local, Loop, Return,
     Statement, TryCatch, Unary,
 };
-use crate::token::Keyword;
-use crate::token::Operator;
-use crate::token::Token;
+use crate::tokenizer::Keyword;
+use crate::tokenizer::Operator;
+use crate::tokenizer::Token;
 use crate::value::Value;
 
 #[derive(Error, Debug)]

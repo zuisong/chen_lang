@@ -39,7 +39,7 @@ pub mod expression;
 /// 统一解析器模块（内部包含手写和 Pest 两种实现）
 pub mod parser;
 /// 词法分析模块
-pub mod token;
+pub mod tokenizer;
 /// 值系统模块
 pub mod value;
 /// 虚拟机模块
@@ -52,7 +52,7 @@ mod tests;
 #[derive(Error, Debug)]
 pub enum ChenError {
     #[error(transparent)]
-    Token(#[from] token::TokenError),
+    Token(#[from] tokenizer::TokenError),
     #[error(transparent)]
     Parser(#[from] parser::ParserError),
     #[error("Runtime error")]

@@ -1,9 +1,10 @@
-mod cli_test;
 mod expression_test;
 mod object_test;
 mod parse_test;
 mod parser_comprehensive_test;
 mod token_test;
+mod value_tests;
+
 #[cfg(test)]
 mod tests_1 {
     use pretty_assertions::assert_eq;

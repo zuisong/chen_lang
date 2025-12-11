@@ -1,6 +1,6 @@
 use crate::expression::{Expression, Literal, Statement};
 use crate::parser;
-use crate::token::Operator;
+use crate::tokenizer::Operator;
 use crate::value::Value;
 
 // Helper to parse a string into statements

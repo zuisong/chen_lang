@@ -39,7 +39,6 @@ rust_decimal = { version = "1.39.0", features = ["serde-float", "macros"] }
 
 [dev-dependencies]
 assert_cmd = "2"
-escargot = "0.5"
 pretty_assertions = { version = "1", features = ["unstable"] }
 tempfile = "3"
 
