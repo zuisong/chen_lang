@@ -1,4 +1,6 @@
+use gc::{Gc, GcCell};
 use super::*;
+use crate::value::NativeFnWrapper;
 
 pub fn create_string_prototype() -> Value {
     use native_string_prototype::*;
@@ -11,26 +13,26 @@ pub fn create_string_prototype() -> Value {
         .insert("__type".to_string(), Value::string("String".to_string()));
     table.data.insert(
         "len".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_len) as Box<NativeFnType>)),
+        Value::NativeFunction(Gc::new(NativeFnWrapper(Box::new(native_string_len)))),
     );
     table.data.insert(
         "trim".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_trim) as Box<NativeFnType>)),
+        Value::NativeFunction(Gc::new(NativeFnWrapper(Box::new(native_string_trim)))),
     );
     table.data.insert(
         "upper".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_upper) as Box<NativeFnType>)),
+        Value::NativeFunction(Gc::new(NativeFnWrapper(Box::new(native_string_upper)))),
     );
     table.data.insert(
         "lower".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_lower) as Box<NativeFnType>)),
+        Value::NativeFunction(Gc::new(NativeFnWrapper(Box::new(native_string_lower)))),
     );
 
-    let table_rc = Rc::new(std::cell::RefCell::new(table));
-    let proto_val = Value::Object(table_rc.clone());
+    let table_gc = Gc::new(GcCell::new(table));
+    let proto_val = Value::Object(table_gc.clone());
 
     // Set __index = self
-    table_rc
+    table_gc
         .borrow_mut()
         .data
         .insert("__index".to_string(), proto_val.clone());

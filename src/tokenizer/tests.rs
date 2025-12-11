@@ -17,19 +17,19 @@ mod tests {
         let code = r#"
         def foo(n) {
             if n > 0 {
-                return n * foo(n - 1)
+                return (n * foo(n - 1))
             } else {
                 return 1
             }
         }
         "#;
-        // let winnow_tokens = tokenizer_winnow(code.to_string()).unwrap();
+        let winnow_tokens = tokenizer_winnow(code.to_string()).expect("err");
         let handwritten_tokens = tokenizer_handwritten(code.to_string()).unwrap();
 
         // Note: handwritten might handle newlines slightly differently if logic isn't identical,
         // but our updated logic tries to match.
         // Let's verify token types match mostly.
-        // assert_eq!(winnow_tokens.len(), handwritten_tokens.len());
+        assert_eq!(winnow_tokens.len(), handwritten_tokens.len());
         // for (i, ((wt, wl), (ht, hl))) in winnow_tokens.iter().zip(handwritten_tokens.iter()).enumerate() {
         //     assert_eq!(wt, ht, "Token mismatch at index {}", i);
         //     assert_eq!(wl, hl, "Line number mismatch at index {} for token {:?}", i, wt);

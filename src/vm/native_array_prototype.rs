@@ -1,4 +1,6 @@
+use gc::{Gc, GcCell};
 use super::*;
+use crate::value::NativeFnWrapper;
 
 pub fn create_array_prototype() -> Value {
     use native_array_prototype::*;
@@ -14,22 +16,22 @@ pub fn create_array_prototype() -> Value {
         // ...
         .insert(
             "push".to_string(),
-            Value::NativeFunction(Rc::new(Box::new(native_array_push))),
+            Value::NativeFunction(Gc::new(NativeFnWrapper(Box::new(native_array_push)))),
         );
     table.data.insert(
         "pop".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_array_pop))),
+        Value::NativeFunction(Gc::new(NativeFnWrapper(Box::new(native_array_pop)))),
     );
     table.data.insert(
         "len".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_array_len))),
+        Value::NativeFunction(Gc::new(NativeFnWrapper(Box::new(native_array_len)))),
     );
 
-    let table_rc = Rc::new(std::cell::RefCell::new(table));
-    let proto_val = Value::Object(table_rc.clone());
+    let table_gc = Gc::new(GcCell::new(table));
+    let proto_val = Value::Object(table_gc.clone());
 
     // Set __index = self to allow method lookup on instances
-    table_rc
+    table_gc
         .borrow_mut()
         .data
         .insert("__index".to_string(), proto_val.clone());

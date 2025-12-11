@@ -1,4 +1,6 @@
+use gc::{Gc, GcCell}; // Added GcContext import
 use super::*;
+use crate::value::NativeFnWrapper;
 
 pub fn create_date_object() -> Value {
     let mut table = crate::value::Table {
@@ -10,24 +12,29 @@ pub fn create_date_object() -> Value {
         .insert("__type".to_string(), Value::string("Date".to_string()));
     table.data.insert(
         "new".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_date_new) as Box<NativeFnType>)),
+        Value::NativeFunction(Gc::new(NativeFnWrapper(Box::new(native_date_new)))), // Use gc_context.create
     );
     table.data.insert(
         "format".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_date_format) as Box<NativeFnType>)),
+        Value::NativeFunction(Gc::new(NativeFnWrapper(Box::new(native_date_format)))), // Use gc_context.create
     );
     table.data.insert(
         "timestamp".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_date_timestamp) as Box<NativeFnType>)),
+        Value::NativeFunction(Gc::new(NativeFnWrapper(Box::new(native_date_timestamp)))), // Use gc_context.create
     );
 
-    let table_rc = Rc::new(std::cell::RefCell::new(table));
-    let val = Value::Object(table_rc.clone());
+    let table_gc = Gc::new(GcCell::new(table)); // Use Gc and GcCell
+    let val = Value::Object(table_gc.clone());
     // Class acts as prototype for instances
-    table_rc.borrow_mut().data.insert("__index".to_string(), val.clone());
+    // Set __index = self so instances can look up methods in the class
+    table_gc.borrow_mut().data.insert("__index".to_string(), val.clone());
+    
+    // Also set metatable to self (optional, but consistent with previous code)
+    table_gc.borrow_mut().metatable = Some(val.clone().as_object().unwrap()); 
     val
 }
 
+// native_date_new now needs gc_context
 fn native_date_new(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     let mut ts = Timestamp::now().as_millisecond();
     // args[0] is Date class itself
@@ -50,14 +57,14 @@ fn native_date_new(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     data.insert("__timestamp".to_string(), Value::string(ts.to_string()));
     data.insert("__type".to_string(), Value::string("Date".to_string()));
 
-    let table_rc = Rc::new(std::cell::RefCell::new(crate::value::Table { data, metatable: None }));
+    let table_gc = Gc::new(GcCell::new(crate::value::Table { data, metatable: None })); // Use Gc and GcCell
 
     // Set prototype
-    if let Some(Value::Object(cls_rc)) = args.first() {
-        table_rc.borrow_mut().metatable = Some(cls_rc.clone());
+    if let Some(Value::Object(cls_gc)) = args.first() {
+        table_gc.borrow_mut().metatable = Some(cls_gc.clone());
     }
 
-    Ok(Value::Object(table_rc))
+    Ok(Value::Object(table_gc))
 }
 
 fn native_date_format(args: Vec<Value>) -> Result<Value, VMRuntimeError> {

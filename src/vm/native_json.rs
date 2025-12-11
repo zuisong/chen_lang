@@ -1,4 +1,7 @@
 use super::*;
+use gc::{Gc, GcCell};
+use crate::value::NativeFnWrapper;
+
 pub fn create_json_object() -> Value {
     let mut table = crate::value::Table {
         data: IndexMap::new(),
@@ -6,13 +9,13 @@ pub fn create_json_object() -> Value {
     };
     table.data.insert(
         "parse".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_json_parse) as Box<NativeFnType>)),
+        Value::NativeFunction(Gc::new(NativeFnWrapper(Box::new(native_json_parse)))),
     );
     table.data.insert(
         "stringify".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_json_stringify) as Box<NativeFnType>)),
+        Value::NativeFunction(Gc::new(NativeFnWrapper(Box::new(native_json_stringify)))),
     );
-    Value::Object(Rc::new(std::cell::RefCell::new(table)))
+    Value::Object(Gc::new(GcCell::new(table)))
 }
 
 fn native_json_parse(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
@@ -56,7 +59,7 @@ fn json_to_chen(v: serde_json::Value) -> Value {
             // We should ideally set Array prototype here... but we don't have access to VM.array_prototype
             // Objects created by JSON.parse won't have methods unless we fix this.
             // Limitation accepted for now.
-            Value::Object(Rc::new(std::cell::RefCell::new(crate::value::Table {
+            Value::Object(Gc::new(GcCell::new(crate::value::Table {
                 data,
                 metatable: None,
             })))
@@ -66,7 +69,7 @@ fn json_to_chen(v: serde_json::Value) -> Value {
             for (k, v) in obj {
                 data.insert(k, json_to_chen(v));
             }
-            Value::Object(Rc::new(std::cell::RefCell::new(crate::value::Table {
+            Value::Object(Gc::new(GcCell::new(crate::value::Table {
                 data,
                 metatable: None,
             })))

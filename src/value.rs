@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::fmt;
 use std::fmt::Debug;
-use std::rc::Rc;
+
+use gc::{Finalize, Gc, GcCell, Trace, unsafe_empty_trace};
 
 use indexmap::IndexMap;
 use rust_decimal::Decimal;
@@ -14,26 +15,116 @@ use crate::vm::VMRuntimeError;
 #[derive(Debug, Clone, PartialEq)]
 pub struct Table {
     pub data: IndexMap<String, Value>,
-    pub metatable: Option<Rc<RefCell<Table>>>,
+    pub metatable: Option<Gc<GcCell<Table>>>,
 }
+
+unsafe impl Trace for Table {
+    unsafe fn trace(&self) {
+        unsafe {
+            for v in self.data.values() {
+                v.trace();
+            }
+            if let Some(mt) = &self.metatable {
+                mt.trace();
+            }
+        }
+    }
+    unsafe fn root(&self) {
+        unsafe {
+            for v in self.data.values() {
+                v.root();
+            }
+            if let Some(mt) = &self.metatable {
+                mt.root();
+            }
+        }
+    }
+    unsafe fn unroot(&self) {
+        unsafe {
+            for v in self.data.values() {
+                v.unroot();
+            }
+            if let Some(mt) = &self.metatable {
+                mt.unroot();
+            }
+        }
+    }
+    fn finalize_glue(&self) {
+        for v in self.data.values() {
+            v.finalize_glue();
+        }
+        if let Some(mt) = &self.metatable {
+            mt.finalize_glue();
+        }
+        self.finalize();
+    }
+}
+
+impl Finalize for Table {}
 
 /// 原生函数类型
 pub type NativeFnType = dyn Fn(Vec<Value>) -> Result<Value, VMRuntimeError> + 'static;
 
+/// Wrapper for NativeFnType to implement Trace
+pub struct NativeFnWrapper(pub Box<NativeFnType>);
+
+unsafe impl Trace for NativeFnWrapper {
+    unsafe_empty_trace!();
+}
+
+impl Finalize for NativeFnWrapper {}
+
 /// 运行时值类型 - 统一表示所有数据类型
-#[derive(Clone)]
+
+#[derive(Clone, Finalize)]
 pub enum Value {
     Int(i32),
     Float(Decimal),
     Bool(bool),
-    String(Rc<String>),
+    String(Gc<String>),
     /// 对象类型 (Table)
-    Object(Rc<RefCell<Table>>),
+    Object(Gc<GcCell<Table>>),
     /// 函数引用 (函数名 - Chen 语言定义的函数)
     Function(String),
     /// 原生函数 (Rust 定义的函数)
-    NativeFunction(Rc<Box<NativeFnType>>),
+    NativeFunction(Gc<NativeFnWrapper>),
     Null,
+}
+
+unsafe impl Trace for Value {
+    unsafe fn trace(&self) {
+        match self {
+            Value::String(s) => unsafe { s.trace() },
+            Value::Object(o) => unsafe { o.trace() },
+            Value::NativeFunction(f) => unsafe { f.trace() },
+            _ => {}
+        }
+    }
+    unsafe fn root(&self) {
+        match self {
+            Value::String(s) => unsafe { s.root() },
+            Value::Object(o) => unsafe { o.root() },
+            Value::NativeFunction(f) => unsafe { f.root() },
+            _ => {}
+        }
+    }
+    unsafe fn unroot(&self) {
+        match self {
+            Value::String(s) => unsafe { s.unroot() },
+            Value::Object(o) => unsafe { o.unroot() },
+            Value::NativeFunction(f) => unsafe { f.unroot() },
+            _ => {}
+        }
+    }
+    fn finalize_glue(&self) {
+        match self {
+            Value::String(s) => s.finalize_glue(),
+            Value::Object(o) => o.finalize_glue(),
+            Value::NativeFunction(f) => f.finalize_glue(),
+            _ => {}
+        }
+        self.finalize();
+    }
 }
 
 impl Value {
@@ -54,12 +145,12 @@ impl Value {
 
     /// 创建字符串值
     pub fn string(s: String) -> Self {
-        Value::String(Rc::new(s))
+        Value::String(Gc::new(s))
     }
 
     /// 创建空对象
     pub fn object() -> Self {
-        Value::Object(Rc::new(RefCell::new(Table {
+        Value::Object(Gc::new(GcCell::new(Table {
             data: IndexMap::new(),
             metatable: None,
         })))
@@ -144,6 +235,14 @@ impl Value {
             _ => None,
         }
     }
+
+    /// As object
+    pub fn as_object(&self) -> Option<Gc<GcCell<Table>>> {
+        match self {
+            Value::Object(obj) => Some(obj.clone()),
+            _ => None,
+        }
+    }
 }
 
 impl PartialEq for Value {
@@ -155,10 +254,10 @@ impl PartialEq for Value {
             (Value::String(a), Value::String(b)) => a == b,
             (Value::Null, Value::Null) => true,
             // 对象比较：引用比较
-            (Value::Object(a), Value::Object(b)) => Rc::ptr_eq(a, b),
+            (Value::Object(a), Value::Object(b)) => Gc::ptr_eq(a, b),
             // 函数比较：名称比较
             (Value::Function(a), Value::Function(b)) => a == b,
-            (Value::NativeFunction(a), Value::NativeFunction(b)) => Rc::ptr_eq(a, b),
+            (Value::NativeFunction(a), Value::NativeFunction(b)) => Gc::ptr_eq(a, b),
             // 混合类型比较：int和float可以比较
             (Value::Int(a), Value::Float(b)) => Decimal::from(*a) == *b,
             (Value::Float(a), Value::Int(b)) => *a == Decimal::from(*b),
@@ -243,7 +342,7 @@ impl ValueType {
 /// 运算错误类型
 #[derive(Error, Debug, Clone)]
 pub enum ValueError {
-    #[error("Type mismatch in {{operation}}: expected {{expected:?}}, found {{found:?}}")]
+    #[error("Type mismatch in {operation}: expected {expected:?}, found {found:?}")]
     TypeMismatch {
         expected: ValueType,
         found: ValueType,
@@ -251,7 +350,7 @@ pub enum ValueError {
     },
     #[error("Division by zero")]
     DivisionByZero,
-    #[error("Invalid operation: {{left_type:?}} {{operator}} {{right_type:?}}")]
+    #[error("Invalid operation: {left_type:?} {operator} {right_type:?}")]
     InvalidOperation {
         operator: String,
         left_type: ValueType,
@@ -259,9 +358,9 @@ pub enum ValueError {
     },
     #[error("Index out of bounds")]
     IndexOutOfBounds,
-    #[error("Undefined field: {{0}}")]
+    #[error("Undefined field: {0}")]
     UndefinedField(String),
-    #[error("Attempt to call non-function value: {{0:?}}")]
+    #[error("Attempt to call non-function value: {0:?}")]
     CallNonFunction(ValueType),
 }
 
@@ -567,8 +666,8 @@ impl Value {
     pub fn get_metamethod_from_object(&self, metamethod_name: &str) -> Option<Value> {
         let mut current_obj_owned = self.clone(); // Own the Value directly
         loop {
-            match current_obj_owned {
-                Value::Object(table_ref) => {
+            let next_obj = match current_obj_owned {
+                Value::Object(ref table_ref) => { // Added ref
                     let table = table_ref.borrow();
                     if let Some(metatable_ref) = &table.metatable {
                         let metatable = metatable_ref.borrow();
@@ -582,12 +681,18 @@ impl Value {
                             };
                         }
                         // Continue search in the metatable's metatable (Lua's behavior for __index chain)
-                        current_obj_owned = Value::Object(metatable_ref.clone());
+                        Some(Value::Object(metatable_ref.clone()))
                     } else {
-                        return None; // No metatable, end of chain
+                        None // No metatable, end of chain
                     }
                 }
-                _ => return None, // Not an object, cannot have a metatable
+                _ => None, // Not an object, cannot have a metatable
+            };
+
+            if let Some(obj) = next_obj {
+                current_obj_owned = obj;
+            } else {
+                return None;
             }
         }
     }
@@ -665,8 +770,8 @@ impl Value {
     pub fn set_metatable(&self, metatable: Value) -> Result<(), ValueError> {
         let meta_type = metatable.get_type(); // Get type before consuming
         match (self, metatable) {
-            (Value::Object(obj_ref), Value::Object(meta_ref)) => {
-                obj_ref.borrow_mut().metatable = Some(meta_ref);
+            (Value::Object(obj_ref), Value::Object(ref meta_ref)) => { // Added ref
+                obj_ref.borrow_mut().metatable = Some(meta_ref.clone()); // Need to clone the Gc from the reference
                 Ok(())
             }
             (Value::Object(obj_ref), Value::Null) => {

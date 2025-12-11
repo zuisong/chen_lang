@@ -37,6 +37,7 @@ serde_json = "1.0"
 anyhow = { version = "1.0.100" }
 codespan-reporting = { version = "0.13.1",default-features = false , features = ["std"]}
 rust_decimal = { version = "1.39.0", features = ["serde-float", "macros"] }
+gc = { version = "0.5.1", features = ["derive"] }
 
 [dev-dependencies]
 assert_cmd = "2"

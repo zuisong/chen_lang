@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::fmt::{Display, Formatter};
 use std::io::Write;
-use std::rc::Rc;
+
+use gc::{Gc, GcCell};
 
 use indexmap::IndexMap;
 use jiff::Timestamp;
@@ -274,14 +275,14 @@ impl VM {
 
                 self.stack.truncate(start_index);
                 // Set Array Prototype
-                let mut table_ref = table;
+                let table_cell = GcCell::new(table);
                 // We need to clone the prototype's table reference if it's an object
                 if let Value::Object(proto_table) = &self.array_prototype {
-                    table_ref.metatable = Some(proto_table.clone());
+                    table_cell.borrow_mut().metatable = Some(proto_table.clone());
                 }
 
                 self.stack
-                    .push(Value::Object(Rc::new(std::cell::RefCell::new(table_ref))));
+                    .push(Value::Object(Gc::new(table_cell)));
             }
 
             Instruction::Pop => {
@@ -602,7 +603,7 @@ impl VM {
                                 .checked_sub(*arg_count)
                                 .ok_or(VMRuntimeError::StackUnderflow("Native call missing args".into()))?;
                             let args: Vec<Value> = self.stack.drain(args_start..).collect();
-                            let result = native_fn(args)?;
+                            let result = native_fn.0(args)?;
                             self.stack.push(result);
                             return Ok(true);
                         }
@@ -695,43 +696,77 @@ impl VM {
                     obj.get_field_with_meta(field)
                 };
 
-                if let Value::Null = value
-                    && let Value::Object(_) = obj
-                    && field == "keys"
-                {
-                    let array_proto = self.array_prototype.clone();
-                    value = Value::NativeFunction(Rc::new(Box::new(move |args| {
-                        if args.is_empty() {
-                            return Err(ValueError::TypeMismatch {
-                                expected: ValueType::Object,
-                                found: ValueType::Null,
-                                operation: "keys".into(),
-                            }
-                            .into());
-                        }
-                        let obj = &args[0];
-                        if let Value::Object(table_rc) = obj {
-                            let table = table_rc.borrow();
-                            let mut data = IndexMap::new();
-                            for (i, k) in table.data.keys().enumerate() {
-                                data.insert(i.to_string(), Value::string(k.clone()));
-                            }
+                                                                if let Value::Null = value
 
-                            let mut res_table = crate::value::Table { data, metatable: None };
-                            if let Value::Object(proto_rc) = &array_proto {
-                                res_table.metatable = Some(proto_rc.clone());
-                            }
+                                                                    && let Value::Object(_) = obj
 
-                            return Ok(Value::Object(Rc::new(RefCell::new(res_table))));
-                        }
-                        Err(ValueError::TypeMismatch {
-                            expected: ValueType::Object,
-                            found: obj.get_type(),
-                            operation: "keys".into(),
-                        }
-                        .into())
-                    })));
-                }
+                                                                        && field == "keys" {
+
+                                                                            let array_proto = self.array_prototype.clone();
+
+                                                                            value = Value::NativeFunction(Gc::new(crate::value::NativeFnWrapper(Box::new(move |args| {
+
+                                                                                if args.is_empty() {
+
+                                                                                    return Err(ValueError::TypeMismatch {
+
+                                                                                        expected: ValueType::Object,
+
+                                                                                        found: ValueType::Null,
+
+                                                                                        operation: "keys".into(),
+
+                                                                                    }
+
+                                                                                    .into());
+
+                                                                                }
+
+                                                                                let obj = &args[0];
+
+                                                                                if let Value::Object(table_rc) = obj {
+
+                                                                                    let table = table_rc.borrow();
+
+                                                                                    let mut data = IndexMap::new();
+
+                                                                                                                        for (i, k) in table.data.keys().enumerate() {
+
+                                                                                                                            data.insert(i.to_string(), Value::string(k.clone()));
+
+                                                                                                                        }
+
+                                                                                    
+
+                                                                                                                        let res_table_cell = GcCell::new(crate::value::Table { data, metatable: None });
+
+                                                                                                                        if let Value::Object(proto_rc) = &array_proto {
+
+                                                                                                                            res_table_cell.borrow_mut().metatable = Some(proto_rc.clone());
+
+                                                                                                                        }
+
+                                                                                    
+
+                                                                                                                        return Ok(Value::Object(Gc::new(res_table_cell)));
+
+                                                                                                                    }
+
+                                                                                                                    Err(ValueError::TypeMismatch {
+
+                                                                                    expected: ValueType::Object,
+
+                                                                                    found: obj.get_type(),
+
+                                                                                    operation: "keys".into(),
+
+                                                                                }
+
+                                                                                .into())
+
+                                                                            }))));
+
+                                                                        }
 
                 self.stack.push(value);
             }
@@ -751,43 +786,77 @@ impl VM {
                     obj.get_field_with_meta(field)
                 };
 
-                if let Value::Null = value
-                    && let Value::Object(_) = obj
-                    && field == "keys"
-                {
-                    let array_proto = self.array_prototype.clone();
-                    value = Value::NativeFunction(Rc::new(Box::new(move |args| {
-                        if args.is_empty() {
-                            return Err(ValueError::TypeMismatch {
-                                expected: ValueType::Object,
-                                found: ValueType::Null,
-                                operation: "keys".into(),
-                            }
-                            .into());
-                        }
-                        let obj = &args[0];
-                        if let Value::Object(table_rc) = obj {
-                            let table = table_rc.borrow();
-                            let mut data = IndexMap::new();
-                            for (i, k) in table.data.keys().enumerate() {
-                                data.insert(i.to_string(), Value::string(k.clone()));
-                            }
+                                                                if let Value::Null = value
 
-                            let mut res_table = crate::value::Table { data, metatable: None };
-                            if let Value::Object(proto_rc) = &array_proto {
-                                res_table.metatable = Some(proto_rc.clone());
-                            }
+                                                                    && let Value::Object(_) = obj
 
-                            return Ok(Value::Object(Rc::new(RefCell::new(res_table))));
-                        }
-                        Err(ValueError::TypeMismatch {
-                            expected: ValueType::Object,
-                            found: obj.get_type(),
-                            operation: "keys".into(),
-                        }
-                        .into())
-                    })));
-                }
+                                                                        && field == "keys" {
+
+                                                                            let array_proto = self.array_prototype.clone();
+
+                                                                            value = Value::NativeFunction(Gc::new(crate::value::NativeFnWrapper(Box::new(move |args| {
+
+                                                                                if args.is_empty() {
+
+                                                                                    return Err(ValueError::TypeMismatch {
+
+                                                                                        expected: ValueType::Object,
+
+                                                                                        found: ValueType::Null,
+
+                                                                                        operation: "keys".into(),
+
+                                                                                    }
+
+                                                                                    .into());
+
+                                                                                }
+
+                                                                                let obj = &args[0];
+
+                                                                                if let Value::Object(table_rc) = obj {
+
+                                                                                    let table = table_rc.borrow();
+
+                                                                                    let mut data = IndexMap::new();
+
+                                                                                                                        for (i, k) in table.data.keys().enumerate() {
+
+                                                                                                                            data.insert(i.to_string(), Value::string(k.clone()));
+
+                                                                                                                        }
+
+                                                                                    
+
+                                                                                                                        let res_table_cell = GcCell::new(crate::value::Table { data, metatable: None });
+
+                                                                                                                        if let Value::Object(proto_rc) = &array_proto {
+
+                                                                                                                            res_table_cell.borrow_mut().metatable = Some(proto_rc.clone());
+
+                                                                                                                        }
+
+                                                                                    
+
+                                                                                                                        return Ok(Value::Object(Gc::new(res_table_cell)));
+
+                                                                                                                    }
+
+                                                                                                                    Err(ValueError::TypeMismatch {
+
+                                                                                    expected: ValueType::Object,
+
+                                                                                    found: obj.get_type(),
+
+                                                                                    operation: "keys".into(),
+
+                                                                                }
+
+                                                                                .into())
+
+                                                                            }))));
+
+                                                                        }
 
                 self.stack.push(value);
                 self.stack.push(obj);
@@ -888,7 +957,7 @@ impl VM {
                             .checked_sub(*arg_count)
                             .ok_or(VMRuntimeError::StackUnderflow("CallStack native: missing args".into()))?;
                         let args: Vec<Value> = self.stack.drain(start_index..).collect();
-                        let result = native_fn(args)?;
+                        let result = native_fn.0(args)?;
                         self.stack.push(result);
                         Ok(true)
                     }
