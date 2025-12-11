@@ -647,7 +647,7 @@ impl<'a> Compiler<'a> {
         );
 
         self.begin_scope();
-        
+
         // Define error variable if provided
         if let Some(error_name) = tc.error_name {
             let var_location = self.define_variable(error_name);
@@ -668,7 +668,7 @@ impl<'a> Compiler<'a> {
         for stmt in tc.catch_body {
             self.compile_statement(stmt);
         }
-        
+
         self.end_scope();
 
         // Jump to finally or end after catch

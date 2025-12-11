@@ -221,7 +221,7 @@ where
 {
     let line = pair.as_span().start_pos().line_col().0 as u32;
     let mut inner = pair.into_inner();
-    
+
     let first = match inner.next() {
         Some(p) => p,
         None => {
@@ -229,7 +229,7 @@ where
             return Expression::Literal(Literal::Value(Value::Null), line);
         }
     };
-    
+
     let mut left = parse_sub(first);
 
     while let Some(op_pair) = inner.next() {
@@ -462,25 +462,26 @@ fn parse_try_catch(pair: Pair<Rule>) -> Statement {
     // try_catch = { TRY ~ block ~ CATCH ~ identifier? ~ block ~ (FINALLY ~ block)? }
     // Note: TRY, CATCH, FINALLY are atomic rules (@{...}) so they appear in into_inner()
     let line = pair.as_span().start_pos().line_col().0 as u32;
-    
+
     // Collect all items, filtering out keyword rules
-    let items: Vec<_> = pair.into_inner()
+    let items: Vec<_> = pair
+        .into_inner()
         .filter(|p| !matches!(p.as_rule(), Rule::TRY | Rule::CATCH | Rule::FINALLY))
         .collect();
-    
+
     let mut iter = items.into_iter();
-    
+
     // First item should be try block
     let try_body = if let Some(try_block_pair) = iter.next() {
         parse_block(try_block_pair)
     } else {
         Vec::new()
     };
-    
+
     // Parse optional error variable name and catch block
     let mut error_name = None;
     let mut catch_body = Vec::new();
-    
+
     if let Some(next_pair) = iter.next() {
         match next_pair.as_rule() {
             Rule::identifier => {
@@ -497,10 +498,10 @@ fn parse_try_catch(pair: Pair<Rule>) -> Statement {
             _ => {}
         }
     }
-    
+
     // Parse optional finally block
     let finally_body = iter.next().map(parse_block);
-    
+
     Statement::TryCatch(TryCatch {
         try_body,
         error_name,
@@ -515,7 +516,7 @@ fn parse_throw_stmt(pair: Pair<Rule>) -> Statement {
     // Note: THROW is an atomic rule (@{...}) so it appears in into_inner()
     let line = pair.as_span().start_pos().line_col().0 as u32;
     let mut inner = pair.into_inner();
-    
+
     // Skip THROW keyword if present
     let mut expr_pair = inner.next();
     while let Some(ref p) = expr_pair {
@@ -525,7 +526,7 @@ fn parse_throw_stmt(pair: Pair<Rule>) -> Statement {
             break;
         }
     }
-    
+
     let value = if let Some(p) = expr_pair {
         match p.as_rule() {
             Rule::expression => parse_expression(p),
@@ -534,7 +535,6 @@ fn parse_throw_stmt(pair: Pair<Rule>) -> Statement {
     } else {
         Expression::Literal(Literal::Value(Value::string("Unknown error".to_string())), line)
     };
-    
+
     Statement::Throw { value, line }
 }
-

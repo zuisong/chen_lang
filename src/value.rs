@@ -718,18 +718,9 @@ mod tests {
         let a = Value::float(dec!(5.5));
         let b = Value::int(2);
 
-        assert_eq!(
-            a.add(&b).unwrap().unwrap_value(),
-            Value::float(dec!(7.5))
-        );
-        assert_eq!(
-            a.subtract(&b).unwrap().unwrap_value(),
-            Value::float(dec!(3.5))
-        );
-        assert_eq!(
-            a.multiply(&b).unwrap().unwrap_value(),
-            Value::float(dec!(11.0))
-        );
+        assert_eq!(a.add(&b).unwrap().unwrap_value(), Value::float(dec!(7.5)));
+        assert_eq!(a.subtract(&b).unwrap().unwrap_value(), Value::float(dec!(3.5)));
+        assert_eq!(a.multiply(&b).unwrap().unwrap_value(), Value::float(dec!(11.0)));
         assert_eq!(a.divide(&b).unwrap(), Value::float(dec!(2.75)));
     }
 

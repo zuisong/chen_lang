@@ -141,14 +141,14 @@ struct ExceptionHandler {
 
 /// 虚拟机实现
 pub struct VM {
-    stack: Vec<Value>,                  // 操作数栈
-    variables: IndexMap<String, Value>, // 全局变量存储
-    pc: usize,                          // 程序计数器
-    fp: usize,                          // 帧指针
-    call_stack: Vec<(usize, usize)>,    // 调用栈（保存返回地址, 旧fp）
-    stdout: Box<dyn Write>,             // 标准输出
-    array_prototype: Value,             // 数组原型对象
-    string_prototype: Value,            // 字符串原型对象
+    stack: Vec<Value>,                         // 操作数栈
+    variables: IndexMap<String, Value>,        // 全局变量存储
+    pc: usize,                                 // 程序计数器
+    fp: usize,                                 // 帧指针
+    call_stack: Vec<(usize, usize)>,           // 调用栈（保存返回地址, 旧fp）
+    stdout: Box<dyn Write>,                    // 标准输出
+    array_prototype: Value,                    // 数组原型对象
+    string_prototype: Value,                   // 字符串原型对象
     exception_handlers: Vec<ExceptionHandler>, // 异常处理器栈
 }
 
@@ -695,9 +695,9 @@ impl VM {
                     obj.get_field_with_meta(field)
                 };
 
-                if let Value::Null = value {
-                    if let Value::Object(_) = obj {
-                        if field == "keys" {
+                if let Value::Null = value
+                    && let Value::Object(_) = obj
+                        && field == "keys" {
                             let array_proto = self.array_prototype.clone();
                             value = Value::NativeFunction(Rc::new(Box::new(move |args| {
                                 if args.is_empty() {
@@ -731,8 +731,6 @@ impl VM {
                                 .into())
                             })));
                         }
-                    }
-                }
 
                 self.stack.push(value);
             }
@@ -752,9 +750,9 @@ impl VM {
                     obj.get_field_with_meta(field)
                 };
 
-                if let Value::Null = value {
-                    if let Value::Object(_) = obj {
-                        if field == "keys" {
+                if let Value::Null = value
+                    && let Value::Object(_) = obj
+                        && field == "keys" {
                             let array_proto = self.array_prototype.clone();
                             value = Value::NativeFunction(Rc::new(Box::new(move |args| {
                                 if args.is_empty() {
@@ -788,8 +786,6 @@ impl VM {
                                 .into())
                             })));
                         }
-                    }
-                }
 
                 self.stack.push(value);
                 self.stack.push(obj);
@@ -904,25 +900,28 @@ impl VM {
 
             Instruction::Throw => {
                 let error_value = self.stack.pop().unwrap_or(Value::string("Unknown error".to_string()));
-                
+
                 // Find the nearest exception handler
                 if let Some(handler) = self.exception_handlers.pop() {
                     // Restore stack state
                     self.stack.truncate(handler.stack_size);
                     self.fp = handler.fp;
-                    
+
                     // Push error value onto stack
                     self.stack.push(error_value);
-                    
+
                     // Jump to catch block
                     return if let Some(target) = program.syms.get(&handler.catch_label) {
                         self.pc = (target.location as usize) - 1;
                         Ok(true)
                     } else {
-                        Err(VMRuntimeError::UndefinedLabel(format!("catch label: {}", handler.catch_label)))
+                        Err(VMRuntimeError::UndefinedLabel(format!(
+                            "catch label: {}",
+                            handler.catch_label
+                        )))
                     };
                 }
-                
+
                 // No handler found, convert to runtime error
                 return Err(VMRuntimeError::UncaughtException(error_value.to_string()));
             }

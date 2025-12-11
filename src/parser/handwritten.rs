@@ -626,17 +626,17 @@ impl Parser {
 
     fn parse_try_catch(&mut self) -> Result<Statement, ParseError> {
         let start_line = self.line;
-        
+
         // Parse try block
         self.skip_newlines();
         self.consume(&Token::LBig, "Expected '{' after 'try'")?;
         let try_body = self.parse_block()?;
         self.consume(&Token::RBig, "Expected '}' after try block")?;
-        
+
         // Parse catch
         self.skip_newlines();
         self.consume(&Token::Keyword(Keyword::CATCH), "Expected 'catch' after try block")?;
-        
+
         // Optional error variable name
         let error_name = if let Some(Token::Identifier(name)) = self.peek() {
             let n = name.clone();
@@ -645,13 +645,13 @@ impl Parser {
         } else {
             None
         };
-        
+
         // Parse catch block
         self.skip_newlines();
         self.consume(&Token::LBig, "Expected '{' after 'catch'")?;
         let catch_body = self.parse_block()?;
         self.consume(&Token::RBig, "Expected '}' after catch block")?;
-        
+
         // Optional finally block
         self.skip_newlines();
         let finally_body = if self.match_token(&Token::Keyword(Keyword::FINALLY)) {
@@ -663,7 +663,7 @@ impl Parser {
         } else {
             None
         };
-        
+
         Ok(Statement::TryCatch(TryCatch {
             try_body,
             error_name,
@@ -676,7 +676,7 @@ impl Parser {
     fn parse_throw(&mut self) -> Result<Statement, ParseError> {
         let start_line = self.line;
         let value = self.parse_expression_logic()?;
-        
+
         Ok(Statement::Throw {
             value,
             line: start_line,
