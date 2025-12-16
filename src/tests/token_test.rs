@@ -7,10 +7,11 @@ use crate::tokenizer::Keyword::{ELSE, FOR, IF, LET};
 use crate::tokenizer::Operator::{Add, Assign, Equals, Lt, Mod};
 use crate::tokenizer::Operator::{NotEquals, Or, Subtract};
 use crate::tokenizer::Token::{Identifier, Int, Keyword, LBig, LParen, NewLine, Operator, RBig, RParen, String};
-use crate::tokenizer::winnow::parse_with_winnow;
 
 #[test]
+#[cfg(feature = "winnow-tokenizer")]
 fn test() {
+use crate::tokenizer::winnow::parse_with_winnow;
     assert_matches!(parse_with_winnow("-1"), Ok(("1", Operator(Subtract))));
     assert_matches!(parse_with_winnow("-a"), Ok(("a", Operator(Subtract))));
     assert_matches!(parse_with_winnow("10a"), Ok(("a", Int(10))));

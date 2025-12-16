@@ -146,16 +146,13 @@ pub fn tokenizer(code: String) -> Result<Vec<(Token, u32)>, TokenError> {
     winnow::tokenizer(code)
 }
 
-/// 仅用于测试/教学目的，显式调用 winnow 分词器
-pub fn tokenizer_winnow(code: String) -> Result<Vec<(Token, u32)>, TokenError> {
-    winnow::tokenizer(code)
-}
-
 /// 仅用于测试/教学目的，显式调用手写分词器
 pub fn tokenizer_handwritten(code: String) -> Result<Vec<(Token, u32)>, TokenError> {
     handwritten::tokenizer(code)
 }
 
+
+#[cfg(feature = "winnow-tokenizer")]
 pub mod winnow {
     use std::str::FromStr;
 
@@ -172,13 +169,13 @@ pub mod winnow {
 
     pub fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
         alt((
-            literal("#{{").value(Token::HashLBig),
+            literal("#{").value(Token::HashLBig),
             (literal("#"), till_line_ending).map(|_| Token::Comment),
             alt((
                 line_ending.value(Token::NewLine),
                 one_of((' ', '\t', '\r', '\n')).value(Token::Space),
                 literal("{").value(Token::LBig),
-                literal("}}").value(Token::RBig),
+                literal("}").value(Token::RBig),
                 literal("[").value(Token::LSquare),
                 literal("]").value(Token::RSquare),
                 literal("(").value(Token::LParen),
