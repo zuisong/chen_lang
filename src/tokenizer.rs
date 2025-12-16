@@ -45,6 +45,10 @@ pub enum Keyword {
     FINALLY,
     /// throw
     THROW,
+    /// async
+    ASYNC,
+    /// await
+    AWAIT,
 }
 
 /// 操作符
@@ -229,6 +233,8 @@ pub mod winnow {
                         "catch" => Token::Keyword(Keyword::CATCH),
                         "finally" => Token::Keyword(Keyword::FINALLY),
                         "throw" => Token::Keyword(Keyword::THROW),
+                        "async" => Token::Keyword(Keyword::ASYNC),
+                        "await" => Token::Keyword(Keyword::AWAIT),
                         "true" => Token::Bool(true),
                         "false" => Token::Bool(false),
                         _ => Token::Identifier(s.to_string()),
@@ -405,6 +411,8 @@ mod handwritten {
                     "catch" => Token::Keyword(Keyword::CATCH),
                     "finally" => Token::Keyword(Keyword::FINALLY),
                     "throw" => Token::Keyword(Keyword::THROW),
+                    "async" => Token::Keyword(Keyword::ASYNC),
+                    "await" => Token::Keyword(Keyword::AWAIT),
                     "true" => Token::Bool(true),
                     "false" => Token::Bool(false),
                     _ => Token::Identifier(s),

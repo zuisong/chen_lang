@@ -229,7 +229,7 @@ impl<'a> Compiler<'a> {
             self.emit(Instruction::Jump(end_label.clone()), 0);
 
             for fd in function_declarations {
-                self.compile_declaration(fd);
+                self.compile_function_def(fd);
             }
 
             self.program.syms.insert(
@@ -245,32 +245,7 @@ impl<'a> Compiler<'a> {
 
     fn compile_statement(&mut self, stmt: Statement) {
         match stmt {
-            Statement::FunctionDeclaration(fd) => {
-                let line = fd.line;
-                let func_name = fd.name.clone().expect("Statement function must have a name");
-                let unique_id = self.unique_id();
-                let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
-
-                self.emit(Instruction::Jump(skip_label.clone()), line);
-
-                self.compile_declaration(fd);
-
-                self.program.syms.insert(
-                    skip_label,
-                    Symbol {
-                        location: self.program.instructions.len() as i32,
-                        narguments: 0,
-                        nlocals: 0,
-                    },
-                );
-
-                let var_location = self.define_variable(func_name.clone());
-                self.emit(Instruction::Push(crate::value::Value::Function(func_name)), line);
-                match var_location {
-                    VarLocation::Local(offset) => self.emit(Instruction::MovePlusFP(offset as usize), line),
-                    VarLocation::Global(name) => self.emit(Instruction::Store(name), line),
-                }
-            }
+            Statement::FunctionDeclaration(fd) => self.compile_function_def(fd),
             Statement::Return(r) => self.compile_return(r),
             Statement::Local(loc) => self.compile_local(loc),
             Statement::Expression(e) => {
@@ -340,6 +315,107 @@ impl<'a> Compiler<'a> {
             Expression::GetField { line, .. } => *line,
             Expression::Index { line, .. } => *line,
             Expression::Function(fd) => fd.line,
+            Expression::Await { line, .. } => *line,
+        }
+    }
+
+    fn compile_function_def(&mut self, mut fd: FunctionDeclaration) {
+        let line = fd.line;
+        let func_name = fd.name.clone().expect("Statement function must have a name");
+        
+        if fd.is_async {
+            // Async function declaration: async def foo() { ... }
+            // Map to: def foo() { return coroutine.create(foo_impl) }
+            
+            // 1. Compile Implementation Function
+            let unique_id = self.unique_id();
+            let impl_name = format!("{}_async_impl_{}", func_name, unique_id);
+            let mut impl_fd = fd.clone();
+            impl_fd.name = Some(impl_name.clone());
+            impl_fd.is_async = false; // It's the sync body
+            
+            let impl_skip_label = format!("skip_func_{}_{}", impl_name, unique_id);
+            self.emit(Instruction::Jump(impl_skip_label.clone()), line);
+            self.compile_declaration(impl_fd);
+            self.program.syms.insert(
+                impl_skip_label,
+                Symbol {
+                    location: self.program.instructions.len() as i32,
+                    narguments: 0,
+                    nlocals: 0,
+                },
+            );
+
+            // 2. Compile Wrapper Function (The one named `func_name`)
+            // Wrapper body: return coroutine.create(impl_name)
+            let wrapper_skip_label = format!("skip_func_{}_{}", func_name, unique_id);
+            self.emit(Instruction::Jump(wrapper_skip_label.clone()), line);
+            
+            // Construct arguments for coroutine.create(impl, ...params)
+            let mut create_args = vec![
+                Expression::Literal(Literal::Value(crate::value::Value::Function(impl_name)), line)
+            ];
+            for param in &fd.parameters {
+                create_args.push(Expression::Identifier(param.clone(), line));
+            }
+
+            let wrapper_body = vec![
+                Statement::Return(Return {
+                    expression: Expression::FunctionCall(FunctionCall {
+                        callee: Box::new(Expression::GetField {
+                            object: Box::new(Expression::Identifier("coroutine".to_string(), line)),
+                            field: "create".to_string(),
+                            line,
+                        }),
+                        arguments: create_args,
+                        line,
+                    }),
+                    line,
+                })
+            ];
+            
+            let wrapper_fd = FunctionDeclaration {
+                name: Some(func_name.clone()),
+                parameters: fd.parameters,
+                body: wrapper_body,
+                is_async: false,
+                    line,
+            };
+            
+            self.compile_declaration(wrapper_fd);
+
+            self.program.syms.insert(
+                wrapper_skip_label,
+                Symbol {
+                    location: self.program.instructions.len() as i32,
+                    narguments: 0,
+                    nlocals: 0,
+                },
+            );
+        } else {
+            // Normal sync function
+            let unique_id = self.unique_id();
+            let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
+
+            self.emit(Instruction::Jump(skip_label.clone()), line);
+
+            self.compile_declaration(fd);
+
+            self.program.syms.insert(
+                skip_label,
+                Symbol {
+                    location: self.program.instructions.len() as i32,
+                    narguments: 0,
+                    nlocals: 0,
+                },
+            );
+        }
+
+        let var_location = self.define_variable(func_name.clone());
+        self.emit(Instruction::Push(crate::value::Value::Function(func_name)), line);
+        match var_location {
+            VarLocation::Local(offset) => self.emit(Instruction::MovePlusFP(offset as usize), line),
+            VarLocation::Global(name) => self.emit(Instruction::Store(name), line),
         }
     }
 
@@ -401,22 +477,71 @@ impl<'a> Compiler<'a> {
                 let func_name = fd.name.take().unwrap_or_else(|| format!("anon_{}", self.unique_id()));
                 fd.name = Some(func_name.clone());
 
-                let unique_id = self.unique_id();
-                let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
+                if fd.is_async {
+                    // Async function expression:
+                    // 1. Compile the inner implementation function
+                    let impl_name = format!("{}_async_impl_{}", func_name, self.unique_id());
+                    let mut impl_fd = fd.clone();
+                    impl_fd.name = Some(impl_name.clone());
+                    impl_fd.is_async = false;
+                    
+                    // Compile implementation details (skip label, body, etc.)
+                    // We can reuse the logic block below but for impl_fd
+                    let unique_id = self.unique_id();
+                    let skip_label = format!("skip_func_{}_{}", impl_name, unique_id);
+    
+                    self.emit(Instruction::Jump(skip_label.clone()), line);
+                    self.compile_declaration(impl_fd);
+    
+                    self.program.syms.insert(
+                        skip_label,
+                        Symbol {
+                            location: self.program.instructions.len() as i32,
+                            narguments: 0,
+                            nlocals: 0,
+                        },
+                    );
 
-                self.emit(Instruction::Jump(skip_label.clone()), line);
-                self.compile_declaration(fd);
-
-                self.program.syms.insert(
-                    skip_label,
-                    Symbol {
-                        location: self.program.instructions.len() as i32,
-                        narguments: 0,
-                        nlocals: 0,
-                    },
-                );
-
-                self.emit(Instruction::Push(crate::value::Value::Function(func_name)), line);
+                    // 2. The expression result is the creation of the fiber
+                    // coroutine.create(impl_func)
+                    self.emit(Instruction::Load("coroutine".to_string()), line);
+                    self.emit(Instruction::GetField("create".to_string()), line);
+                    self.emit(Instruction::Push(crate::value::Value::Function(impl_name)), line);
+                    self.emit(Instruction::CallStack(1), line);
+                } else {
+                    let unique_id = self.unique_id();
+                    let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
+    
+                    self.emit(Instruction::Jump(skip_label.clone()), line);
+                    self.compile_declaration(fd);
+    
+                    self.program.syms.insert(
+                        skip_label,
+                        Symbol {
+                            location: self.program.instructions.len() as i32,
+                            narguments: 0,
+                            nlocals: 0,
+                        },
+                    );
+    
+                    self.emit(Instruction::Push(crate::value::Value::Function(func_name)), line);
+                }
+            }
+            Expression::Await { expr, line } => {
+                 // await expr => coroutine.yield(expr)
+                 // Or rather: The user wants to wait for expr?
+                 // If expr is a Promise/Fiber, we yield it.
+                 // This matches the implementation plan.
+                 
+                 // 1. Load coroutine.yield function
+                 self.emit(Instruction::Load("coroutine".to_string()), line);
+                 self.emit(Instruction::GetField("yield".to_string()), line);
+                 
+                 // 2. Compile expression (argument)
+                 self.compile_expression(*expr);
+                 
+                 // 3. Call yield
+                 self.emit(Instruction::CallStack(1), line);
             }
         }
     }

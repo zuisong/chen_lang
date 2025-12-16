@@ -15,7 +15,7 @@ pub fn create_json_object() -> Value {
     Value::Object(Rc::new(std::cell::RefCell::new(table)))
 }
 
-fn native_json_parse(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+fn native_json_parse(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     // args[0] is JSON object, args[1] is string
     if let Some(Value::String(s)) = args.get(1) {
         let v: serde_json::Value = serde_json::from_str(s).map_err(|_e| ValueError::InvalidOperation {
@@ -28,7 +28,7 @@ fn native_json_parse(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     Ok(Value::Null)
 }
 
-fn native_json_stringify(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+fn native_json_stringify(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if let Some(val) = args.get(1) {
         let j = chen_to_json(val);
         return Ok(Value::string(j.to_string()));

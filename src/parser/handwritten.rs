@@ -162,7 +162,11 @@ impl Parser {
         }
 
         if self.match_token(&Token::Keyword(Keyword::DEF)) {
-            return self.parse_function();
+            return self.parse_function(false); // Not async
+        }
+        if self.match_token(&Token::Keyword(Keyword::ASYNC)) {
+             self.consume(&Token::Keyword(Keyword::DEF), "Expected 'def' after 'async'")?;
+             return self.parse_function(true); // Async
         }
         if self.match_token(&Token::Keyword(Keyword::RETURN)) {
             return self.parse_return();
@@ -287,7 +291,7 @@ impl Parser {
         }))
     }
 
-    fn parse_function_definition(&mut self) -> Result<FunctionDeclaration, ParseError> {
+    fn parse_function_definition(&mut self, is_async: bool) -> Result<FunctionDeclaration, ParseError> {
         let start_line = self.peek_line();
         let name = if let Some(Token::Identifier(name)) = self.peek() {
             let n = name.clone();
@@ -327,12 +331,13 @@ impl Parser {
             name,
             parameters,
             body,
+            is_async,
             line: start_line,
         })
     }
 
-    fn parse_function(&mut self) -> Result<Statement, ParseError> {
-        let decl = self.parse_function_definition()?;
+    fn parse_function(&mut self, is_async: bool) -> Result<Statement, ParseError> {
+        let decl = self.parse_function_definition(is_async)?;
         if decl.name.is_none() {
             return Err(ParseError::Message {
                 msg: "Function declaration as statement must have a name".to_string(),
@@ -497,6 +502,14 @@ impl Parser {
                 }))
             };
         }
+        if self.match_token(&Token::Keyword(Keyword::AWAIT)) {
+            // await is a unary operator
+            let right = self.parse_unary()?;
+            return Ok(Expression::Await {
+                expr: Box::new(right),
+                line: start_line,
+            });
+        }
         self.parse_postfix_expr()
     }
 
@@ -571,8 +584,15 @@ impl Parser {
             Token::LSquare => self.parse_array_literal(),
             Token::Keyword(Keyword::IF) => self.parse_if(),
             Token::Keyword(Keyword::DEF) => {
-                let decl = self.parse_function_definition()?;
+                let decl = self.parse_function_definition(false)?;
                 Ok(Expression::Function(decl))
+            }
+            Token::Keyword(Keyword::ASYNC) => {
+                // Async literal function? "async def() {}"
+                // Check next token
+                 self.consume(&Token::Keyword(Keyword::DEF), "Expected 'def' after 'async' in expression")?;
+                 let decl = self.parse_function_definition(true)?;
+                 Ok(Expression::Function(decl))
             }
             Token::LParen => {
                 self.skip_newlines();

@@ -28,7 +28,7 @@ pub fn create_date_object() -> Value {
     val
 }
 
-fn native_date_new(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+fn native_date_new(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     let mut ts = Timestamp::now().as_millisecond();
     // args[0] is Date class itself
     if args.len() > 1 {
@@ -60,7 +60,7 @@ fn native_date_new(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     Ok(Value::Object(table_rc))
 }
 
-fn native_date_format(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+fn native_date_format(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     // args[0] is instance
     if let Some(obj) = args.first()
         && let Value::Object(table_rc) = obj
@@ -88,7 +88,7 @@ fn native_date_format(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     Ok(Value::Null)
 }
 
-fn native_date_timestamp(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+fn native_date_timestamp(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if let Some(obj) = args.first()
         && let Value::Object(table_rc) = obj
     {

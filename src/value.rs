@@ -18,7 +18,7 @@ pub struct Table {
 }
 
 /// 原生函数类型
-pub type NativeFnType = dyn Fn(Vec<Value>) -> Result<Value, VMRuntimeError> + 'static;
+pub type NativeFnType = dyn Fn(&mut crate::vm::VM, Vec<Value>) -> Result<Value, VMRuntimeError> + 'static;
 
 /// 运行时值类型 - 统一表示所有数据类型
 #[derive(Clone)]
@@ -32,7 +32,10 @@ pub enum Value {
     /// 函数引用 (函数名 - Chen 语言定义的函数)
     Function(String),
     /// 原生函数 (Rust 定义的函数)
+    /// 原生函数 (Rust 定义的函数)
     NativeFunction(Rc<Box<NativeFnType>>),
+    /// 协程
+    Coroutine(Rc<RefCell<crate::vm::Fiber>>),
     Null,
 }
 
@@ -122,7 +125,9 @@ impl Value {
             Value::String(_) => ValueType::String,
             Value::Object(_) => ValueType::Object,
             Value::Function(_) => ValueType::Function,
+            Value::Function(_) => ValueType::Function,
             Value::NativeFunction(_) => ValueType::Function,
+            Value::Coroutine(_) => ValueType::Coroutine,
             Value::Null => ValueType::Null,
         }
     }
@@ -159,6 +164,7 @@ impl PartialEq for Value {
             // 函数比较：名称比较
             (Value::Function(a), Value::Function(b)) => a == b,
             (Value::NativeFunction(a), Value::NativeFunction(b)) => Rc::ptr_eq(a, b),
+            (Value::Coroutine(a), Value::Coroutine(b)) => Rc::ptr_eq(a, b),
             // 混合类型比较：int和float可以比较
             (Value::Int(a), Value::Float(b)) => Decimal::from(*a) == *b,
             (Value::Float(a), Value::Int(b)) => *a == Decimal::from(*b),
@@ -192,6 +198,7 @@ impl fmt::Display for Value {
             Value::Object(obj) => write!(f, "{}", obj.borrow()),
             Value::Function(name) => write!(f, "<function {}", name),
             Value::NativeFunction(_) => write!(f, "<native function>"),
+            Value::Coroutine(_) => write!(f, "<coroutine>"),
             Value::Null => write!(f, "null"),
         }
     }
@@ -207,6 +214,7 @@ impl Debug for Value {
             Value::Object(obj) => write!(f, "Object({:.?})", obj.borrow()),
             Value::Function(name) => write!(f, "Function({})", name),
             Value::NativeFunction(_) => write!(f, "NativeFunction(<native fn>)"),
+            Value::Coroutine(_) => write!(f, "Coroutine(<ptr>)"),
             Value::Null => write!(f, "Null"),
         }
     }
@@ -221,6 +229,7 @@ pub enum ValueType {
     String,
     Object,
     Function,
+    Coroutine,
     Null,
 }
 
@@ -243,7 +252,7 @@ impl ValueType {
 /// 运算错误类型
 #[derive(Error, Debug, Clone)]
 pub enum ValueError {
-    #[error("Type mismatch in {{operation}}: expected {{expected:?}}, found {{found:?}}")]
+    #[error("Type mismatch in {operation}: expected {expected:?}, found {found:?}")]
     TypeMismatch {
         expected: ValueType,
         found: ValueType,
@@ -251,7 +260,7 @@ pub enum ValueError {
     },
     #[error("Division by zero")]
     DivisionByZero,
-    #[error("Invalid operation: {{left_type:?}} {{operator}} {{right_type:?}}")]
+    #[error("Invalid operation: {left_type:?} {operator} {right_type:?}")]
     InvalidOperation {
         operator: String,
         left_type: ValueType,
@@ -259,9 +268,9 @@ pub enum ValueError {
     },
     #[error("Index out of bounds")]
     IndexOutOfBounds,
-    #[error("Undefined field: {{0}}")]
+    #[error("Undefined field: {0}")]
     UndefinedField(String),
-    #[error("Attempt to call non-function value: {{0:?}}")]
+    #[error("Attempt to call non-function value: {0:?}")]
     CallNonFunction(ValueType),
 }
 

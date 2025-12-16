@@ -3,6 +3,7 @@ use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::rc::Rc;
 
+
 use indexmap::IndexMap;
 use jiff::Timestamp;
 use rust_decimal::Decimal;
@@ -14,6 +15,7 @@ mod native_array_prototype;
 mod native_date;
 mod native_json;
 mod native_string_prototype;
+pub mod native_coroutine;
 
 use crate::value::{NativeFnType, Value, ValueError, ValueType};
 
@@ -93,7 +95,7 @@ pub enum Instruction {
 }
 
 /// 程序表示
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Program {
     pub instructions: Vec<Instruction>,
     pub syms: IndexMap<String, Symbol>, // 符号表
@@ -133,23 +135,61 @@ pub type VMResult = Result<Value, RuntimeErrorWithContext>;
 
 /// Exception handler entry
 #[derive(Debug, Clone)]
-struct ExceptionHandler {
-    catch_label: String,
-    stack_size: usize,
-    fp: usize,
+pub struct ExceptionHandler {
+    pub catch_label: String,
+    pub stack_size: usize,
+    pub fp: usize,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FiberState {
+    Running,
+    Suspended,
+    Dead,
+}
+
+#[derive(Debug, Clone)]
+pub struct Fiber {
+    pub stack: Vec<Value>,
+    pub pc: usize,
+    pub fp: usize,
+    pub call_stack: Vec<(usize, usize)>,
+    pub exception_handlers: Vec<ExceptionHandler>,
+    pub state: FiberState,
+    pub caller: Option<Rc<RefCell<Fiber>>>,
+}
+
+impl Fiber {
+    pub fn new() -> Self {
+        Self {
+            stack: Vec::new(),
+            pc: 0,
+            fp: 0,
+            call_stack: Vec::new(),
+            exception_handlers: Vec::new(),
+            state: FiberState::Suspended,
+            caller: None,
+        }
+    }
 }
 
 /// 虚拟机实现
 pub struct VM {
-    stack: Vec<Value>,                         // 操作数栈
-    variables: IndexMap<String, Value>,        // 全局变量存储
-    pc: usize,                                 // 程序计数器
-    fp: usize,                                 // 帧指针
-    call_stack: Vec<(usize, usize)>,           // 调用栈（保存返回地址, 旧fp）
-    stdout: Box<dyn Write>,                    // 标准输出
-    array_prototype: Value,                    // 数组原型对象
-    string_prototype: Value,                   // 字符串原型对象
-    exception_handlers: Vec<ExceptionHandler>, // 异常处理器栈
+    pub stack: Vec<Value>,                         // 操作数栈
+    pub variables: IndexMap<String, Value>,        // 全局变量存储
+    pub pc: usize,                                 // 程序计数器
+    pub fp: usize,                                 // 帧指针
+    pub call_stack: Vec<(usize, usize)>,           // 调用栈（保存返回地址, 旧fp）
+    pub stdout: Box<dyn Write>,                    // 标准输出
+    pub array_prototype: Value,                    // 数组原型对象
+    pub string_prototype: Value,                   // 字符串原型对象
+    // exception_handlers moved to Fiber effectively (current fiber context)
+    // But VM still holds current running state.
+    // When running, we use VM's vectors. When switching, we swap them.
+    pub exception_handlers: Vec<ExceptionHandler>, 
+    
+    pub current_fiber: Option<Rc<RefCell<Fiber>>>,
+    pub program: Option<Rc<Program>>,
 }
 
 impl Default for VM {
@@ -160,8 +200,9 @@ impl Default for VM {
 
 use native_date::create_date_object;
 use native_json::create_json_object;
+use native_coroutine::create_coroutine_object;
 
-use crate::vm::native_array_prototype::create_array_prototype;
+use native_array_prototype::create_array_prototype;
 use crate::vm::native_string_prototype::create_string_prototype;
 
 impl VM {
@@ -170,6 +211,7 @@ impl VM {
         variables.insert("null".to_string(), Value::null());
         variables.insert("Date".to_string(), create_date_object());
         variables.insert("JSON".to_string(), create_json_object());
+        variables.insert("coroutine".to_string(), create_coroutine_object());
         VM {
             stack: Vec::new(),
             variables,
@@ -180,6 +222,8 @@ impl VM {
             array_prototype: create_array_prototype(),
             string_prototype: create_string_prototype(),
             exception_handlers: Vec::new(),
+            current_fiber: None,
+            program: None,
         }
     }
 
@@ -188,6 +232,7 @@ impl VM {
         variables.insert("null".to_string(), Value::null());
         variables.insert("Date".to_string(), create_date_object());
         variables.insert("JSON".to_string(), create_json_object());
+        variables.insert("coroutine".to_string(), create_coroutine_object());
         VM {
             stack: Vec::with_capacity(1024),
             variables,
@@ -198,12 +243,39 @@ impl VM {
             array_prototype: create_array_prototype(),
             string_prototype: create_string_prototype(),
             exception_handlers: Vec::new(),
+            current_fiber: None,
+            program: None,
         }
     }
 
     /// 执行程序
     pub fn execute(&mut self, program: &Program) -> VMResult {
-        self.execute_from(program, 0)
+        // We need to clone the program to keep it in VM if we change VM to hold Rc<Program>
+        // But execute takes &Program.
+        // We probably need to change execute signature or clone/wrap it.
+        // Given constraint, we might just not be able to store &Program easily without lifetimes.
+        // Using Rc is best.
+        // Assuming caller can provide Rc or we clone it (expensive if deep, but Program is Vec and Map).
+        // Actually, let's change execute to take Rc<Program> or just wrap it here cheaply if we can?
+        // No, we can't wrap &Program into Rc<Program>.
+        
+        // TEMPORARY: For this specific task, we'll assume we can't easily change the signature of execute 
+        // to Rc<Program> without breaking main.rs (which I can't see but user might have).
+        // BUT I can change `Program` to be `Rc`'d in `main.rs` if I had access.
+        //
+        // Let's rely on internal mutability or raw pointers? Unsafe.
+        //
+        // Let's go with: Modify `execute` to take `Rc<Program>`.
+        // This is a breaking change for the API but necessary for this feature.
+        // I will change the signature.
+        self.execute_rc(Rc::new(program.clone())) // Clone for now to satisfy type checker if we can't change caller.
+    }
+
+    pub fn execute_rc(&mut self, program: Rc<Program>) -> VMResult {
+        self.program = Some(program.clone());
+        let res = self.execute_from(&program, 0);
+        self.program = None;
+        res
     }
 
     /// 从指定PC开始执行程序
@@ -240,6 +312,22 @@ impl VM {
         // 返回栈顶值或null
         let result = self.stack.pop().unwrap_or(Value::null());
         Ok(result)
+    }
+
+    pub fn save_state_to_fiber(&self, fiber: &mut Fiber) {
+        fiber.stack = self.stack.clone();
+        fiber.pc = self.pc;
+        fiber.fp = self.fp;
+        fiber.call_stack = self.call_stack.clone();
+        fiber.exception_handlers = self.exception_handlers.clone();
+    }
+
+    pub fn load_state_from_fiber(&mut self, fiber: &Fiber) {
+        self.stack = fiber.stack.clone();
+        self.pc = fiber.pc;
+        self.fp = fiber.fp;
+        self.call_stack = fiber.call_stack.clone();
+        self.exception_handlers = fiber.exception_handlers.clone();
     }
 
     /// 执行单条指令
@@ -592,8 +680,9 @@ impl VM {
                         };
 
                         // Check for NativeFunction in variables
+                        let native_fn_opt = self.variables.get(func_name).cloned();
                         if target_symbol.is_none()
-                            && let Some(Value::NativeFunction(native_fn)) = self.variables.get(func_name)
+                            && let Some(Value::NativeFunction(native_fn)) = native_fn_opt
                         {
                             // Native Call logic
                             let args_start = self
@@ -602,7 +691,7 @@ impl VM {
                                 .checked_sub(*arg_count)
                                 .ok_or(VMRuntimeError::StackUnderflow("Native call missing args".into()))?;
                             let args: Vec<Value> = self.stack.drain(args_start..).collect();
-                            let result = native_fn(args)?;
+                            let result = native_fn(self, args)?;
                             self.stack.push(result);
                             return Ok(true);
                         }
@@ -653,9 +742,43 @@ impl VM {
 
                     Ok(true)
                 } else {
-                    // No more call frames, program is ending
-                    debug!("Program end (no more call stack)");
-                    Ok(false) // 停止执行
+                    // No more call frames. Check if we are inside a Fiber.
+                    if let Some(fiber_rc) = &self.current_fiber {
+                        // Mark current fiber as Dead
+                        fiber_rc.borrow_mut().state = FiberState::Dead;
+                        
+                        // Check for caller
+                        let caller_opt = fiber_rc.borrow().caller.clone();
+                        
+                        if let Some(caller_rc) = caller_opt {
+                             // Restore caller
+                             let caller = caller_rc.borrow();
+                             self.load_state_from_fiber(&caller);
+                             
+                             // Drop borrows
+                             drop(caller);
+                             
+                             // Update current fiber
+                             self.current_fiber = Some(caller_rc);
+                             
+                             // Push return value to caller's stack
+                             self.stack.push(return_value);
+                             
+                             // Continue execution
+                             Ok(true)
+                        } else {
+                            // Fiber has no caller (Main Program finished?)
+                            // Or Root fiber finished.
+                             debug!("Program end (fiber with no caller)");
+                             self.stack.push(return_value);
+                             Ok(false)
+                        }
+                    } else {
+                        // Main program end
+                        debug!("Program end (no more call stack)");
+                        self.stack.push(return_value);
+                        Ok(false) // 停止执行
+                    }
                 };
             }
 
@@ -700,7 +823,7 @@ impl VM {
                     && field == "keys"
                 {
                     let array_proto = self.array_prototype.clone();
-                    value = Value::NativeFunction(Rc::new(Box::new(move |args| {
+                    value = Value::NativeFunction(Rc::new(Box::new(move |_vm, args| {
                         if args.is_empty() {
                             return Err(ValueError::TypeMismatch {
                                 expected: ValueType::Object,
@@ -756,7 +879,7 @@ impl VM {
                     && field == "keys"
                 {
                     let array_proto = self.array_prototype.clone();
-                    value = Value::NativeFunction(Rc::new(Box::new(move |args| {
+                    value = Value::NativeFunction(Rc::new(Box::new(move |_vm, args| {
                         if args.is_empty() {
                             return Err(ValueError::TypeMismatch {
                                 expected: ValueType::Object,
@@ -888,7 +1011,7 @@ impl VM {
                             .checked_sub(*arg_count)
                             .ok_or(VMRuntimeError::StackUnderflow("CallStack native: missing args".into()))?;
                         let args: Vec<Value> = self.stack.drain(start_index..).collect();
-                        let result = native_fn(args)?;
+                        let result = native_fn(self, args)?;
                         self.stack.push(result);
                         Ok(true)
                     }

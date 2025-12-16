@@ -51,6 +51,11 @@ pub enum Expression {
     },
     /// 函数定义表达式 (匿名函数/Lambda)
     Function(FunctionDeclaration),
+    /// Await 表达式: await expr
+    Await {
+        expr: Box<Expression>,
+        line: u32,
+    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -58,6 +63,7 @@ pub struct FunctionDeclaration {
     pub name: Option<String>,
     pub parameters: Vec<String>,
     pub body: Vec<Statement>,
+    pub is_async: bool,
     pub line: u32,
 }
 

@@ -4,6 +4,7 @@ mod parse_test;
 mod parser_comprehensive_test;
 mod token_test;
 mod value_tests;
+mod coroutine_test;
 
 #[cfg(test)]
 mod tests_1 {
@@ -33,3 +34,4 @@ mod tests_1 {
         assert_eq!(x, y);
     }
 }
+

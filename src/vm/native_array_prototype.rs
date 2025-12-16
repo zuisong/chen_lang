@@ -37,7 +37,7 @@ pub fn create_array_prototype() -> Value {
     proto_val
 }
 
-pub fn native_array_push(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+pub fn native_array_push(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if args.is_empty() {
         Err(ValueError::TypeMismatch {
             expected: ValueType::Object,
@@ -64,7 +64,7 @@ pub fn native_array_push(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     })?
 }
 
-pub fn native_array_pop(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+pub fn native_array_pop(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if args.is_empty() {
         Err(ValueError::TypeMismatch {
             expected: ValueType::Object,
@@ -83,7 +83,7 @@ pub fn native_array_pop(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     Ok(Value::Null)
 }
 
-pub fn native_array_len(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+pub fn native_array_len(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if args.is_empty() {
         return Ok(Value::Int(0));
     }

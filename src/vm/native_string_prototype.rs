@@ -38,7 +38,7 @@ pub fn create_string_prototype() -> Value {
     proto_val
 }
 
-pub fn native_string_len(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+pub fn native_string_len(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     if args.is_empty() {
         return Ok(Value::Int(0));
     }
@@ -52,7 +52,7 @@ pub fn native_string_len(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     }
 }
 
-pub fn native_string_trim(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+pub fn native_string_trim(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     match args.first() {
         Some(Value::String(s)) => Ok(Value::string(s.trim().to_string())),
         Some(v) => Err(ValueError::TypeMismatch {
@@ -65,7 +65,7 @@ pub fn native_string_trim(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     }
 }
 
-pub fn native_string_upper(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+pub fn native_string_upper(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     match args.first() {
         Some(Value::String(s)) => Ok(Value::string(s.to_uppercase())),
         Some(v) => Err(crate::vm::VMRuntimeError::ValueError(ValueError::TypeMismatch {
@@ -77,7 +77,7 @@ pub fn native_string_upper(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     }
 }
 
-pub fn native_string_lower(args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+pub fn native_string_lower(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     match args.first() {
         Some(Value::String(s)) => Ok(Value::string(s.to_lowercase())),
         Some(v) => Err(ValueError::TypeMismatch {
