@@ -11,7 +11,7 @@ use crate::tokenizer::Token::{Identifier, Int, Keyword, LBig, LParen, NewLine, O
 #[test]
 #[cfg(feature = "winnow-tokenizer")]
 fn test() {
-use crate::tokenizer::winnow::parse_with_winnow;
+    use crate::tokenizer::winnow::parse_with_winnow;
     assert_matches!(parse_with_winnow("-1"), Ok(("1", Operator(Subtract))));
     assert_matches!(parse_with_winnow("-a"), Ok(("a", Operator(Subtract))));
     assert_matches!(parse_with_winnow("10a"), Ok(("a", Int(10))));

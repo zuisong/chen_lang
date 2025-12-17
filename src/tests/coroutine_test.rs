@@ -1,7 +1,7 @@
-use crate::parser::parse_from_source;
 use crate::compiler::compile;
-use crate::vm::VM;
+use crate::parser::parse_from_source;
 use crate::tokenizer::tokenizer;
+use crate::vm::VM;
 
 #[test]
 fn test_async_await_basic() {
@@ -20,11 +20,10 @@ fn test_async_await_basic() {
     }
     return "OK_ASYNC"
     "#;
-    
-    let tokens = tokenizer(code.to_string()).unwrap();
-    let ast = crate::parser::handwritten::parse(tokens).unwrap();
+
+    let ast = crate::parser::parse_from_source(&code).unwrap();
     let program = compile(&code.chars().collect::<Vec<_>>(), ast);
-    
+
     let mut vm = VM::new();
     let res = vm.execute(&program);
     match res {
@@ -55,10 +54,9 @@ fn test_coroutine_primitives_with_yield_values() {
     return "OK"
     "#;
 
-    let tokens = tokenizer(code.to_string()).unwrap();
-    let ast = crate::parser::handwritten::parse(tokens).unwrap();
+    let ast = crate::parser::parse_from_source(&code).unwrap();
     let program = compile(&code.chars().collect::<Vec<_>>(), ast);
-    
+
     let mut vm = VM::new();
     let res = vm.execute(&program);
     match res {
@@ -104,10 +102,9 @@ fn test_scheduler_simulation() {
     return "SCHEDULER_OK"
     "#;
 
-    let tokens = tokenizer(code.to_string()).unwrap();
-    let ast = crate::parser::handwritten::parse(tokens).unwrap();
+    let ast = crate::parser::parse_from_source(&code).unwrap();
     let program = compile(&code.chars().collect::<Vec<_>>(), ast);
-    
+
     let mut vm = VM::new();
     let res = vm.execute(&program);
     match res {

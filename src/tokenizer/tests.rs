@@ -3,7 +3,7 @@
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use crate::tokenizer::{Token, tokenizer_handwritten, winnow::tokenizer as tokenizer_winnow };
+    use crate::tokenizer::{Token, tokenizer_handwritten, winnow::tokenizer as tokenizer_winnow};
 
     #[test]
     fn test_handwritten_parity_basic() {

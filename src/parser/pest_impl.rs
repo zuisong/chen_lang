@@ -151,9 +151,11 @@ fn build_function_declaration(pair: Pair<Rule>) -> FunctionDeclaration {
     let mut name = None;
     let mut parameters = Vec::new();
     let mut body = Vec::new();
+    let mut is_async = false;
 
     for p in inner {
         match p.as_rule() {
+            Rule::ASYNC => is_async = true,
             Rule::identifier => name = Some(p.as_str().to_string()),
             Rule::parameters => {
                 for param in p.into_inner() {
@@ -170,6 +172,7 @@ fn build_function_declaration(pair: Pair<Rule>) -> FunctionDeclaration {
         name,
         parameters,
         body,
+        is_async,
         line,
     }
 }
@@ -363,7 +366,34 @@ fn parse_atom(pair: Pair<Rule>) -> Expression {
         Rule::object_literal => parse_object_literal(inner),
         Rule::function_def => Expression::Function(build_function_declaration(inner)),
         Rule::array_literal => parse_array_literal(inner),
+        Rule::await_expr => parse_await_expr(inner),
         _ => unreachable!("Unexpected rule in atom: {:?}", inner.as_rule()),
+    }
+}
+
+fn parse_await_expr(pair: Pair<Rule>) -> Expression {
+    let line = pair.as_span().start_pos().line_col().0 as u32;
+    let mut inner = pair.into_inner();
+
+    // Skip AWAIT keyword if present
+    let mut expr_pair = inner.next();
+    while let Some(ref p) = expr_pair {
+        if p.as_rule() == Rule::AWAIT {
+            expr_pair = inner.next();
+        } else {
+            break;
+        }
+    }
+
+    let expr = if let Some(p) = expr_pair {
+        parse_unary(p)
+    } else {
+        Expression::Literal(Literal::Value(Value::Null), line)
+    };
+
+    Expression::Await {
+        expr: Box::new(expr),
+        line,
     }
 }
 

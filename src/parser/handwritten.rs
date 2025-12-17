@@ -165,8 +165,8 @@ impl Parser {
             return self.parse_function(false); // Not async
         }
         if self.match_token(&Token::Keyword(Keyword::ASYNC)) {
-             self.consume(&Token::Keyword(Keyword::DEF), "Expected 'def' after 'async'")?;
-             return self.parse_function(true); // Async
+            self.consume(&Token::Keyword(Keyword::DEF), "Expected 'def' after 'async'")?;
+            return self.parse_function(true); // Async
         }
         if self.match_token(&Token::Keyword(Keyword::RETURN)) {
             return self.parse_return();
@@ -590,9 +590,12 @@ impl Parser {
             Token::Keyword(Keyword::ASYNC) => {
                 // Async literal function? "async def() {}"
                 // Check next token
-                 self.consume(&Token::Keyword(Keyword::DEF), "Expected 'def' after 'async' in expression")?;
-                 let decl = self.parse_function_definition(true)?;
-                 Ok(Expression::Function(decl))
+                self.consume(
+                    &Token::Keyword(Keyword::DEF),
+                    "Expected 'def' after 'async' in expression",
+                )?;
+                let decl = self.parse_function_definition(true)?;
+                Ok(Expression::Function(decl))
             }
             Token::LParen => {
                 self.skip_newlines();

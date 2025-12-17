@@ -21,11 +21,13 @@ TRY = @{ "try" ~ !(ASCII_ALPHANUMERIC | "_") }
 CATCH = @{ "catch" ~ !(ASCII_ALPHANUMERIC | "_") }
 FINALLY = @{ "finally" ~ !(ASCII_ALPHANUMERIC | "_") }
 THROW = @{ "throw" ~ !(ASCII_ALPHANUMERIC | "_") }
+ASYNC = @{ "async" ~ !(ASCII_ALPHANUMERIC | "_") }
+AWAIT = @{ "await" ~ !(ASCII_ALPHANUMERIC | "_") }
 // NULL removed
 
 // 标识符 (不能是关键字)
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
-keyword = { LET | FOR | DEF | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | THROW }
+keyword = { LET | FOR | DEF | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | THROW | ASYNC | AWAIT }
 
 // 字面量
 integer = @{ "-"? ~ ASCII_DIGIT+ }
@@ -75,7 +77,8 @@ atom = {
     block |
     object_literal |
     function_def |
-    array_literal
+    array_literal |
+    await_expr
 }
 
 postfix = { call_suffix | dot_suffix | index_suffix }
@@ -109,12 +112,13 @@ assignment_target = { identifier ~ postfix* }
 assignment = { assignment_target ~ assign ~ NEWLINE* ~ expression }
 
 for_loop = { FOR ~ NEWLINE* ~ expression ~ block }
-function_def = { DEF ~ identifier? ~ "(" ~ NEWLINE* ~ parameters? ~ NEWLINE* ~ ")" ~ block }
+function_def = { ASYNC? ~ DEF ~ identifier? ~ "(" ~ NEWLINE* ~ parameters? ~ NEWLINE* ~ ")" ~ block }
 return_stmt = { RETURN ~ NEWLINE* ~ expression }
 break_stmt = { BREAK }
 continue_stmt = { CONTINUE }
 try_catch = { TRY ~ block ~ CATCH ~ identifier? ~ block ~ (FINALLY ~ block)? }
 throw_stmt = { THROW ~ NEWLINE* ~ expression }
+await_expr = { AWAIT ~ NEWLINE* ~ unary }
 
 // 复合结构
 block = { "{" ~ NEWLINE* ~ (statement ~ stmt_sep)* ~ statement? ~ NEWLINE* ~ "}" }

@@ -155,7 +155,6 @@ pub fn tokenizer_handwritten(code: String) -> Result<Vec<(Token, u32)>, TokenErr
     handwritten::tokenizer(code)
 }
 
-
 #[cfg(feature = "winnow-tokenizer")]
 pub mod winnow {
     use std::str::FromStr;

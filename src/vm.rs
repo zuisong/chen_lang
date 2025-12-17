@@ -3,7 +3,6 @@ use std::fmt::{Display, Formatter};
 use std::io::Write;
 use std::rc::Rc;
 
-
 use indexmap::IndexMap;
 use jiff::Timestamp;
 use rust_decimal::Decimal;
@@ -12,10 +11,10 @@ use thiserror::Error;
 use tracing::debug;
 
 mod native_array_prototype;
+pub mod native_coroutine;
 mod native_date;
 mod native_json;
 mod native_string_prototype;
-pub mod native_coroutine;
 
 use crate::value::{NativeFnType, Value, ValueError, ValueType};
 
@@ -175,19 +174,19 @@ impl Fiber {
 
 /// 虚拟机实现
 pub struct VM {
-    pub stack: Vec<Value>,                         // 操作数栈
-    pub variables: IndexMap<String, Value>,        // 全局变量存储
-    pub pc: usize,                                 // 程序计数器
-    pub fp: usize,                                 // 帧指针
-    pub call_stack: Vec<(usize, usize)>,           // 调用栈（保存返回地址, 旧fp）
-    pub stdout: Box<dyn Write>,                    // 标准输出
-    pub array_prototype: Value,                    // 数组原型对象
-    pub string_prototype: Value,                   // 字符串原型对象
+    pub stack: Vec<Value>,                  // 操作数栈
+    pub variables: IndexMap<String, Value>, // 全局变量存储
+    pub pc: usize,                          // 程序计数器
+    pub fp: usize,                          // 帧指针
+    pub call_stack: Vec<(usize, usize)>,    // 调用栈（保存返回地址, 旧fp）
+    pub stdout: Box<dyn Write>,             // 标准输出
+    pub array_prototype: Value,             // 数组原型对象
+    pub string_prototype: Value,            // 字符串原型对象
     // exception_handlers moved to Fiber effectively (current fiber context)
     // But VM still holds current running state.
     // When running, we use VM's vectors. When switching, we swap them.
-    pub exception_handlers: Vec<ExceptionHandler>, 
-    
+    pub exception_handlers: Vec<ExceptionHandler>,
+
     pub current_fiber: Option<Rc<RefCell<Fiber>>>,
     pub program: Option<Rc<Program>>,
 }
@@ -198,11 +197,11 @@ impl Default for VM {
     }
 }
 
+use native_array_prototype::create_array_prototype;
+use native_coroutine::create_coroutine_object;
 use native_date::create_date_object;
 use native_json::create_json_object;
-use native_coroutine::create_coroutine_object;
 
-use native_array_prototype::create_array_prototype;
 use crate::vm::native_string_prototype::create_string_prototype;
 
 impl VM {
@@ -258,8 +257,8 @@ impl VM {
         // Assuming caller can provide Rc or we clone it (expensive if deep, but Program is Vec and Map).
         // Actually, let's change execute to take Rc<Program> or just wrap it here cheaply if we can?
         // No, we can't wrap &Program into Rc<Program>.
-        
-        // TEMPORARY: For this specific task, we'll assume we can't easily change the signature of execute 
+
+        // TEMPORARY: For this specific task, we'll assume we can't easily change the signature of execute
         // to Rc<Program> without breaking main.rs (which I can't see but user might have).
         // BUT I can change `Program` to be `Rc`'d in `main.rs` if I had access.
         //
@@ -746,32 +745,32 @@ impl VM {
                     if let Some(fiber_rc) = &self.current_fiber {
                         // Mark current fiber as Dead
                         fiber_rc.borrow_mut().state = FiberState::Dead;
-                        
+
                         // Check for caller
                         let caller_opt = fiber_rc.borrow().caller.clone();
-                        
+
                         if let Some(caller_rc) = caller_opt {
-                             // Restore caller
-                             let caller = caller_rc.borrow();
-                             self.load_state_from_fiber(&caller);
-                             
-                             // Drop borrows
-                             drop(caller);
-                             
-                             // Update current fiber
-                             self.current_fiber = Some(caller_rc);
-                             
-                             // Push return value to caller's stack
-                             self.stack.push(return_value);
-                             
-                             // Continue execution
-                             Ok(true)
+                            // Restore caller
+                            let caller = caller_rc.borrow();
+                            self.load_state_from_fiber(&caller);
+
+                            // Drop borrows
+                            drop(caller);
+
+                            // Update current fiber
+                            self.current_fiber = Some(caller_rc);
+
+                            // Push return value to caller's stack
+                            self.stack.push(return_value);
+
+                            // Continue execution
+                            Ok(true)
                         } else {
                             // Fiber has no caller (Main Program finished?)
                             // Or Root fiber finished.
-                             debug!("Program end (fiber with no caller)");
-                             self.stack.push(return_value);
-                             Ok(false)
+                            debug!("Program end (fiber with no caller)");
+                            self.stack.push(return_value);
+                            Ok(false)
                         }
                     } else {
                         // Main program end

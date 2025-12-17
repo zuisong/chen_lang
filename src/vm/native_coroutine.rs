@@ -1,6 +1,7 @@
-use super::*;
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::rc::Rc;
+
+use super::*;
 use crate::vm::{Fiber, FiberState};
 
 pub fn create_coroutine_object() -> Value {
@@ -16,7 +17,7 @@ pub fn create_coroutine_object() -> Value {
         "resume".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_coroutine_resume) as Box<NativeFnType>)),
     );
-     table.data.insert(
+    table.data.insert(
         "status".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_coroutine_status) as Box<NativeFnType>)),
     );
@@ -37,7 +38,7 @@ fn native_coroutine_create(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
     }
 
     if args.is_empty() {
-         return Err(ValueError::TypeMismatch {
+        return Err(ValueError::TypeMismatch {
             expected: ValueType::Function,
             found: ValueType::Null,
             operation: "coroutine.create".into(),
@@ -56,14 +57,14 @@ fn native_coroutine_create(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
         }
         return Ok(Value::Coroutine(Rc::new(RefCell::new(fiber))));
     }
-    
+
     // Also support NativeFunction?
-     if let Value::NativeFunction(_) = func_val {
-         let mut fiber = Fiber::new();
-         for arg in args {
-             fiber.stack.push(arg);
-         }
-         return Ok(Value::Coroutine(Rc::new(RefCell::new(fiber))));
+    if let Value::NativeFunction(_) = func_val {
+        let mut fiber = Fiber::new();
+        for arg in args {
+            fiber.stack.push(arg);
+        }
+        return Ok(Value::Coroutine(Rc::new(RefCell::new(fiber))));
     }
 
     Err(ValueError::TypeMismatch {
@@ -87,9 +88,10 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
             expected: ValueType::Coroutine,
             found: ValueType::Null,
             operation: "coroutine.resume".into(),
-        }.into());
+        }
+        .into());
     }
-    
+
     let co_val = &args[0];
     let fiber_rc = if let Value::Coroutine(c) = co_val {
         c.clone()
@@ -101,24 +103,25 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
         }
         .into());
     };
-    
+
     let mut fiber = fiber_rc.borrow_mut();
-    
+
     if fiber.state == FiberState::Dead {
         return Ok(Value::bool(false)); // Cannot resume dead fiber
     }
-    
+
     if fiber.state == FiberState::Running {
-         return Err(ValueError::InvalidOperation {
+        return Err(ValueError::InvalidOperation {
             operator: "resume".into(),
             left_type: ValueType::Coroutine,
             right_type: ValueType::Null,
-        }.into());
+        }
+        .into());
     }
-    
+
     // Passed args (skipping coroutine itself)
     let passed_args = &args[1..];
-    
+
     // Check if it's a new fiber (PC == 0 and Call Stack is empty)
     // Stack length can be > 1 if arguments are passed during creation.
     let is_new = fiber.pc == 0 && fiber.call_stack.is_empty();
@@ -126,43 +129,48 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
     // If new, setup the call frame
     if is_new {
         let func_val = fiber.stack.remove(0);
-        
+
         let func_name = if let Value::Function(name) = func_val {
             name
         } else if let Value::NativeFunction(_) = func_val {
-             return Err(ValueError::InvalidOperation {
+            return Err(ValueError::InvalidOperation {
                 operator: "resume native coroutine not fully supported".into(),
                 left_type: ValueType::Function,
                 right_type: ValueType::Null,
-            }.into());
+            }
+            .into());
         } else {
-             return Err(ValueError::TypeMismatch {
+            return Err(ValueError::TypeMismatch {
                 expected: ValueType::Function,
                 found: func_val.get_type(),
                 operation: "resume".into(),
-            }.into());
+            }
+            .into());
         };
 
         // Resolve function address
-        let program = vm.program.as_ref().ok_or_else(|| VMRuntimeError::UndefinedVariable("Program not loaded in VM".into()))?;
+        let program = vm
+            .program
+            .as_ref()
+            .ok_or_else(|| VMRuntimeError::UndefinedVariable("Program not loaded in VM".into()))?;
         let func_label = format!("func_{}", func_name);
-        
+
         if let Some(sym) = program.syms.get(&func_label) {
             // Setup stack frame
-             // 1. Push Args to stack
+            // 1. Push Args to stack
             for arg in passed_args {
                 fiber.stack.push(arg.clone());
             }
-            
+
             // 2. Set fp
-            fiber.fp = 0; 
+            fiber.fp = 0;
             let new_size = fiber.fp + sym.nlocals;
             fiber.stack.resize(new_size, Value::null());
-            
+
             // 3. Set PC (-1 because loop increments)
             fiber.pc = (sym.location as usize) - 1;
         } else {
-             return Err(VMRuntimeError::UndefinedVariable(format!("function: {}", func_name)));
+            return Err(VMRuntimeError::UndefinedVariable(format!("function: {}", func_name)));
         }
     } else {
         // Resuming yielded fiber
@@ -178,10 +186,10 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
     }
 
     // Perform Context Switch
-    
+
     let caller_state = Rc::new(RefCell::new(Fiber::new()));
     vm.save_state_to_fiber(&mut caller_state.borrow_mut());
-    
+
     if let Some(current) = &vm.current_fiber {
         let mut c = current.borrow_mut();
         vm.save_state_to_fiber(&mut c);
@@ -189,16 +197,16 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
     } else {
         caller_state.borrow_mut().state = FiberState::Suspended;
     }
-    
+
     let caller_rc = if let Some(current) = &vm.current_fiber {
         current.clone()
     } else {
         caller_state
     };
-    
+
     fiber.caller = Some(caller_rc);
     fiber.state = FiberState::Running;
-    
+
     // Load new state
     vm.load_state_from_fiber(&fiber);
     vm.current_fiber = Some(fiber_rc.clone());
@@ -214,9 +222,9 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
         // The value returned here is pushed to stack.
         // So return passed_args[0].
         if passed_args.is_empty() {
-             Ok(Value::Null)
+            Ok(Value::Null)
         } else {
-             Ok(passed_args[0].clone())
+            Ok(passed_args[0].clone())
         }
     }
 }
@@ -232,37 +240,39 @@ fn native_coroutine_yield(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRunt
     let current_fiber_rc = if let Some(c) = &vm.current_fiber {
         c.clone()
     } else {
-          return Err(ValueError::InvalidOperation {
+        return Err(ValueError::InvalidOperation {
             operator: "yield from root".into(),
             left_type: ValueType::Coroutine,
             right_type: ValueType::Null,
-        }.into());
+        }
+        .into());
     };
-    
+
     let mut current_fiber = current_fiber_rc.borrow_mut();
-    
+
     let caller_rc = if let Some(c) = &current_fiber.caller {
         c.clone()
     } else {
-          return Err(ValueError::InvalidOperation {
+        return Err(ValueError::InvalidOperation {
             operator: "yield without caller".into(),
             left_type: ValueType::Coroutine,
             right_type: ValueType::Null,
-        }.into());
+        }
+        .into());
     };
-    
+
     // Save current state
     vm.save_state_to_fiber(&mut current_fiber);
     current_fiber.state = FiberState::Suspended;
-    
+
     drop(current_fiber); // Release borrow
-    
+
     // Load caller
     let caller = caller_rc.borrow();
     vm.load_state_from_fiber(&caller);
-    
+
     vm.current_fiber = Some(caller_rc.clone());
-    
+
     // We want `resume(...)` to return the value passed to `yield`.
     // The value returned here is pushed to Caller stack.
     if args.is_empty() {
@@ -293,7 +303,7 @@ fn native_coroutine_status(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
     let fiber_rc = if let Value::Coroutine(c) = co_val {
         c.clone()
     } else {
-         return Err(ValueError::TypeMismatch {
+        return Err(ValueError::TypeMismatch {
             expected: ValueType::Coroutine,
             found: co_val.get_type(),
             operation: "coroutine.status".into(),
