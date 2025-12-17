@@ -12,4 +12,4 @@ tasks:
     silent: true
   test-cov:
     cmds:
-      - cargo tarpaulin --
+      - cargo tarpaulin --config tarpaulin.toml
