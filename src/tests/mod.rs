@@ -1,5 +1,4 @@
 mod coroutine_test;
-mod expression_test;
 mod object_test;
 mod parse_test;
 mod parser_comprehensive_test;

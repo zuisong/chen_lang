@@ -31,10 +31,11 @@ pub fn create_coroutine_object() -> Value {
 
 fn native_coroutine_create(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     let mut args = args;
-    if let Some(co_obj) = vm.variables.get("coroutine") {
-        if !args.is_empty() && &args[0] == co_obj {
-            args.remove(0);
-        }
+    if let Some(co_obj) = vm.variables.get("coroutine")
+        && !args.is_empty()
+        && &args[0] == co_obj
+    {
+        args.remove(0);
     }
 
     if args.is_empty() {
@@ -77,10 +78,11 @@ fn native_coroutine_create(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
 
 fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     let mut args = args;
-    if let Some(co_obj) = vm.variables.get("coroutine") {
-        if !args.is_empty() && &args[0] == co_obj {
-            args.remove(0);
-        }
+    if let Some(co_obj) = vm.variables.get("coroutine")
+        && !args.is_empty()
+        && &args[0] == co_obj
+    {
+        args.remove(0);
     }
 
     if args.is_empty() {
@@ -231,10 +233,11 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
 
 fn native_coroutine_yield(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     let mut args = args;
-    if let Some(co_obj) = vm.variables.get("coroutine") {
-        if !args.is_empty() && &args[0] == co_obj {
-            args.remove(0);
-        }
+    if let Some(co_obj) = vm.variables.get("coroutine")
+        && !args.is_empty()
+        && &args[0] == co_obj
+    {
+        args.remove(0);
     }
 
     let current_fiber_rc = if let Some(c) = &vm.current_fiber {
@@ -284,10 +287,11 @@ fn native_coroutine_yield(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRunt
 
 fn native_coroutine_status(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     let mut args = args;
-    if let Some(co_obj) = vm.variables.get("coroutine") {
-        if !args.is_empty() && &args[0] == co_obj {
-            args.remove(0);
-        }
+    if let Some(co_obj) = vm.variables.get("coroutine")
+        && !args.is_empty()
+        && &args[0] == co_obj
+    {
+        args.remove(0);
     }
 
     if args.is_empty() {

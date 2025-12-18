@@ -125,7 +125,6 @@ impl Value {
             Value::String(_) => ValueType::String,
             Value::Object(_) => ValueType::Object,
             Value::Function(_) => ValueType::Function,
-            Value::Function(_) => ValueType::Function,
             Value::NativeFunction(_) => ValueType::Function,
             Value::Coroutine(_) => ValueType::Coroutine,
             Value::Null => ValueType::Null,

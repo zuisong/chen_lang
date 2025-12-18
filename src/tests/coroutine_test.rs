@@ -1,6 +1,5 @@
 use crate::compiler::compile;
 use crate::parser::parse_from_source;
-use crate::tokenizer::tokenizer;
 use crate::vm::VM;
 
 #[test]
@@ -21,7 +20,7 @@ fn test_async_await_basic() {
     return "OK_ASYNC"
     "#;
 
-    let ast = crate::parser::parse_from_source(&code).unwrap();
+    let ast = parse_from_source(&code).unwrap();
     let program = compile(&code.chars().collect::<Vec<_>>(), ast);
 
     let mut vm = VM::new();
@@ -54,7 +53,7 @@ fn test_coroutine_primitives_with_yield_values() {
     return "OK"
     "#;
 
-    let ast = crate::parser::parse_from_source(&code).unwrap();
+    let ast = parse_from_source(&code).unwrap();
     let program = compile(&code.chars().collect::<Vec<_>>(), ast);
 
     let mut vm = VM::new();
@@ -102,7 +101,7 @@ fn test_scheduler_simulation() {
     return "SCHEDULER_OK"
     "#;
 
-    let ast = crate::parser::parse_from_source(&code).unwrap();
+    let ast = parse_from_source(&code).unwrap();
     let program = compile(&code.chars().collect::<Vec<_>>(), ast);
 
     let mut vm = VM::new();

@@ -488,30 +488,5 @@ mod handwritten {
                 line: self.line,
             }
         }
-
-        pub fn debug<S: Into<String>>(&self, raw: &[char], msg: S) -> String {
-            let mut line = 0;
-            let mut line_str = String::new();
-            // Find the whole line of original source
-            for c in raw {
-                if *c == '\n' {
-                    line += 1;
-
-                    // Done discovering line in question
-                    if !line_str.is_empty() {
-                        break;
-                    }
-
-                    continue;
-                }
-
-                if self.line == line {
-                    line_str.push(*c);
-                }
-            }
-
-            let space = " ".repeat(self.col);
-            format!("{}\n\n{}\n{}^ Near here", msg.into(), line_str, space)
-        }
     }
 }

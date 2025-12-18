@@ -158,6 +158,12 @@ pub struct Fiber {
     pub caller: Option<Rc<RefCell<Fiber>>>,
 }
 
+impl Default for Fiber {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Fiber {
     pub fn new() -> Self {
         Self {
