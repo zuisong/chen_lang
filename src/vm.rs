@@ -13,7 +13,11 @@ use tracing::debug;
 mod native_array_prototype;
 pub mod native_coroutine;
 mod native_date;
+mod native_fs;
+#[cfg(feature = "http")]
+mod native_http;
 mod native_json;
+mod native_process;
 mod native_string_prototype;
 
 use crate::value::{NativeFnType, Value, ValueError, ValueType};
@@ -206,7 +210,11 @@ impl Default for VM {
 use native_array_prototype::create_array_prototype;
 use native_coroutine::create_coroutine_object;
 use native_date::create_date_object;
+use native_fs::create_fs_object;
+#[cfg(feature = "http")]
+use native_http::create_http_object;
 use native_json::create_json_object;
+use native_process::create_process_object;
 
 use crate::vm::native_string_prototype::create_string_prototype;
 
@@ -217,6 +225,11 @@ impl VM {
         variables.insert("Date".to_string(), create_date_object());
         variables.insert("JSON".to_string(), create_json_object());
         variables.insert("coroutine".to_string(), create_coroutine_object());
+        variables.insert("fs".to_string(), create_fs_object());
+        #[cfg(feature = "http")]
+        variables.insert("http".to_string(), create_http_object());
+        variables.insert("process".to_string(), create_process_object());
+
         VM {
             stack: Vec::new(),
             variables,
@@ -238,6 +251,11 @@ impl VM {
         variables.insert("Date".to_string(), create_date_object());
         variables.insert("JSON".to_string(), create_json_object());
         variables.insert("coroutine".to_string(), create_coroutine_object());
+        variables.insert("fs".to_string(), create_fs_object());
+        #[cfg(feature = "http")]
+        variables.insert("http".to_string(), create_http_object());
+        variables.insert("process".to_string(), create_process_object());
+
         VM {
             stack: Vec::with_capacity(1024),
             variables,

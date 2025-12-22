@@ -2,6 +2,7 @@ mod coroutine_test;
 mod object_test;
 mod parse_test;
 mod parser_comprehensive_test;
+mod sync_io_test;
 mod token_test;
 mod value_tests;
 

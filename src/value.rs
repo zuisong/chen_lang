@@ -197,7 +197,7 @@ impl fmt::Display for Value {
             Value::Object(obj) => write!(f, "{}", obj.borrow()),
             Value::Function(name) => write!(f, "<function {}", name),
             Value::NativeFunction(_) => write!(f, "<native function>"),
-            Value::Coroutine(_) => write!(f, "<coroutine>"),
+            Value::Coroutine(fiber) => write!(f, "<coroutine: {:?}>", fiber.borrow().state),
             Value::Null => write!(f, "null"),
         }
     }
@@ -213,7 +213,7 @@ impl Debug for Value {
             Value::Object(obj) => write!(f, "Object({:.?})", obj.borrow()),
             Value::Function(name) => write!(f, "Function({})", name),
             Value::NativeFunction(_) => write!(f, "NativeFunction(<native fn>)"),
-            Value::Coroutine(_) => write!(f, "Coroutine(<ptr>)"),
+            Value::Coroutine(fiber) => write!(f, "Coroutine({:?})", fiber.borrow().state),
             Value::Null => write!(f, "Null"),
         }
     }
