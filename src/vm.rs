@@ -16,6 +16,7 @@ mod native_date;
 mod native_fs;
 #[cfg(feature = "http")]
 mod native_http;
+mod native_io;
 mod native_json;
 mod native_process;
 mod native_string_prototype;
@@ -214,6 +215,7 @@ use native_date::create_date_object;
 use native_fs::create_fs_object;
 #[cfg(feature = "http")]
 use native_http::create_http_object;
+use native_io::create_io_object;
 use native_json::create_json_object;
 use native_process::create_process_object;
 
@@ -379,34 +381,9 @@ impl VM {
                     self.stack.push(module);
                 }
                 "stdlib/io" => {
-                    let mut io_data = IndexMap::new();
-                    io_data.insert(
-                        "print".to_string(),
-                        Value::NativeFunction(Rc::new(Box::new(|vm, args| {
-                            for val in args {
-                                write!(vm.stdout, "{}", val).unwrap();
-                            }
-                            vm.stdout.flush().unwrap();
-                            Ok(Value::null())
-                        }))),
-                    );
-                    io_data.insert(
-                        "println".to_string(),
-                        Value::NativeFunction(Rc::new(Box::new(|vm, args| {
-                            for val in args {
-                                write!(vm.stdout, "{}", val).unwrap();
-                            }
-                            writeln!(vm.stdout).unwrap();
-                            vm.stdout.flush().unwrap();
-                            Ok(Value::null())
-                        }))),
-                    );
-                    let io_obj = Value::Object(Rc::new(RefCell::new(crate::value::Table {
-                        data: io_data,
-                        metatable: None,
-                    })));
-                    self.variables.insert("io".to_string(), io_obj.clone());
-                    self.stack.push(io_obj);
+                    let module = create_io_object();
+                    self.variables.insert("io".to_string(), module.clone());
+                    self.stack.push(module);
                 }
                 _ => {
                     return Err(VMRuntimeError::UndefinedVariable(format!("Module not found: {}", path)));
