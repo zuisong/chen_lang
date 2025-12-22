@@ -627,7 +627,55 @@ try {
 
 ---
 
-## 标准库
+## 模块系统与标准库
+
+Chen Lang 采用显式导入机制。除了极少数核心功能（如 `null`, `coroutine`）外，大部分标准库功能（即所谓的“标准库”）都需要通过 `import` 语句显式引入。
+
+### 导入语法
+
+```python
+import <模块路径>
+```
+
+示例:
+```python
+import stdlib/json
+import stdlib/io
+```
+
+### 核心设计原则
+
+1. **按需引入**: 减少全局命名空间污染，提高加载性能。
+2. **显式依赖**: 从代码中可以清晰看到使用了哪些外部模块。
+
+### 常用标准库模块
+
+| 模块路径 | 提供的全局变量/函数 | 说明 |
+| :--- | :--- | :--- |
+| `stdlib/io` | `io` | 包含 `io.print` 和 `io.println` |
+| `stdlib/json` | `JSON` | JSON.stringify() 和 JSON.parse() |
+| `stdlib/date` | `Date` | Date.new(), Date.now() 等时间操作 |
+| `stdlib/fs` | `fs` | fs.read_to_string(), fs.write_file() 等 (同步 IO) |
+| `stdlib/http` | `http` | http.get(), http.post() 等 (支持 WASM) |
+| `stdlib/process` | `process` | process.run(), process.exit() 等 |
+
+### 示例程序
+
+```python
+import stdlib/io
+import stdlib/json
+
+let score = 85
+let level = if score >= 90 { "A" } else if score >= 60 { "P" } else { "F" }
+
+let result = #{
+    score: score,
+    level: level
+}
+
+# 必须导入 stdlib/io 才能使用 println
+io.println("Final Result: " + JSON.stringify(result))
+```
 
 ### 输出函数
 
@@ -676,7 +724,7 @@ let data = #{
     hobbies: ["reading", "coding"]
 }
 let json_str = JSON.stringify(data)
-println(json_str)
+io.println(json_str)
 # 输出: {"name":"Alice","age":30,"hobbies":["reading","coding"]}
 
 # 解析 JSON
@@ -1008,7 +1056,6 @@ for i < arr.len() {
 以下功能目前尚未支持:
 
 - ❌ **闭包** - 内部函数无法捕获外部作用域的变量
-- ❌ **模块系统** - 无法导入外部文件
 - ❌ **标准输入** - 无法读取用户输入
 
 ---

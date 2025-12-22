@@ -93,6 +93,7 @@ pub enum Instruction {
 
     // Exception handling
     Throw,                        // Throw an exception
+    Import(String),               // Import a module
     PushExceptionHandler(String), // Push exception handler (catch label)
     PopExceptionHandler,          // Pop exception handler
 }
@@ -222,13 +223,7 @@ impl VM {
     pub fn new() -> Self {
         let mut variables = IndexMap::new();
         variables.insert("null".to_string(), Value::null());
-        variables.insert("Date".to_string(), create_date_object());
-        variables.insert("JSON".to_string(), create_json_object());
         variables.insert("coroutine".to_string(), create_coroutine_object());
-        variables.insert("fs".to_string(), create_fs_object());
-        #[cfg(feature = "http")]
-        variables.insert("http".to_string(), create_http_object());
-        variables.insert("process".to_string(), create_process_object());
 
         VM {
             stack: Vec::new(),
@@ -248,13 +243,7 @@ impl VM {
     pub fn with_writer(writer: Box<dyn Write>) -> Self {
         let mut variables = IndexMap::new();
         variables.insert("null".to_string(), Value::null());
-        variables.insert("Date".to_string(), create_date_object());
-        variables.insert("JSON".to_string(), create_json_object());
         variables.insert("coroutine".to_string(), create_coroutine_object());
-        variables.insert("fs".to_string(), create_fs_object());
-        #[cfg(feature = "http")]
-        variables.insert("http".to_string(), create_http_object());
-        variables.insert("process".to_string(), create_process_object());
 
         VM {
             stack: Vec::with_capacity(1024),
@@ -359,6 +348,80 @@ impl VM {
             Instruction::Push(value) => {
                 self.stack.push(value.clone());
             }
+
+            Instruction::Import(path) => match path.as_str() {
+                "stdlib/json" => {
+                    let module = create_json_object();
+                    self.variables.insert("JSON".to_string(), module.clone());
+                    self.stack.push(module);
+                }
+                "stdlib/date" => {
+                    let module = create_date_object();
+                    self.variables.insert("Date".to_string(), module.clone());
+                    self.stack.push(module);
+                }
+                "stdlib/fs" => {
+                    let module = create_fs_object();
+                    self.variables.insert("fs".to_string(), module.clone());
+                    self.stack.push(module);
+                }
+                "stdlib/http" => {
+                    #[cfg(feature = "http")]
+                    {
+                        let module = create_http_object();
+                        self.variables.insert("http".to_string(), module.clone());
+                        self.stack.push(module);
+                    }
+                }
+                "stdlib/process" => {
+                    let module = create_process_object();
+                    self.variables.insert("process".to_string(), module.clone());
+                    self.stack.push(module);
+                }
+                "stdlib/io" => {
+                    let mut io_data = IndexMap::new();
+                    io_data.insert(
+                        "print".to_string(),
+                        Value::NativeFunction(Rc::new(Box::new(|vm, args| {
+                            let start_index = if let Some(io_val) = vm.variables.get("io") {
+                                if !args.is_empty() && &args[0] == io_val { 1 } else { 0 }
+                            } else {
+                                0
+                            };
+                            for val in args.iter().skip(start_index) {
+                                write!(vm.stdout, "{}", val).unwrap();
+                            }
+                            vm.stdout.flush().unwrap();
+                            Ok(Value::null())
+                        }))),
+                    );
+                    io_data.insert(
+                        "println".to_string(),
+                        Value::NativeFunction(Rc::new(Box::new(|vm, args| {
+                            let start_index = if let Some(io_val) = vm.variables.get("io") {
+                                if !args.is_empty() && &args[0] == io_val { 1 } else { 0 }
+                            } else {
+                                0
+                            };
+                            for val in args.iter().skip(start_index) {
+                                write!(vm.stdout, "{}", val).unwrap();
+                            }
+                            writeln!(vm.stdout).unwrap();
+                            vm.stdout.flush().unwrap();
+                            Ok(Value::null())
+                        }))),
+                    );
+                    let io_obj = Value::Object(Rc::new(RefCell::new(crate::value::Table {
+                        data: io_data,
+                        metatable: None,
+                    })));
+                    self.variables.insert("io".to_string(), io_obj.clone());
+                    self.stack.push(io_obj);
+                }
+                _ => {
+                    return Err(VMRuntimeError::UndefinedVariable(format!("Module not found: {}", path)));
+                }
+            },
 
             Instruction::BuildArray(count) => {
                 let mut table = crate::value::Table {
@@ -624,35 +687,6 @@ impl VM {
             Instruction::Call(func_name, arg_count) => {
                 // 处理内置函数
                 match func_name.as_str() {
-                    "print" => {
-                        // print函数不换行，按参数顺序输出
-                        let mut values = Vec::new();
-                        for _ in 0..*arg_count {
-                            if let Some(value) = self.stack.pop() {
-                                values.push(value);
-                            }
-                        }
-                        // 反向输出以保持正确顺序
-                        for value in values.iter().rev() {
-                            write!(self.stdout, "{}", value).unwrap();
-                        }
-                        self.stdout.flush().unwrap();
-                        self.stack.push(Value::null()); // 返回null
-                    }
-                    "println" => {
-                        let mut values = Vec::new();
-                        for _ in 0..*arg_count {
-                            if let Some(value) = self.stack.pop() {
-                                values.push(value);
-                            }
-                        }
-                        // 反向输出以保持正确顺序
-                        for value in values.iter().rev() {
-                            write!(self.stdout, "{}", value).unwrap();
-                        }
-                        writeln!(self.stdout).unwrap();
-                        self.stack.push(Value::null());
-                    }
                     "set_meta" => {
                         if *arg_count != 2 {
                             return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {

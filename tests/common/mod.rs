@@ -8,7 +8,8 @@ pub fn run_chen_lang_code(code: &str) -> Result<String, Box<dyn std::error::Erro
     let mut cmd = cargo_bin_cmd!();
     let temp_dir = TempDir::new()?;
     let test_file = temp_dir.path().join("test.ch");
-    fs::write(&test_file, code)?;
+    let prelude = "import stdlib/io\nlet print = io.print\nlet println = io.println\n";
+    fs::write(&test_file, format!("{}{}", prelude, code))?;
 
     let output = cmd.arg("run").arg(&test_file).env("RUST_LOG", "off").output()?;
 

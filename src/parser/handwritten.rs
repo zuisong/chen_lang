@@ -183,6 +183,9 @@ impl Parser {
         if self.match_token(&Token::Keyword(Keyword::THROW)) {
             return self.parse_throw();
         }
+        if self.match_token(&Token::Keyword(Keyword::IMPORT)) {
+            return self.parse_import();
+        }
 
         // Assignment or Expression
         let expr = self.parse_expression_logic()?;
@@ -736,6 +739,32 @@ impl Parser {
             value,
             line: start_line,
         })
+    }
+
+    fn parse_import(&mut self) -> Result<Statement, ParseError> {
+        let start_line = self.peek_line();
+        let mut path = String::new();
+
+        // Expect module path: (identifier ~ "/")* ~ identifier
+        loop {
+            if let Some(Token::Identifier(ident)) = self.peek() {
+                path.push_str(ident);
+                self.advance();
+            } else {
+                return Err(ParseError::Message {
+                    msg: "Expected identifier in module path".to_string(),
+                    line: self.peek_line(),
+                });
+            }
+
+            if self.match_token(&Token::Operator(Operator::Divide)) {
+                path.push('/');
+            } else {
+                break;
+            }
+        }
+
+        Ok(Statement::Import { path, line: start_line })
     }
 }
 

@@ -119,6 +119,11 @@ pub enum Statement {
         value: Expression,
         line: u32,
     },
+    /// Import 语句: import path
+    Import {
+        path: String,
+        line: u32,
+    },
 }
 
 pub type Ast = Vec<Statement>;

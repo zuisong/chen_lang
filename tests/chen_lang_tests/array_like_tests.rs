@@ -1,4 +1,9 @@
-use chen_lang::run_captured;
+use chen_lang::run_captured as run_captured_orig;
+
+fn run_captured(code: String) -> Result<String, chen_lang::ChenError> {
+    let prelude = "import stdlib/io\nlet println = io.println\n";
+    run_captured_orig(format!("{}{}", prelude, code))
+}
 
 #[test]
 fn test_array_like_object_creation() {

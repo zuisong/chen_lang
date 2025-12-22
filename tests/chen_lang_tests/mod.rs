@@ -11,6 +11,7 @@ mod expression_tests;
 mod function_tests;
 mod if_expression_tests;
 mod implicit_return_tests;
+mod import_tests;
 mod keys_tests;
 mod logic_tests;
 mod multiline_tests;

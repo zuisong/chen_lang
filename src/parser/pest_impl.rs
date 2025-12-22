@@ -48,6 +48,7 @@ fn parse_statement(pair: Pair<Rule>) -> Statement {
         Rule::continue_stmt => Statement::Continue(line),
         Rule::try_catch => parse_try_catch(inner),
         Rule::throw_stmt => parse_throw_stmt(inner),
+        Rule::import_stmt => parse_import_stmt(inner),
         Rule::expression => Statement::Expression(parse_expression(inner)),
         _ => unreachable!("Unexpected statement rule: {:?}", inner.as_rule()),
     }
@@ -572,4 +573,23 @@ fn parse_throw_stmt(pair: Pair<Rule>) -> Statement {
     };
 
     Statement::Throw { value, line }
+}
+
+fn parse_import_stmt(pair: Pair<Rule>) -> Statement {
+    let line = pair.as_span().start_pos().line_col().0 as u32;
+    let mut inner = pair.into_inner();
+
+    // Skip IMPORT keyword
+    let mut path_pair = inner.next();
+    while let Some(ref p) = path_pair {
+        if p.as_rule() == Rule::IMPORT {
+            path_pair = inner.next();
+        } else {
+            break;
+        }
+    }
+
+    let path = path_pair.map(|p| p.as_str().to_string()).unwrap_or_default();
+
+    Statement::Import { path, line }
 }

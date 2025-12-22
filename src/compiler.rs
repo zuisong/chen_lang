@@ -298,6 +298,10 @@ impl<'a> Compiler<'a> {
                 self.compile_expression(value);
                 self.emit(Instruction::Throw, line);
             }
+            Statement::Import { path, line } => {
+                self.emit(Instruction::Import(path), line);
+                self.emit(Instruction::Pop, line);
+            }
         }
     }
 

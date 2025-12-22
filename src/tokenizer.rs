@@ -49,6 +49,8 @@ pub enum Keyword {
     ASYNC,
     /// await
     AWAIT,
+    /// import
+    IMPORT,
 }
 
 /// 操作符
@@ -234,6 +236,7 @@ pub mod winnow {
                         "throw" => Token::Keyword(Keyword::THROW),
                         "async" => Token::Keyword(Keyword::ASYNC),
                         "await" => Token::Keyword(Keyword::AWAIT),
+                        "import" => Token::Keyword(Keyword::IMPORT),
                         "true" => Token::Bool(true),
                         "false" => Token::Bool(false),
                         _ => Token::Identifier(s.to_string()),
@@ -412,6 +415,7 @@ mod handwritten {
                     "throw" => Token::Keyword(Keyword::THROW),
                     "async" => Token::Keyword(Keyword::ASYNC),
                     "await" => Token::Keyword(Keyword::AWAIT),
+                    "import" => Token::Keyword(Keyword::IMPORT),
                     "true" => Token::Bool(true),
                     "false" => Token::Bool(false),
                     _ => Token::Identifier(s),

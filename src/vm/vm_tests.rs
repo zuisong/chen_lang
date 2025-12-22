@@ -87,6 +87,10 @@ fn test_builtin_functions() {
     program.add_instruction(Instruction::Call("print".to_string(), 1));
 
     let mut vm = VM::new();
+    vm.variables.insert(
+        "print".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(|_, _| Ok(Value::null())))),
+    );
     let result = vm.execute(&program);
 
     match result {

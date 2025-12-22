@@ -23,11 +23,12 @@ FINALLY = @{ "finally" ~ !(ASCII_ALPHANUMERIC | "_") }
 THROW = @{ "throw" ~ !(ASCII_ALPHANUMERIC | "_") }
 ASYNC = @{ "async" ~ !(ASCII_ALPHANUMERIC | "_") }
 AWAIT = @{ "await" ~ !(ASCII_ALPHANUMERIC | "_") }
+IMPORT = @{ "import" ~ !(ASCII_ALPHANUMERIC | "_") }
 // NULL removed
 
 // 标识符 (不能是关键字)
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
-keyword = { LET | FOR | DEF | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | THROW | ASYNC | AWAIT }
+keyword = { LET | FOR | DEF | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | THROW | ASYNC | AWAIT | IMPORT }
 
 // 字面量
 integer = @{ "-"? ~ ASCII_DIGIT+ }
@@ -103,12 +104,13 @@ statement = {
     continue_stmt |
     try_catch |
     throw_stmt |
+    import_stmt |
     assignment |
     expression
 }
 
 declaration = { LET ~ identifier ~ assign ~ NEWLINE* ~ expression }
-assignment_target = { identifier ~ postfix* } 
+assignment_target = { identifier ~ postfix* }
 assignment = { assignment_target ~ assign ~ NEWLINE* ~ expression }
 
 for_loop = { FOR ~ NEWLINE* ~ expression ~ block }
@@ -119,6 +121,9 @@ continue_stmt = { CONTINUE }
 try_catch = { TRY ~ block ~ CATCH ~ identifier? ~ block ~ (FINALLY ~ block)? }
 throw_stmt = { THROW ~ NEWLINE* ~ expression }
 await_expr = { AWAIT ~ NEWLINE* ~ unary }
+
+module_path = @{ (identifier ~ "/")* ~ identifier }
+import_stmt = { IMPORT ~ NEWLINE* ~ module_path }
 
 // 复合结构
 block = { "{" ~ NEWLINE* ~ (statement ~ stmt_sep)* ~ statement? ~ NEWLINE* ~ "}" }

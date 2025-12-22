@@ -3,10 +3,12 @@ use crate::*;
 #[test]
 fn test_fs_read_write() {
     let code = r#"
+        import stdlib/fs
+        import stdlib/io
         let path = "test_file.txt"
         fs.write_file(path, "Hello Chen Lang")
         let content = fs.read_file(path)
-        print(content)
+        io.print(content)
         fs.remove(path)
     "#;
 
@@ -18,12 +20,15 @@ fn test_fs_read_write() {
 #[test]
 fn test_fs_read_dir() {
     let code = r#"
+        import stdlib/fs
+        import stdlib/process
+        import stdlib/io
         let dir = "test_dir"
         process.exec("mkdir " + dir)
         fs.write_file(dir + "/f1.txt", "1")
         fs.write_file(dir + "/f2.txt", "2")
         let entries = fs.read_dir(dir)
-        println(entries.len())
+        io.println(entries.len())
         fs.remove(dir)
     "#;
     let result = run_captured(code.to_string());
@@ -34,12 +39,14 @@ fn test_fs_read_dir() {
 #[test]
 fn test_fs_exists() {
     let code = r#"
+        import stdlib/fs
+        import stdlib/io
         let path = "test_exists.txt"
-        println(fs.exists(path))
+        io.println(fs.exists(path))
         fs.write_file(path, "exists")
-        println(fs.exists(path))
+        io.println(fs.exists(path))
         fs.remove(path)
-        println(fs.exists(path))
+        io.println(fs.exists(path))
     "#;
 
     let result = run_captured(code.to_string());
@@ -66,8 +73,10 @@ fn test_http_get() {
 #[test]
 fn test_process_exec() {
     let code = r#"
+        import stdlib/process
+        import stdlib/io
         let res = process.exec("echo hello")
-        print(res.stdout.trim())
+        io.print(res.stdout.trim())
     "#;
     let result = run_captured(code.to_string());
     assert!(result.is_ok());
