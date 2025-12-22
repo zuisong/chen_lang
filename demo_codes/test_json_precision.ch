@@ -1,3 +1,8 @@
+import stdlib/io
+let print = io.print
+let println = io.println
+import stdlib/json
+
 # StdLib: JSON Processing
 let data = #{
     name: "Chen Lang",

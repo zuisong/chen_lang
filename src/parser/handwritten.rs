@@ -7,8 +7,8 @@
 use thiserror::Error;
 
 use crate::expression::{
-    Assign, Ast, BinaryOperation, Expression, FunctionCall, FunctionDeclaration, If, Literal, Local, Loop, Return,
-    Statement, TryCatch, Unary,
+    Assign, Ast, BinaryOperation, Expression, FunctionCall, FunctionDeclaration, If, Literal, Local, Loop, MethodCall,
+    Return, Statement, TryCatch, Unary,
 };
 use crate::tokenizer::Keyword;
 use crate::tokenizer::Operator;
@@ -571,6 +571,38 @@ impl Parser {
                     index: Box::new(index),
                     line: self.peek_line(),
                 };
+            } else if self.match_token(&Token::Colon) {
+                if let Some(Token::Identifier(method)) = self.advance() {
+                    let method_name = method.clone();
+                    self.skip_newlines();
+                    self.consume(&Token::LParen, "Expected '(' after method name")?;
+                    let mut args = Vec::new();
+                    self.skip_newlines();
+                    if !self.check(&Token::RParen) {
+                        loop {
+                            self.skip_newlines();
+                            args.push(self.parse_expression_logic()?);
+                            self.skip_newlines();
+                            if !self.match_token(&Token::COMMA) {
+                                break;
+                            }
+                        }
+                    }
+                    self.skip_newlines();
+                    self.consume(&Token::RParen, "Expected ')' after arguments")?;
+
+                    expr = Expression::MethodCall(MethodCall {
+                        object: Box::new(expr),
+                        method: method_name,
+                        arguments: args,
+                        line: self.peek_line(),
+                    });
+                } else {
+                    return Err(ParseError::Message {
+                        msg: "Expected method name after ':'".to_string(),
+                        line: self.peek_line(),
+                    });
+                }
             } else {
                 break;
             }

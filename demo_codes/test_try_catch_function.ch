@@ -1,3 +1,7 @@
+import stdlib/io
+let print = io.print
+let println = io.println
+
 # Function with exception
 def divide(a, b) {
     if b == 0 {

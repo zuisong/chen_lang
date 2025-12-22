@@ -383,12 +383,7 @@ impl VM {
                     io_data.insert(
                         "print".to_string(),
                         Value::NativeFunction(Rc::new(Box::new(|vm, args| {
-                            let start_index = if let Some(io_val) = vm.variables.get("io") {
-                                if !args.is_empty() && &args[0] == io_val { 1 } else { 0 }
-                            } else {
-                                0
-                            };
-                            for val in args.iter().skip(start_index) {
+                            for val in args {
                                 write!(vm.stdout, "{}", val).unwrap();
                             }
                             vm.stdout.flush().unwrap();
@@ -398,12 +393,7 @@ impl VM {
                     io_data.insert(
                         "println".to_string(),
                         Value::NativeFunction(Rc::new(Box::new(|vm, args| {
-                            let start_index = if let Some(io_val) = vm.variables.get("io") {
-                                if !args.is_empty() && &args[0] == io_val { 1 } else { 0 }
-                            } else {
-                                0
-                            };
-                            for val in args.iter().skip(start_index) {
+                            for val in args {
                                 write!(vm.stdout, "{}", val).unwrap();
                             }
                             writeln!(vm.stdout).unwrap();

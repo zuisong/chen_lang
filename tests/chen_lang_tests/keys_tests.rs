@@ -9,10 +9,10 @@ fn run_captured(code: String) -> Result<String, chen_lang::ChenError> {
 fn test_object_keys_basic() {
     let code = r#"
         let obj = #{ a: 1, b: 2 }
-        let keys = obj.keys()
+        let keys = obj:keys()
         
         # Verify length
-        println(keys.len())
+        println(keys:len())
         
         # Verify content (order might vary but IndexMap preserves insertion order)
         println(keys[0])
@@ -29,9 +29,9 @@ fn test_object_keys_basic() {
 fn test_object_keys_iteration() {
     let code = r#"
         let obj = #{ x: 10, y: 20, z: 30 }
-        let keys = obj.keys()
+        let keys = obj:keys()
         let i = 0
-        for i < keys.len() {
+        for i < keys:len() {
             let k = keys[i]
             println(k, "=", obj[k])
             i = i + 1
@@ -48,8 +48,8 @@ fn test_object_keys_iteration() {
 fn test_array_keys() {
     let code = r#"
         let arr = [100, 200]
-        let keys = arr.keys()
-        println(keys.len())
+        let keys = arr:keys()
+        println(keys:len())
         println(keys[0])
         println(keys[1])
     "#;
@@ -64,8 +64,8 @@ fn test_array_keys() {
 fn test_empty_object_keys() {
     let code = r#"
         let obj = #{}
-        let keys = obj.keys()
-        println(keys.len())
+        let keys = obj:keys()
+        println(keys:len())
     "#;
 
     let output = run_captured(code.to_string()).unwrap();

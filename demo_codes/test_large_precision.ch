@@ -1,3 +1,8 @@
+import stdlib/io
+let print = io.print
+let println = io.println
+import stdlib/json
+
 let data = #{
     pi: 3.141592653589793,
     e: 2.718281828459045,

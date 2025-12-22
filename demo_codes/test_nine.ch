@@ -1,3 +1,7 @@
+import stdlib/io
+let print = io.print
+let println = io.println
+
 let i=1
 for i<=2 {
     let j = 1

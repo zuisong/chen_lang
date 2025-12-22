@@ -1,3 +1,7 @@
+import stdlib/io
+let print = io.print
+let println = io.println
+
 
 # 用 chen_lang 打印斐波那契数列前三十个数
 let n = 1

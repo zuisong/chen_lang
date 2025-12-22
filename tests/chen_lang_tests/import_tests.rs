@@ -34,7 +34,7 @@ fn test_import_stdlib_date() {
     let source = r#"
         import stdlib/io
         import stdlib/date
-        let now = Date.new()
+        let now = Date:new()
         # Just check if it's not null and works
         if now != null {
             io.print("Date ok")

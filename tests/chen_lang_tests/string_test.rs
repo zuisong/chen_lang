@@ -4,8 +4,8 @@ use crate::common::run_chen_lang_code;
 fn test_string_len() {
     let code = r#"
     let s = "hello"
-    println(s.len())
-    println("abc".len())
+    println(s:len())
+    println("abc":len())
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("5"));
@@ -16,8 +16,8 @@ fn test_string_len() {
 fn test_string_upper_lower() {
     let code = r#"
     let s = "Hello"
-    println(s.upper())
-    println(s.lower())
+    println(s:upper())
+    println(s:lower())
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("HELLO"));
@@ -28,7 +28,7 @@ fn test_string_upper_lower() {
 fn test_string_trim() {
     let code = r#"
     let s = "  hello world  "
-    println("'" + s.trim() + "'")
+    println("'" + s:trim() + "'")
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("'hello world'"));

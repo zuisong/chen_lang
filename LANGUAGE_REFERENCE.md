@@ -446,6 +446,8 @@ person.email = "alice@example.com"  # 添加新属性
 
 ### 对象方法
 
+调用对象方法时，如果方法需要访问对象本身（即 `self`），请使用冒号 `:` 语法。冒号语法会自动将调用者作为第一个参数传递给方法。如果使用点号 `.` 调用，对象**不会**作为参数传递。
+
 ```python
 let calculator = #{
     value: 0,
@@ -457,9 +459,10 @@ let calculator = #{
     }
 }
 
-calculator.add(10)
-calculator.add(5)
-println(calculator.get())  # 15
+# 使用冒号调用（自动传递 self）
+calculator:add(10)
+calculator:add(5)
+println(calculator:get())  # 15
 ```
 
 ### 元表 (Metatable)
@@ -491,7 +494,7 @@ let p1 = new_Point(10, 20)
 let p2 = new_Point(5, 10)
 let p3 = p1 + p2  # 使用重载的 + 运算符
 
-println(p3.to_string())  # "Point(15, 30)"
+println(p3:to_string())  # "Point(15, 30)"
 ```
 
 ### 元方法
@@ -534,13 +537,13 @@ numbers[5] = 6  # 添加新元素
 let arr = [1, 2, 3]
 
 # 获取长度
-let length = arr.len()  # 3
+let length = arr:len()  # 3
 
 # 添加元素
-arr.push(4)  # 返回新长度 4, arr 变为 [1, 2, 3, 4]
+arr:push(4)  # 返回新长度 4, arr 变为 [1, 2, 3, 4]
 
 # 弹出元素
-let last = arr.pop()  # 返回 4, arr 变为 [1, 2, 3]
+let last = arr:pop()  # 返回 4, arr 变为 [1, 2, 3]
 
 # 获取类型
 println(arr.__type)  # "Array"
@@ -551,7 +554,7 @@ println(arr.__type)  # "Array"
 ```python
 let arr = [10, 20, 30]
 let i = 0
-for i < arr.len() {
+for i < arr:len() {
     println(arr[i])
     i = i + 1
 }
@@ -696,13 +699,13 @@ println("World")
 
 ```python
 # 创建当前时间
-let now = Date.new()
+let now = Date:new()
 
 # 获取类型
 println(now.__type)  # "Date"
 
 # 格式化日期
-let formatted = now.format('%Y-%m-%d %H:%M:%S')
+let formatted = now:format('%Y-%m-%d %H:%M:%S')
 println(formatted)  # 例如: 2025-12-10 22:40:00
 
 # 常用格式符号:
@@ -738,16 +741,16 @@ println(parsed.name)  # "Alice"
 let text = "Hello, World!"
 
 # 获取长度
-let length = text.len()  # 13
+let length = text:len()  # 13
 
 # 转大写
-let upper = text.upper()  # "HELLO, WORLD!"
+let upper = text:upper()  # "HELLO, WORLD!"
 
 # 转小写
-let lower = text.lower()  # "hello, world!"
+let lower = text:lower()  # "hello, world!"
 
 # 去除空白
-let trimmed = "  hello  ".trim()  # "hello"
+let trimmed = "  hello  ":trim()  # "hello"
 
 # 获取类型
 println(text.__type)  # "String"
@@ -763,7 +766,7 @@ let obj = #{
 }
 
 # 获取所有键
-let keys = obj.keys()  # ["name", "age", "city"]
+let keys = obj:keys()  # ["name", "age", "city"]
 ```
 
 ### 元表函数

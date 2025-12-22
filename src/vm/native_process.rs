@@ -1,3 +1,4 @@
+#[cfg(not(target_arch = "wasm32"))]
 use std::process::Command;
 use std::rc::Rc;
 
@@ -9,7 +10,7 @@ pub fn create_process_object() -> Value {
 
     let exec_fn = |_vm: &mut VM, args: Vec<Value>| -> Result<Value, VMRuntimeError> {
         let cmd_arg = if args.len() > 1 { &args[1] } else { &args[0] };
-        let cmd_str = cmd_arg.as_string().ok_or_else(|| {
+        let _cmd_str = cmd_arg.as_string().ok_or_else(|| {
             VMRuntimeError::ValueError(ValueError::TypeMismatch {
                 expected: crate::value::ValueType::String,
                 found: cmd_arg.get_type(),
@@ -20,9 +21,9 @@ pub fn create_process_object() -> Value {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let output = if cfg!(target_os = "windows") {
-                Command::new("cmd").args(["/C", cmd_str]).output()
+                Command::new("cmd").args(["/C", _cmd_str]).output()
             } else {
-                Command::new("sh").args(["-c", cmd_str]).output()
+                Command::new("sh").args(["-c", _cmd_str]).output()
             }
             .map_err(|e| {
                 VMRuntimeError::ValueError(ValueError::InvalidOperation {

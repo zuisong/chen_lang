@@ -438,6 +438,28 @@ fn parse_postfix(base: Expression, pair: Pair<Rule>) -> Expression {
                 line,
             }
         }
+        Rule::method_suffix => {
+            // method_suffix = { ":" ~ identifier ~ call_suffix }
+            let mut ms_inner = inner.into_inner();
+            let method = ms_inner.next().unwrap().as_str().to_string();
+            let call_suffix_pair = ms_inner.next().unwrap();
+
+            let mut args = Vec::new();
+            for p in call_suffix_pair.into_inner() {
+                if p.as_rule() == Rule::arguments {
+                    for arg in p.into_inner() {
+                        args.push(parse_expression(arg));
+                    }
+                }
+            }
+
+            Expression::MethodCall(MethodCall {
+                object: Box::new(base),
+                method,
+                arguments: args,
+                line,
+            })
+        }
         _ => unreachable!("Unexpected rule in postfix"),
     }
 }

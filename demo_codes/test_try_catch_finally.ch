@@ -1,3 +1,7 @@
+import stdlib/io
+let print = io.print
+let println = io.println
+
 # Try-catch with finally
 let cleanup_called = false
 

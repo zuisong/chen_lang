@@ -1,3 +1,7 @@
+import stdlib/io
+let print = io.print
+let println = io.println
+
 let i = 100
 let sum = 0
 for i!=0 {

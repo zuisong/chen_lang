@@ -366,7 +366,7 @@ io.println(person.city)"#;
         let obj = #{ }
         obj.say = greet
 
-        io.println(obj.say("World"))
+        io.println(obj:say("World"))
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -407,7 +407,7 @@ io.println(person.city)"#;
         let obj = #{ }
         set_meta(obj, #{ __index: proto })
 
-        io.println(obj.speak())
+        io.println(obj:speak())
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -427,9 +427,9 @@ io.println(person.city)"#;
         let counter = #{ count: 0 }
         counter.inc = increment
 
-        counter.inc()
+        counter:inc()
         io.println(counter.count)
-        counter.inc()
+        counter:inc()
         io.println(counter.count)
         "#;
 
@@ -467,7 +467,7 @@ io.println(person.city)"#;
         }
 
         let p = NewPoint(10, 20)
-        io.println(p.str()) # 像调用对象方法一样
+        io.println(p:str()) # 像调用对象方法一样
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -501,7 +501,7 @@ fn test_nested_function_class() {
         }
 
         let p = NewPoint(10, 20)
-        io.println(p.str())
+        io.println(p:str())
         "#;
 
     let result = crate::run_captured(code.to_string());

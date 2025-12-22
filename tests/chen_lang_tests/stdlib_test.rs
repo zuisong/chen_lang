@@ -5,9 +5,9 @@ fn test_date() {
     let code = r#"
     import stdlib/date
     import stdlib/io
-    let d = Date.new()
+    let d = Date:new()
     io.println(d.__type)
-    io.println(d.format('%Y'))
+    io.println(d:format('%Y'))
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Date"));

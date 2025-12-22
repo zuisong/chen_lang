@@ -28,7 +28,7 @@ fn test_fs_read_dir() {
         fs.write_file(dir + "/f1.txt", "1")
         fs.write_file(dir + "/f2.txt", "2")
         let entries = fs.read_dir(dir)
-        io.println(entries.len())
+        io.println(entries:len())
         fs.remove(dir)
     "#;
     let result = run_captured(code.to_string());
@@ -76,7 +76,7 @@ fn test_process_exec() {
         import stdlib/process
         import stdlib/io
         let res = process.exec("echo hello")
-        io.print(res.stdout.trim())
+        io.print(res.stdout:trim())
     "#;
     let result = run_captured(code.to_string());
     assert!(result.is_ok());

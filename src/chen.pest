@@ -82,9 +82,10 @@ atom = {
     await_expr
 }
 
-postfix = { call_suffix | dot_suffix | index_suffix }
+postfix = { call_suffix | dot_suffix | method_suffix | index_suffix }
 call_suffix = { "(" ~ NEWLINE* ~ arguments? ~ NEWLINE* ~ ")" }
 dot_suffix = { "." ~ identifier }
+method_suffix = { ":" ~ identifier ~ call_suffix }
 index_suffix = { "[" ~ NEWLINE* ~ expression ~ NEWLINE* ~ "]" }
 
 object_literal = { "#{" ~ NEWLINE* ~ (pair ~ ("," ~ NEWLINE* ~ pair)*)? ~ NEWLINE* ~ "}" }

@@ -1,3 +1,7 @@
+import stdlib/io
+let print = io.print
+let println = io.println
+
 # Nested try-catch
 try {
     println("Outer try")

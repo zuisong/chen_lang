@@ -320,6 +320,7 @@ impl<'a> Compiler<'a> {
             Expression::Index { line, .. } => *line,
             Expression::Function(fd) => fd.line,
             Expression::Await { line, .. } => *line,
+            Expression::MethodCall(mc) => mc.line,
         }
     }
 
@@ -426,6 +427,7 @@ impl<'a> Compiler<'a> {
         match exp {
             Expression::BinaryOperation(bop) => self.compile_binary_operation(bop),
             Expression::FunctionCall(fc) => self.compile_function_call(fc),
+            Expression::MethodCall(mc) => self.compile_method_call(mc),
             Expression::Literal(lit, line) => self.compile_literal(lit, line),
             Expression::Identifier(ident, line) => {
                 if let Some(var_location) = self.resolve_variable(&ident) {
@@ -639,16 +641,6 @@ impl<'a> Compiler<'a> {
         let callee = *fc.callee;
 
         match callee {
-            Expression::GetField { object, field, .. } => {
-                self.compile_expression(*object);
-                self.emit(Instruction::GetMethod(field), line);
-
-                for arg in arguments {
-                    self.compile_expression(arg);
-                }
-
-                self.emit(Instruction::CallStack(len + 1), line);
-            }
             other_callee => {
                 // Optimized call
                 let is_optimized_call = if let Expression::Identifier(ref name, _) = other_callee {
@@ -678,6 +670,19 @@ impl<'a> Compiler<'a> {
                 }
             }
         }
+    }
+
+    fn compile_method_call(&mut self, mc: MethodCall) {
+        let line = mc.line;
+        self.compile_expression(*mc.object);
+        self.emit(Instruction::GetMethod(mc.method), line);
+
+        let len = mc.arguments.len();
+        for arg in mc.arguments {
+            self.compile_expression(arg);
+        }
+
+        self.emit(Instruction::CallStack(len + 1), line);
     }
 
     fn compile_return(&mut self, ret: Return) {

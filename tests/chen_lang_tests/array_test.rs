@@ -56,7 +56,7 @@ fn test_array_push() {
     // Requires method call optimization because push is native method on proto
     let code = r#"
         let arr = [10, 20]
-        let new_len = arr.push(30)
+        let new_len = arr:push(30)
         println(new_len)
         println(arr[2])
     "#;
@@ -69,7 +69,7 @@ fn test_array_push() {
 fn test_array_pop() {
     let code = r#"
         let arr = [10, 20]
-        let val = arr.pop()
+        let val = arr:pop()
         println(val)
         let removed = arr[1] 
         # Accessing "1" should be null.
@@ -86,7 +86,7 @@ fn test_array_pop() {
 fn test_array_len() {
     let code = r#"
         let arr = [1, 2, 300]
-        println(arr.len())
+        println(arr:len())
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("3"));

@@ -2,6 +2,10 @@ import init, { run_wasm } from './pkg/chen_lang.js';
 
 const examples = {
     hello: `# Basic: Hello World
+import stdlib/io
+let print = io.print
+let println = io.println
+
 print("Hello, Chen Lang!")
 
 let a = 10
@@ -10,6 +14,9 @@ if a > 5 {
 }
 `,
     if_else_if: `# Feature: Else If Chain
+import stdlib/io
+let println = io.println
+
 let score = 85
 
 if score >= 90 {
@@ -27,6 +34,10 @@ let grade = if score >= 90 { "A" } else if score >= 60 { "P" } else { "F" }
 println("Grade result: " + grade)
 `,
     multiplication_table: `# Feature: for loop (9x9 Table)
+import stdlib/io
+let print = io.print
+let println = io.println
+
 let i = 1
 for i <= 9 {
     let j = 1
@@ -39,6 +50,9 @@ for i <= 9 {
 }
 `,
     fib: `# Algorithm: Fibonacci
+import stdlib/io
+let println = io.println
+
 def fib(n) {
     if n <= 1 {
         return n
@@ -50,6 +64,9 @@ println("Fibonacci of 10 is:")
 println(fib(10))
 `,
     objects: `# Pattern: Objects & Methods (Lua-style)
+import stdlib/io
+let println = io.println
+
 def Person(name) {
     let p = #{ name: name }
     
@@ -65,9 +82,12 @@ def Person(name) {
 }
 
 let chen = Person("Chen")
-chen.greet()
+chen:greet()
 `,
     inheritance: `# Pattern: Prototype Inheritance
+import stdlib/io
+let println = io.println
+
 # Base "Class"
 def Animal(name) {
     let a = #{ name: name }
@@ -103,10 +123,13 @@ def Dog(name) {
 }
 
 let dog = Dog("Rex")
-dog.speak() # Inherited from Animal
-dog.bark()  # Defined in Dog
+dog:speak() # Inherited from Animal
+dog:bark()  # Defined in Dog
 `,
     point_objects: `# Pattern: Custom Objects (Point with methods and operators)
+import stdlib/io
+let println = io.println
+
 
 # Define Point prototype (shared methods and metamethods)
 let Point = #{
@@ -154,35 +177,44 @@ let p1 = new_Point(10, 20)
 let p2 = new_Point(3, 5)
 
 println("Original Points:")
-println(p1.to_string())
-println(p2.to_string())
+println(p1:to_string())
+println(p2:to_string())
 
 # Call a method to modify state
-p1.move_by(5, -10)
+p1:move_by(5, -10)
 println("p1 after move_by(5, -10):")
-println(p1.to_string())
+println(p1:to_string())
 
 # Use overloaded operators
 let p3_add = p1 + p2
 println("p1 + p2 (overloaded +):")
-println(p3_add.to_string())
+println(p3_add:to_string())
 
 let p4_sub = p1 - p2
 println("p1 - p2 (overloaded -):")
-println(p4_sub.to_string())
+println(p4_sub:to_string())
 
 let p5_mul = new_Point(2,3) * new_Point(4,5)
 println("p5_mul (overloaded *):")
-println(p5_mul.to_string())
+println(p5_mul:to_string())
 `,
     date: `# StdLib: Date & Time
-let now = Date.new()
-println("Current time (ISO): " + now.format("%Y-%m-%d %H:%M:%S"))
+import stdlib/io
+import stdlib/date
+import stdlib/json
+let println = io.println
+
+let now = Date:new()
+println("Current time (ISO): " + now:format("%Y-%m-%d %H:%M:%S"))
 
 # JSON serialization of Date
 println("As JSON: " + JSON.stringify(now))
 `,
     json: `# StdLib: JSON Processing
+import stdlib/io
+import stdlib/json
+let println = io.println
+
 let data = #{
     name: "Chen Lang",
     features: ["Simple", "Dynamic", "Rust-based"],
@@ -197,17 +229,21 @@ let parsed = JSON.parse(jsonStr)
 println("Parsed JSON Name: " + parsed.name)
 `,
     arrays: `# StdLib: Arrays
+import stdlib/io
+import stdlib/json
+let println = io.println
+
 # Arrays are dynamic list-like objects
 let arr = [1, 2, 3]
 
-arr.push(4)
-println("Array length: " + arr.len())
+arr:push(4)
+println("Array length: " + arr:len())
 
-let popped = arr.pop()
+let popped = arr:pop()
 println("Popped value: " + popped)
 
 # Arrays can store any type
-arr.push("Mixed")
+arr:push("Mixed")
 println(JSON.stringify(arr))
 `
 };

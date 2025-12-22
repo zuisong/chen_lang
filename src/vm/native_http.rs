@@ -8,7 +8,7 @@ pub fn create_http_object() -> Value {
 
     let get_fn = |_vm: &mut VM, args: Vec<Value>| -> Result<Value, VMRuntimeError> {
         let url_arg = if args.len() > 1 { &args[1] } else { &args[0] };
-        let url = url_arg.as_string().ok_or_else(|| {
+        let _url = url_arg.as_string().ok_or_else(|| {
             VMRuntimeError::ValueError(ValueError::TypeMismatch {
                 expected: crate::value::ValueType::String,
                 found: url_arg.get_type(),
@@ -18,7 +18,7 @@ pub fn create_http_object() -> Value {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            match reqwest::blocking::get(url) {
+            match reqwest::blocking::get(_url) {
                 Ok(resp) => {
                     let text = resp.text().map_err(|e| {
                         VMRuntimeError::ValueError(ValueError::InvalidOperation {
@@ -53,7 +53,7 @@ pub fn create_http_object() -> Value {
             (&args[0], &args[1])
         };
 
-        let url = url_arg.as_string().ok_or_else(|| {
+        let _url = url_arg.as_string().ok_or_else(|| {
             VMRuntimeError::ValueError(ValueError::TypeMismatch {
                 expected: crate::value::ValueType::String,
                 found: url_arg.get_type(),
@@ -61,7 +61,7 @@ pub fn create_http_object() -> Value {
             })
         })?;
 
-        let body = body_arg.as_string().ok_or_else(|| {
+        let _body = body_arg.as_string().ok_or_else(|| {
             VMRuntimeError::ValueError(ValueError::TypeMismatch {
                 expected: crate::value::ValueType::String,
                 found: body_arg.get_type(),
@@ -72,7 +72,7 @@ pub fn create_http_object() -> Value {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let client = reqwest::blocking::Client::new();
-            match client.post(url).body(body.to_string()).send() {
+            match client.post(_url).body(_body.to_string()).send() {
                 Ok(resp) => {
                     let text = resp.text().map_err(|e| {
                         VMRuntimeError::ValueError(ValueError::InvalidOperation {

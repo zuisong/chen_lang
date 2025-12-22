@@ -17,6 +17,14 @@ pub struct FunctionCall {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct MethodCall {
+    pub object: Box<Expression>,
+    pub method: String,
+    pub arguments: Vec<Expression>,
+    pub line: u32,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct BinaryOperation {
     pub operator: Operator,
     pub left: Box<Expression>,
@@ -27,6 +35,7 @@ pub struct BinaryOperation {
 #[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     FunctionCall(FunctionCall),
+    MethodCall(MethodCall),
     BinaryOperation(BinaryOperation),
     Literal(Literal, u32),
     Unary(Unary),
