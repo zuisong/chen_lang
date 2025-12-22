@@ -49,6 +49,7 @@ reqwest = { version = "0.12", features = ["json"], optional = true }
 
 [dev-dependencies]
 assert_cmd = "2"
+mockito = "1.7.1"
 pretty_assertions = { version = "1", features = ["unstable"] }
 tempfile = "3"
 

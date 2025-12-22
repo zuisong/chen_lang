@@ -86,6 +86,14 @@ pub fn run(code: String) -> Result<(), ChenError> {
 
 /// 运行代码并捕获输出
 pub fn run_captured(code: String) -> Result<String, ChenError> {
+    run_captured_with_vm_setup(code, |_| {})
+}
+
+/// 运行代码并捕获输出，允许配置 VM
+pub fn run_captured_with_vm_setup<F>(code: String, setup: F) -> Result<String, ChenError>
+where
+    F: FnOnce(&mut vm::VM),
+{
     let ast = parser::parse_from_source(&code)?;
 
     let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
@@ -95,6 +103,7 @@ pub fn run_captured(code: String) -> Result<String, ChenError> {
 
     {
         let mut vm = vm::VM::with_writer(Box::new(writer));
+        setup(&mut vm);
         let _result = vm.execute(&program)?;
         // debug!("Execution result: {:?}", _result);
     } // writer goes out of scope here, flushing

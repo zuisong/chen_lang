@@ -148,6 +148,11 @@ impl Value {
             _ => None,
         }
     }
+
+    /// 检查是否为对象
+    pub fn is_object(&self) -> bool {
+        matches!(self, Value::Object(_))
+    }
 }
 
 impl PartialEq for Value {

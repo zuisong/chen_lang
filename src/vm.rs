@@ -262,6 +262,31 @@ impl VM {
         }
     }
 
+    /// 注册全局变量
+    pub fn register_global_var(&mut self, name: &str, value: Value) {
+        self.variables.insert(name.to_string(), value);
+    }
+
+    /// 注册字符串类型的全局变量
+    pub fn add_var_str(&mut self, name: &str, value: &str) {
+        self.register_global_var(name, Value::string(value.to_string()));
+    }
+
+    /// 注册布尔类型的全局变量
+    pub fn add_var_bool(&mut self, name: &str, value: bool) {
+        self.register_global_var(name, Value::bool(value));
+    }
+
+    /// 注册整数类型的全局变量
+    pub fn add_var_int(&mut self, name: &str, value: i32) {
+        self.register_global_var(name, Value::int(value));
+    }
+
+    /// 注册浮点类型的全局变量
+    pub fn add_var_float(&mut self, name: &str, value: f64) {
+        self.register_global_var(name, Value::float(Decimal::from_f64_retain(value).unwrap_or_default()));
+    }
+
     /// 执行程序
     pub fn execute(&mut self, program: &Program) -> VMResult {
         // We need to clone the program to keep it in VM if we change VM to hold Rc<Program>
