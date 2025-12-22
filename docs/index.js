@@ -189,10 +189,85 @@ async function run() {
     const codeArea = document.getElementById('code');
     const outputArea = document.getElementById('output');
     const exampleSelect = document.getElementById('example-select');
+    const clearBtn = document.getElementById('clear-output');
+    const lineNumbers = document.getElementById('line-numbers');
+    const highlighting = document.getElementById('highlighting');
+
+    const updateLineNumbers = () => {
+        const lines = codeArea.value.split('\n').length;
+        lineNumbers.innerHTML = Array(lines).fill(0).map((_, i) => `<div>${i + 1}</div>`).join('');
+
+        // Also run highlighting
+        highlight();
+    };
+
+    const highlight = () => {
+        let code = codeArea.value;
+
+        // Escape HTML
+        code = code.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+        // Syntax Rules
+        const rules = [
+            { rex: /(?<=^|\s|;)(#[^\{].*|#$)/g, cls: 'comment' },
+            { rex: /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g, cls: 'string' },
+            { rex: /\b(let|def|if|else|return|for|break|continue|async|await|try|catch|finally|throw)\b/g, cls: 'keyword' },
+            { rex: /\b(true|false)\b/g, cls: 'boolean' },
+            { rex: /\b(null)\b/g, cls: 'null' },
+            { rex: /\b(\d+(?:\.\d*)?)\b/g, cls: 'number' },
+            { rex: /(\b\w+)(?=\s*\()/g, cls: 'function' },
+            { rex: /([\+\-\*\/%=\!<>]=?|&&|\|\|)/g, cls: 'operator' }
+        ];
+
+        // Apply rules
+        // We use a temporary map to avoid double-highlighting
+        let tokens = [];
+        let output = code;
+
+        // Simplified approach: sort-of-lexer
+        // For simple playground, regex replacement in order with special placeholders or spans is okay
+        // if we are careful about not matching inside spans.
+        // A better way is matching all then sorting by index.
+
+        const allMatches = [];
+        rules.forEach(rule => {
+            let match;
+            while ((match = rule.rex.exec(code)) !== null) {
+                allMatches.push({ index: match.index, length: match[0].length, cls: rule.cls, text: match[0] });
+            }
+        });
+
+        // Sort by index
+        allMatches.sort((a, b) => a.index - b.index);
+
+        // Filter overlaps
+        let lastEnd = 0;
+        let finalHtml = "";
+        allMatches.forEach(m => {
+            if (m.index >= lastEnd) {
+                finalHtml += code.substring(lastEnd, m.index);
+                finalHtml += `<span class="token-${m.cls}">${m.text}</span>`;
+                lastEnd = m.index + m.length;
+            }
+        });
+        finalHtml += code.substring(lastEnd);
+
+        highlighting.innerHTML = finalHtml + "\n"; // Extra newline to match textarea behavior
+    };
+
+    const syncScroll = () => {
+        lineNumbers.scrollTop = codeArea.scrollTop;
+        highlighting.scrollTop = codeArea.scrollTop;
+        highlighting.scrollLeft = codeArea.scrollLeft;
+    };
 
     // Load initial example
     codeArea.value = examples.hello;
     exampleSelect.value = 'hello';
+    updateLineNumbers();
+
+    codeArea.addEventListener('input', updateLineNumbers);
+    codeArea.addEventListener('scroll', syncScroll);
 
     runBtn.addEventListener('click', () => {
         const code = codeArea.value;
@@ -208,10 +283,17 @@ async function run() {
         const key = e.target.value;
         if (examples[key]) {
             codeArea.value = examples[key];
+            updateLineNumbers();
             // Clear output when changing example
             outputArea.textContent = '';
         }
     });
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            outputArea.textContent = '';
+        });
+    }
 }
 
 run();

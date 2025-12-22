@@ -1,39 +1,80 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chen Lang Playground</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;600;700&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 
 <body>
-  <div class="container">
-    <h1>Chen Lang Playground</h1>
-    <div class="controls">
-      <label for="example-select">Load Example: </label>
-      <select id="example-select">
-        <option value="hello">Basic: Hello World</option>
-        <option value="fib">Algorithm: Fibonacci</option>
-        <option value="objects">Pattern: Objects & Methods</option>
-        <option value="point_objects">Pattern: Custom Objects (Point)</option>
-        <option value="inheritance">Pattern: Inheritance</option>
-        <option value="date">StdLib: Date & Time</option>
-        <option value="json">StdLib: JSON</option>
-        <option value="arrays">StdLib: Arrays</option>
-      </select>
-    </div>
-    <div class="main-content">
-      <div class="editor-section">
-        <textarea id="code" placeholder="Enter your Chen code here...">print("Hello, Chen Lang!")</textarea>
-        <button id="run">Run Code</button>
+  <div class="playground">
+    <header>
+      <div class="logo-area">
+        <h1>Chen Lang <span>Playground</span></h1>
       </div>
-      <div class="output-section">
-        <div class="output-label">Output:</div>
-        <pre id="output"></pre>
+      <div class="action-area">
+        <div class="example-picker">
+          <span>Example</span>
+          <select id="example-select">
+            <option value="hello">Hello World</option>
+            <option value="fib">Fibonacci</option>
+            <option value="objects">Objects & Methods</option>
+            <option value="point_objects">Custom Point</option>
+            <option value="inheritance">Inheritance</option>
+            <option value="date">Date & Time</option>
+            <option value="json">JSON</option>
+            <option value="arrays">Arrays</option>
+          </select>
+        </div>
+        <button id="run">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+          Run
+        </button>
       </div>
-    </div>
+    </header>
+
+    <main class="workspace">
+      <section class="pane">
+        <div class="pane-header">
+          Editor
+        </div>
+        <div class="editor-wrapper">
+          <div id="line-numbers" class="line-numbers"></div>
+          <div class="editor-view">
+            <pre id="highlighting" aria-hidden="true"></pre>
+            <textarea id="code" spellcheck="false" autocomplete="off" autocapitalize="off"
+              data-gramm="false"></textarea>
+          </div>
+        </div>
+      </section>
+
+      <div class="pane-border"></div>
+
+      <section class="pane">
+        <div class="pane-header">
+          Output
+          <button id="clear-output" class="clear-btn">Clear</button>
+        </div>
+        <div class="output-container">
+          <pre id="output"></pre>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="status-dot"></div>
+      WASM Runtime Ready
+    </footer>
   </div>
   <script type="module" src="index.js"></script>
 </body>
