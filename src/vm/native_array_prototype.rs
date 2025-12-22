@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use super::*;
 
 pub fn create_array_prototype() -> Value {
@@ -25,7 +27,7 @@ pub fn create_array_prototype() -> Value {
         Value::NativeFunction(Rc::new(Box::new(native_array_len))),
     );
 
-    let table_rc = Rc::new(std::cell::RefCell::new(table));
+    let table_rc = Rc::new(RefCell::new(table));
     let proto_val = Value::Object(table_rc.clone());
 
     // Set __index = self to allow method lookup on instances

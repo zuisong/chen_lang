@@ -391,8 +391,7 @@ impl VM {
                     table_ref.metatable = Some(proto_table.clone());
                 }
 
-                self.stack
-                    .push(Value::Object(Rc::new(std::cell::RefCell::new(table_ref))));
+                self.stack.push(Value::Object(Rc::new(RefCell::new(table_ref))));
             }
 
             Instruction::Pop => {

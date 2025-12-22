@@ -1,7 +1,6 @@
 // Value system tests - testing the new unified value system
 // including float operations, string operations, and type conversions
-mod common;
-use common::run_chen_lang_code;
+use crate::common::run_chen_lang_code;
 
 #[test]
 fn test_integer_arithmetic() {

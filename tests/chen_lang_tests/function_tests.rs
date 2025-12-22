@@ -1,5 +1,4 @@
-mod common;
-use common::run_chen_lang_code;
+use crate::common::run_chen_lang_code;
 
 #[test]
 fn test_minimal_test() {

@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use super::*;
 
 pub fn create_date_object() -> Value {
@@ -21,7 +23,7 @@ pub fn create_date_object() -> Value {
         Value::NativeFunction(Rc::new(Box::new(native_date_timestamp) as Box<NativeFnType>)),
     );
 
-    let table_rc = Rc::new(std::cell::RefCell::new(table));
+    let table_rc = Rc::new(RefCell::new(table));
     let val = Value::Object(table_rc.clone());
     // Class acts as prototype for instances
     table_rc.borrow_mut().data.insert("__index".to_string(), val.clone());
@@ -50,7 +52,7 @@ fn native_date_new(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeErr
     data.insert("__timestamp".to_string(), Value::string(ts.to_string()));
     data.insert("__type".to_string(), Value::string("Date".to_string()));
 
-    let table_rc = Rc::new(std::cell::RefCell::new(crate::value::Table { data, metatable: None }));
+    let table_rc = Rc::new(RefCell::new(crate::value::Table { data, metatable: None }));
 
     // Set prototype
     if let Some(Value::Object(cls_rc)) = args.first() {
