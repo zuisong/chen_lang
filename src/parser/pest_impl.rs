@@ -475,6 +475,11 @@ fn parse_if_expr(pair: Pair<Rule>) -> Expression {
                     else_body = parse_block(p);
                 }
             }
+            Rule::if_expr => {
+                // Handle "else if"
+                let next_if = parse_if_expr(p);
+                else_body = vec![Statement::Expression(next_if)];
+            }
             Rule::IF | Rule::ELSE => {}
             _ => unreachable!("Unexpected rule in if_expr: {:?}", p.as_rule()),
         }

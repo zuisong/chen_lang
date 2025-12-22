@@ -9,6 +9,35 @@ if a > 5 {
     println("a is greater than 5")
 }
 `,
+    if_else_if: `# Feature: Else If Chain
+let score = 85
+
+if score >= 90 {
+    println("Excellent! (A)")
+} else if score >= 80 {
+    println("Good! (B)")
+} else if score >= 60 {
+    println("Passed! (C)")
+} else {
+    println("Failed! (F)")
+}
+
+# It also works as an expression
+let grade = if score >= 90 { "A" } else if score >= 60 { "P" } else { "F" }
+println("Grade result: " + grade)
+`,
+    multiplication_table: `# Feature: for loop (9x9 Table)
+let i = 1
+for i <= 9 {
+    let j = 1
+    for j <= i {
+        print(j + "x" + i + "=" + i*j + " ")
+        j = j + 1
+    }
+    println("")
+    i = i + 1
+}
+`,
     fib: `# Algorithm: Fibonacci
 def fib(n) {
     if n <= 1 {

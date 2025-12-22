@@ -282,12 +282,14 @@ let result = first + " " + second  # "Hello World"
 ### If-Else 语句
 
 ```python
-let age = 18
+let score = 85
 
-if age >= 18 {
-    println("Adult")
+if score >= 90 {
+    println("A")
+} else if score >= 80 {
+    println("B")
 } else {
-    println("Minor")
+    println("C")
 }
 ```
 
@@ -1006,7 +1008,6 @@ for i < arr.len() {
 以下功能目前尚未支持:
 
 - ❌ **闭包** - 内部函数无法捕获外部作用域的变量
-- ❌ **else if 链** - 需要使用嵌套的 if-else
 - ❌ **模块系统** - 无法导入外部文件
 - ❌ **标准输入** - 无法读取用户输入
 

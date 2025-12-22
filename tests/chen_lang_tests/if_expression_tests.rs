@@ -132,3 +132,20 @@ check(if true { "yes" } else { "no" })
     assert!(output.contains("f should be 15: 15"));
     assert!(output.contains("val is: yes"));
 }
+
+#[test]
+fn test_if_else_if_expression() {
+    let code = r#"
+    let x = 15
+    let result = if x < 10 {
+        "small"
+    } else if x < 20 {
+        "medium"
+    } else {
+        "large"
+    }
+    println("result should be medium: " + result)
+    "#;
+    let output = run_chen_lang_code(code).unwrap();
+    assert!(output.contains("result should be medium: medium"));
+}

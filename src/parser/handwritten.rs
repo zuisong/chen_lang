@@ -262,9 +262,15 @@ impl Parser {
         self.skip_newlines();
         if self.match_token(&Token::Keyword(Keyword::ELSE)) {
             self.skip_newlines();
-            self.consume(&Token::LBig, "Expected '{' after else")?;
-            else_branch = self.parse_block()?;
-            self.consume(&Token::RBig, "Expected '}' after else block")?;
+            if self.check(&Token::Keyword(Keyword::IF)) {
+                self.advance(); // Consume 'if'
+                let next_if = self.parse_if()?;
+                else_branch = vec![Statement::Expression(next_if)];
+            } else {
+                self.consume(&Token::LBig, "Expected '{' after else")?;
+                else_branch = self.parse_block()?;
+                self.consume(&Token::RBig, "Expected '}' after else block")?;
+            }
         }
 
         Ok(Expression::If(If {
