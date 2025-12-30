@@ -121,7 +121,7 @@ pub fn create_http_object() -> Value {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let response = perform_request(&method, &url, body.as_deref(), headers_arg).map_err(|e| {
+            let response = perform_request(method, url, body, headers_arg).map_err(|e| {
                 VMRuntimeError::ValueError(ValueError::InvalidOperation {
                     operator: format!("http.request: {}", e),
                     left_type: ValueType::String,

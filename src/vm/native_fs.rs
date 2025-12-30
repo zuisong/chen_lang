@@ -132,15 +132,11 @@ pub fn create_fs_object() -> Value {
             data: IndexMap::new(),
             metatable: None,
         };
-        let mut count = 0;
-        for entry in entries {
-            if let Ok(entry) = entry {
-                table.data.insert(
-                    count.to_string(),
-                    Value::string(entry.file_name().to_string_lossy().to_string()),
-                );
-                count += 1;
-            }
+        for (count, entry) in entries.flatten().enumerate() {
+            table.data.insert(
+                count.to_string(),
+                Value::string(entry.file_name().to_string_lossy().to_string()),
+            );
         }
 
         if let Value::Object(proto) = &_vm.array_prototype {

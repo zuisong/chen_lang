@@ -638,36 +638,37 @@ impl<'a> Compiler<'a> {
         let line = fc.line;
         let len = fc.arguments.len();
         let arguments = fc.arguments;
-        let callee = *fc.callee;
+        let other_callee = *fc.callee;
 
-        match callee {
-            other_callee => {
-                // Optimized call
-                let is_optimized_call = if let Expression::Identifier(ref name, _) = other_callee {
-                    match self.resolve_variable(name) {
-                        Some(VarLocation::Local(_)) => false,
-                        _ => true,
+        {
+            // Optimized call
+            let is_optimized_call = if let Expression::Identifier(ref name, _) = other_callee {
+                match self.resolve_variable(name) {
+                    Some(VarLocation::Local(_)) => false,
+                    _ => {
+                        //
+                        true
                     }
-                } else {
-                    false
-                };
+                }
+            } else {
+                false
+            };
 
-                if is_optimized_call {
-                    if let Expression::Identifier(name, _) = other_callee {
-                        for arg in arguments {
-                            self.compile_expression(arg);
-                        }
-                        self.emit(Instruction::Call(name, len), line);
-                    } else {
-                        unreachable!();
-                    }
-                } else {
-                    self.compile_expression(other_callee);
+            if is_optimized_call {
+                if let Expression::Identifier(name, _) = other_callee {
                     for arg in arguments {
                         self.compile_expression(arg);
                     }
-                    self.emit(Instruction::CallStack(len), line);
+                    self.emit(Instruction::Call(name, len), line);
+                } else {
+                    unreachable!();
                 }
+            } else {
+                self.compile_expression(other_callee);
+                for arg in arguments {
+                    self.compile_expression(arg);
+                }
+                self.emit(Instruction::CallStack(len), line);
             }
         }
     }
