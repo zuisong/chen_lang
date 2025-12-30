@@ -132,3 +132,13 @@ fn test_json_large_precision() {
         output
     );
 }
+
+#[test]
+fn test_simple_stdlib_import() {
+    let source = r#"
+        let io = import "stdlib/io"
+        io.println("test")
+    "#;
+    let output = run_chen_lang_code(source).unwrap();
+    assert!(output.contains("test"));
+}

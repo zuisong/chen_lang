@@ -1,0 +1,16 @@
+mod arithmetic_tests;
+mod array_tests;
+mod complex_tests;
+mod control_flow_tests;
+mod custom_import_tests;
+mod exception_handling_tests;
+mod expression_tests;
+mod function_tests;
+mod if_expression_tests;
+mod import_tests;
+mod keys_tests;
+mod logic_tests;
+mod multiline_tests;
+mod scope_tests;
+mod string_tests;
+mod value_tests;
