@@ -1,4 +1,4 @@
-import stdlib/io
+let io = import "stdlib/io"
 let print = io.print
 let println = io.println
 import stdlib/json
@@ -20,7 +20,7 @@ def NewPoint(x, y) {
 
     let instance = #{ x: x, y: y, now: d }
     set_meta(instance, #{ __index: methods })
-    
+
     return instance
 }
 

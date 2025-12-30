@@ -1,4 +1,4 @@
-import stdlib/io
+let io = import "stdlib/io"
 let print = io.print
 let println = io.println
 
@@ -13,7 +13,7 @@ def divide(a, b) {
 try {
     let result = divide(10, 2)
     println("Result: " + result)
-    
+
     let bad_result = divide(10, 0)
     println("This should not print")
 } catch error {

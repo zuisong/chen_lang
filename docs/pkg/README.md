@@ -16,6 +16,7 @@
 *   **Functions**: First-class functions with implicit returns.
 *   **Control Flow**: `if/else` expressions, `for` loops, `break`, and `continue`.
 *   **Object System**: Supports object literals, property access, indexing, and metatables.
+*   **Module System**: Supports importing standard library and custom modules.
 *   **Scope Isolation**: Block-scoped variables.
 
 
@@ -25,8 +26,9 @@
 
 #### 1. Hello World & String Operations
 ```python
+let io = import "stdlib/io"
 let name = "Chen Lang"
-println("Hello, " + name + "!")
+io.println("Hello, " + name + "!")
 # Output: Hello, Chen Lang!
 ```
 
@@ -134,8 +136,9 @@ println(person[key])  # Output: Alice
 *   [x] **Functions**: Definition, Call, Recursion, Implicit Return
 *   [x] **Types**: Floats, Strings
 *   [x] **Object System**: Object literals, property access, indexing, metatables (can be used as arrays)
-*   [ ] **Standard Library**: File I/O, Math functions
-*   [ ] **Error Handling**: Try/Catch or Result type
+*   [x] **Standard Library**: File I/O, Math functions
+*   [x] **Error Handling**: Try/Catch or Result type
+*   [ ] **Closures**: Capture variables from outer scopes
 
 
 ---

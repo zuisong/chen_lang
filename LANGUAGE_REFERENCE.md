@@ -695,7 +695,7 @@ io.println(result)  # 30
 ### 示例程序
 
 ```python
-import stdlib/io
+let io = import "stdlib/io"
 import stdlib/json
 
 let score = 85

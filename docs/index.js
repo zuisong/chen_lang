@@ -2,7 +2,7 @@ import init, { run_wasm } from './pkg/chen_lang.js';
 
 const examples = {
     hello: `# Basic: Hello World
-import stdlib/io
+let io = import "stdlib/io"
 let print = io.print
 let println = io.println
 
@@ -14,7 +14,7 @@ if a > 5 {
 }
 `,
     if_else_if: `# Feature: Else If Chain
-import stdlib/io
+let io = import "stdlib/io"
 let println = io.println
 
 let score = 85
@@ -34,7 +34,7 @@ let grade = if score >= 90 { "A" } else if score >= 60 { "P" } else { "F" }
 println("Grade result: " + grade)
 `,
     multiplication_table: `# Feature: for loop (9x9 Table)
-import stdlib/io
+let io = import "stdlib/io"
 let print = io.print
 let println = io.println
 
@@ -50,7 +50,7 @@ for i <= 9 {
 }
 `,
     fib: `# Algorithm: Fibonacci
-import stdlib/io
+let io = import "stdlib/io"
 let println = io.println
 
 def fib(n) {
@@ -64,19 +64,19 @@ println("Fibonacci of 10 is:")
 println(fib(10))
 `,
     objects: `# Pattern: Objects & Methods (Lua-style)
-import stdlib/io
+let io = import "stdlib/io"
 let println = io.println
 
 def Person(name) {
     let p = #{ name: name }
-    
+
     def greet(self) {
         println("Hello, my name is " + self.name)
     }
-    
+
     # Set prototype (methods)
-    set_meta(p, #{ 
-        __index: #{ greet: greet } 
+    set_meta(p, #{
+        __index: #{ greet: greet }
     })
     return p
 }
@@ -85,7 +85,7 @@ let chen = Person("Chen")
 chen:greet()
 `,
     inheritance: `# Pattern: Prototype Inheritance
-import stdlib/io
+let io = import "stdlib/io"
 let println = io.println
 
 # Base "Class"
@@ -102,23 +102,23 @@ def Animal(name) {
 def Dog(name) {
     # 1. Create base instance
     let d = Animal(name)
-    
+
     # 2. Define derived methods
     def bark(self) {
         println(self.name + " barks: Woof!")
     }
-    
+
     # 3. Create methods table that inherits from base's methods
     # Get base prototype (metatable.__index)
     let base_proto = get_meta(d).__index
-    
+
     # Create new prototype that inherits from base_proto
     let dog_proto = #{ bark: bark }
     set_meta(dog_proto, #{ __index: base_proto })
-    
+
     # 4. Update instance's metatable to use new prototype
     set_meta(d, #{ __index: dog_proto })
-    
+
     return d
 }
 
@@ -127,7 +127,7 @@ dog:speak() # Inherited from Animal
 dog:bark()  # Defined in Dog
 `,
     point_objects: `# Pattern: Custom Objects (Point with methods and operators)
-import stdlib/io
+let io = import "stdlib/io"
 let println = io.println
 
 
@@ -199,9 +199,9 @@ println("p5_mul (overloaded *):")
 println(p5_mul:to_string())
 `,
     date: `# StdLib: Date & Time
-import stdlib/io
-import stdlib/date
-import stdlib/json
+let io = import "stdlib/io"
+let Date = import "stdlib/date"
+let JSON = import "stdlib/json"
 let println = io.println
 
 let now = Date:new()
@@ -211,8 +211,8 @@ println("Current time (ISO): " + now:format("%Y-%m-%d %H:%M:%S"))
 println("As JSON: " + JSON.stringify(now))
 `,
     json: `# StdLib: JSON Processing
-import stdlib/io
-import stdlib/json
+let io = import "stdlib/io"
+let JSON = import "stdlib/json"
 let println = io.println
 
 let data = #{
@@ -229,8 +229,8 @@ let parsed = JSON.parse(jsonStr)
 println("Parsed JSON Name: " + parsed.name)
 `,
     arrays: `# StdLib: Arrays
-import stdlib/io
-import stdlib/json
+let io = import "stdlib/io"
+let JSON = import "stdlib/json"
 let println = io.println
 
 # Arrays are dynamic list-like objects
