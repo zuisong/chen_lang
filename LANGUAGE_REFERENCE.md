@@ -1,6 +1,7 @@
 # Chen Lang 语言参考
 
-**版本**: 0.1.0  
+**版本**: 0.1.0
+
 **更新日期**: 2025-12-30
 
 ---
@@ -205,7 +206,6 @@ def my_function() {
 # println(local_var)  # 错误!无法访问局部变量
 ```
 
-
 ### 块级作用域
 
 ```python
@@ -273,6 +273,7 @@ let result = first + " " + second  # "Hello World"
 ### 运算符优先级
 
 从高到低:
+
 1. `!` (逻辑非), `-` (负号)
 2. `*`, `/`, `%`
 3. `+`, `-`
@@ -452,7 +453,9 @@ person.email = "alice@example.com"  # 添加新属性
 
 ### 对象方法
 
-调用对象方法时，如果方法需要访问对象本身（即 `self`），请使用冒号 `:` 语法。冒号语法会自动将调用者作为第一个参数传递给方法。如果使用点号 `.` 调用，对象**不会**作为参数传递。
+调用对象方法时，如果方法需要访问对象本身（即 `self`），请使用冒号 `:`
+语法。冒号语法会自动将调用者作为第一个参数传递给方法。如果使用点号 `.`
+调用，对象**不会**作为参数传递。
 
 ```python
 let calculator = #{
@@ -506,6 +509,7 @@ println(p3:to_string())  # "Point(15, 30)"
 ### 元方法
 
 支持的元方法:
+
 - `__add` - 加法 (+)
 - `__sub` - 减法 (-)
 - `__mul` - 乘法 (*)
@@ -638,7 +642,9 @@ try {
 
 ## 模块系统与标准库
 
-Chen Lang 采用显式导入机制。除了极少数核心功能（如 `null`, `coroutine`）外，大部分标准库功能（即所谓的“标准库”）都需要通过 `import` 语句显式引入。
+Chen Lang 采用显式导入机制。除了极少数核心功能（如 `null`,
+`coroutine`）外，大部分标准库功能（即所谓的“标准库”）都需要通过 `import`
+语句显式引入。
 
 ### 导入语法
 
@@ -647,8 +653,9 @@ let <变量名> = import "<模块路径>"
 ```
 
 示例:
+
 ```python
-let json = import "stdlib/json"
+let JSON = import "stdlib/json"
 let io = import "stdlib/io"
 ```
 
@@ -659,20 +666,22 @@ let io = import "stdlib/io"
 
 ### 常用标准库模块
 
-| 模块路径 | 返回对象包含的成员 | 说明 |
-| :--- | :--- | :--- |
-| `stdlib/io` | `print`, `println` | 标准输入输出 |
-| `stdlib/json` | `stringify`, `parse` | JSON 序列化与解析 |
-| `stdlib/date` | `new`, `now`, `parse` | 日期时间处理 |
-| `stdlib/fs` | `read_to_string`, `write_file` 等 | 文件系统操作 |
-| `stdlib/http` | `get`, `post` 等 | HTTP 客户端 |
-| `stdlib/process` | `exit`, `args`, `env` 等 | 进程与环境信息 |
+| 模块路径         | 返回对象包含的成员                | 说明              |
+| :--------------- | :-------------------------------- | :---------------- |
+| `stdlib/io`      | `print`, `println`                | 标准输入输出      |
+| `stdlib/json`    | `stringify`, `parse`              | JSON 序列化与解析 |
+| `stdlib/date`    | `new`, `now`, `parse`             | 日期时间处理      |
+| `stdlib/fs`      | `read_to_string`, `write_file` 等 | 文件系统操作      |
+| `stdlib/http`    | `get`, `post` 等                  | HTTP 客户端       |
+| `stdlib/process` | `exit`, `args`, `env` 等          | 进程与环境信息    |
 
 ### 自定义模块
 
-你可以创建自己的 `.ch` 文件并导入它们。被导入的文件会作为独立的模块执行，最后一行表达式的值将作为模块的返回值。
+你可以创建自己的 `.ch`
+文件并导入它们。被导入的文件会作为独立的模块执行，最后一行表达式的值将作为模块的返回值。
 
 例如，创建 `math_utils.ch`:
+
 ```python
 # math_utils.ch
 #{
@@ -682,6 +691,7 @@ let io = import "stdlib/io"
 ```
 
 在主程序中导入:
+
 ```python
 let math_utils = import "math_utils.ch"
 
@@ -696,7 +706,7 @@ io.println(result)  # 30
 
 ```python
 let io = import "stdlib/io"
-import stdlib/json
+let JSON = import "stdlib/json"
 
 let score = 85
 let level = if score >= 90 { "A" } else if score >= 60 { "P" } else { "F" }
@@ -1003,19 +1013,26 @@ try {
 ## 常见问题
 
 ### Q: Chen Lang 是静态类型还是动态类型?
+
 A: Chen Lang 是动态类型语言,变量的类型在运行时确定。
 
 ### Q: 如何处理浮点数精度问题?
-A: Chen Lang 使用 Decimal 类型存储浮点数,避免了常见的浮点精度问题。例如 `0.1 + 0.2` 的结果是精确的 `0.3`。
+
+A: Chen Lang 使用 Decimal 类型存储浮点数,避免了常见的浮点精度问题。例如
+`0.1 + 0.2` 的结果是精确的 `0.3`。
 
 ### Q: 支持类和继承吗?
+
 A: Chen Lang 使用基于原型的对象系统,通过元表的 `__index` 实现类似继承的功能。
 
 ### Q: 如何调试程序?
+
 A: 使用 `println()` 输出调试信息,查看错误消息中的行号定位问题。
 
 ### Q: 如何遍历数组?
+
 A: 使用 for 循环配合 `len()` 方法:
+
 ```python
 let arr = [1, 2, 3]
 let i = 0
@@ -1031,56 +1048,56 @@ for i < arr.len() {
 
 ### 关键字列表
 
-| 关键字 | 说明 |
-|--------|------|
-| `let` | 变量声明 |
-| `def` | 函数定义 |
-| `if` | 条件语句 |
-| `else` | 否则分支 |
-| `for` | 循环 |
-| `return` | 返回值 |
-| `break` | 退出循环 |
+| 关键字     | 说明           |
+| ---------- | -------------- |
+| `let`      | 变量声明       |
+| `def`      | 函数定义       |
+| `if`       | 条件语句       |
+| `else`     | 否则分支       |
+| `for`      | 循环           |
+| `return`   | 返回值         |
+| `break`    | 退出循环       |
 | `continue` | 继续下一次迭代 |
-| `try` | 异常处理 |
-| `catch` | 捕获异常 |
-| `finally` | 最终执行 |
-| `throw` | 抛出异常 |
-| `true` | 布尔真值 |
-| `false` | 布尔假值 |
-| `null` | 空值 |
+| `try`      | 异常处理       |
+| `catch`    | 捕获异常       |
+| `finally`  | 最终执行       |
+| `throw`    | 抛出异常       |
+| `true`     | 布尔真值       |
+| `false`    | 布尔假值       |
+| `null`     | 空值           |
 
 ### 内置函数
 
-| 函数 | 说明 |
-|------|------|
-| `print(...)` | 打印(不换行) |
-| `println(...)` | 打印(换行) |
+| 函数                  | 说明           |
+| --------------------- | -------------- |
+| `print(...)`          | 打印(不换行)   |
+| `println(...)`        | 打印(换行)     |
 | `set_meta(obj, meta)` | 设置对象的元表 |
-| `get_meta(obj)` | 获取对象的元表 |
+| `get_meta(obj)`       | 获取对象的元表 |
 
 ### 内置对象
 
-| 对象 | 说明 |
-|------|------|
-| `Date` | 日期时间对象,使用 `Date.new()` 创建 |
+| 对象   | 说明                                             |
+| ------ | ------------------------------------------------ |
+| `Date` | 日期时间对象,使用 `Date.new()` 创建              |
 | `JSON` | JSON 序列化,提供 `stringify()` 和 `parse()` 方法 |
 
 ### 数组方法
 
-| 方法 | 说明 |
-|------|------|
-| `arr.len()` | 返回数组长度 |
+| 方法              | 说明                      |
+| ----------------- | ------------------------- |
+| `arr.len()`       | 返回数组长度              |
 | `arr.push(value)` | 添加元素到末尾,返回新长度 |
-| `arr.pop()` | 移除并返回最后一个元素 |
+| `arr.pop()`       | 移除并返回最后一个元素    |
 
 ### 字符串方法
 
-| 方法 | 说明 |
-|------|------|
-| `str.len()` | 返回字符串长度 |
-| `str.upper()` | 转换为大写 |
-| `str.lower()` | 转换为小写 |
-| `str.trim()` | 去除首尾空白 |
+| 方法          | 说明           |
+| ------------- | -------------- |
+| `str.len()`   | 返回字符串长度 |
+| `str.upper()` | 转换为大写     |
+| `str.lower()` | 转换为小写     |
+| `str.trim()`  | 去除首尾空白   |
 
 ---
 

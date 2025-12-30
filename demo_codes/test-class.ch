@@ -1,8 +1,8 @@
 let io = import "stdlib/io"
 let print = io.print
 let println = io.println
-import stdlib/json
-import stdlib/date
+let JSON = import "stdlib/json"
+let Date = import "stdlib/date"
 
 
 def NewPoint(x, y) {
