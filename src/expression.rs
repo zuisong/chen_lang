@@ -60,9 +60,13 @@ pub enum Expression {
     },
     /// 函数定义表达式 (匿名函数/Lambda)
     Function(FunctionDeclaration),
-    /// Await 表达式: await expr
     Await {
         expr: Box<Expression>,
+        line: u32,
+    },
+    /// Import 表达式: import "path"
+    Import {
+        path: String,
         line: u32,
     },
 }
@@ -126,11 +130,6 @@ pub enum Statement {
     /// Throw 抛出异常
     Throw {
         value: Expression,
-        line: u32,
-    },
-    /// Import 语句: import path
-    Import {
-        path: String,
         line: u32,
     },
 }

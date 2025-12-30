@@ -48,24 +48,25 @@ fn native_coroutine_create(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
     }
 
     let func_val = &args[0];
-    // Allow Reference to Function or NativeFunction
-    if let Value::Function(_) = func_val {
-        // Create a new fiber
-        let mut fiber = Fiber::new();
-        // Push all arguments (function + params) to stack
-        for arg in args {
-            fiber.stack.push(arg);
+    // Allow Reference to Function, Closure, or NativeFunction
+    match func_val {
+        Value::Function(_) | Value::Closure(_, _) => {
+            // Create a new fiber
+            let mut fiber = Fiber::new();
+            // Push all arguments (function + params) to stack
+            for arg in args {
+                fiber.stack.push(arg);
+            }
+            return Ok(Value::Coroutine(Rc::new(RefCell::new(fiber))));
         }
-        return Ok(Value::Coroutine(Rc::new(RefCell::new(fiber))));
-    }
-
-    // Also support NativeFunction?
-    if let Value::NativeFunction(_) = func_val {
-        let mut fiber = Fiber::new();
-        for arg in args {
-            fiber.stack.push(arg);
+        Value::NativeFunction(_) => {
+            let mut fiber = Fiber::new();
+            for arg in args {
+                fiber.stack.push(arg);
+            }
+            return Ok(Value::Coroutine(Rc::new(RefCell::new(fiber))));
         }
-        return Ok(Value::Coroutine(Rc::new(RefCell::new(fiber))));
+        _ => {}
     }
 
     Err(ValueError::TypeMismatch {
@@ -132,22 +133,25 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
     if is_new {
         let func_val = fiber.stack.remove(0);
 
-        let func_name = if let Value::Function(name) = func_val {
-            name
-        } else if let Value::NativeFunction(_) = func_val {
-            return Err(ValueError::InvalidOperation {
-                operator: "resume native coroutine not fully supported".into(),
-                left_type: ValueType::Function,
-                right_type: ValueType::Null,
+        let func_name = match func_val {
+            Value::Function(name) => name,
+            Value::Closure(name, _) => name,
+            Value::NativeFunction(_) => {
+                return Err(ValueError::InvalidOperation {
+                    operator: "resume native coroutine not fully supported".into(),
+                    left_type: ValueType::Function,
+                    right_type: ValueType::Null,
+                }
+                .into());
             }
-            .into());
-        } else {
-            return Err(ValueError::TypeMismatch {
-                expected: ValueType::Function,
-                found: func_val.get_type(),
-                operation: "resume".into(),
+            _ => {
+                return Err(ValueError::TypeMismatch {
+                    expected: ValueType::Function,
+                    found: func_val.get_type(),
+                    operation: "resume".into(),
+                }
+                .into());
             }
-            .into());
         };
 
         // Resolve function address

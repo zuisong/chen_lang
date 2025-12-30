@@ -298,10 +298,6 @@ impl<'a> Compiler<'a> {
                 self.compile_expression(value);
                 self.emit(Instruction::Throw, line);
             }
-            Statement::Import { path, line } => {
-                self.emit(Instruction::Import(path), line);
-                self.emit(Instruction::Pop, line);
-            }
         }
     }
 
@@ -321,6 +317,7 @@ impl<'a> Compiler<'a> {
             Expression::Function(fd) => fd.line,
             Expression::Await { line, .. } => *line,
             Expression::MethodCall(mc) => mc.line,
+            Expression::Import { line, .. } => *line,
         }
     }
 
@@ -547,6 +544,9 @@ impl<'a> Compiler<'a> {
 
                 // 3. Call yield
                 self.emit(Instruction::CallStack(1), line);
+            }
+            Expression::Import { path, line } => {
+                self.emit(Instruction::Import(path), line);
             }
         }
     }

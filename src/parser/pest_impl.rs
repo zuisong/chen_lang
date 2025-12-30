@@ -48,7 +48,6 @@ fn parse_statement(pair: Pair<Rule>) -> Statement {
         Rule::continue_stmt => Statement::Continue(line),
         Rule::try_catch => parse_try_catch(inner),
         Rule::throw_stmt => parse_throw_stmt(inner),
-        Rule::import_stmt => parse_import_stmt(inner),
         Rule::expression => Statement::Expression(parse_expression(inner)),
         _ => unreachable!("Unexpected statement rule: {:?}", inner.as_rule()),
     }
@@ -368,6 +367,7 @@ fn parse_atom(pair: Pair<Rule>) -> Expression {
         Rule::function_def => Expression::Function(build_function_declaration(inner)),
         Rule::array_literal => parse_array_literal(inner),
         Rule::await_expr => parse_await_expr(inner),
+        Rule::import_expr => parse_import_expr(inner),
         _ => unreachable!("Unexpected rule in atom: {:?}", inner.as_rule()),
     }
 }
@@ -597,11 +597,11 @@ fn parse_throw_stmt(pair: Pair<Rule>) -> Statement {
     Statement::Throw { value, line }
 }
 
-fn parse_import_stmt(pair: Pair<Rule>) -> Statement {
+fn parse_import_expr(pair: Pair<Rule>) -> Expression {
     let line = pair.as_span().start_pos().line_col().0 as u32;
     let mut inner = pair.into_inner();
 
-    // Skip IMPORT keyword
+    // Skip IMPORT keyword if present
     let mut path_pair = inner.next();
     while let Some(ref p) = path_pair {
         if p.as_rule() == Rule::IMPORT {
@@ -611,7 +611,13 @@ fn parse_import_stmt(pair: Pair<Rule>) -> Statement {
         }
     }
 
-    let path = path_pair.map(|p| p.as_str().to_string()).unwrap_or_default();
+    let path_str = path_pair.map(|p| p.as_str()).unwrap_or("");
+    // Strip quotes: "path" -> path
+    let path = if path_str.len() >= 2 {
+        path_str[1..path_str.len() - 1].to_string()
+    } else {
+        String::new()
+    };
 
-    Statement::Import { path, line }
+    Expression::Import { path, line }
 }

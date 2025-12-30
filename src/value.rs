@@ -8,7 +8,7 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 use thiserror::Error;
 
-use crate::vm::VMRuntimeError;
+use crate::vm::{Program, VMRuntimeError};
 
 /// Table 结构，用于实现对象和 Map
 #[derive(Debug, Clone, PartialEq)]
@@ -29,9 +29,12 @@ pub enum Value {
     String(Rc<String>),
     /// 对象类型 (Table)
     Object(Rc<RefCell<Table>>),
-    /// 函数引用 (函数名 - Chen 语言定义的函数)
+    /// 函数引用 (Name, Program)
+    Closure(String, Rc<Program>),
+    /// 函数引用 (函数名 - Chen 语言定义的函数) - DEPRECATED but kept for compatibility if needed.
+    /// In fact, we should replace Function with simple name lookup if we didn't have Closure.
+    /// But now we use Closure for cross-module function calls.
     Function(String),
-    /// 原生函数 (Rust 定义的函数)
     /// 原生函数 (Rust 定义的函数)
     NativeFunction(Rc<Box<NativeFnType>>),
     /// 协程
@@ -124,6 +127,7 @@ impl Value {
             Value::Bool(_) => ValueType::Bool,
             Value::String(_) => ValueType::String,
             Value::Object(_) => ValueType::Object,
+            Value::Closure(_, _) => ValueType::Function,
             Value::Function(_) => ValueType::Function,
             Value::NativeFunction(_) => ValueType::Function,
             Value::Coroutine(_) => ValueType::Coroutine,
@@ -167,6 +171,7 @@ impl PartialEq for Value {
             (Value::Object(a), Value::Object(b)) => Rc::ptr_eq(a, b),
             // 函数比较：名称比较
             (Value::Function(a), Value::Function(b)) => a == b,
+            (Value::Closure(a, pa), Value::Closure(b, pb)) => a == b && Rc::ptr_eq(pa, pb),
             (Value::NativeFunction(a), Value::NativeFunction(b)) => Rc::ptr_eq(a, b),
             (Value::Coroutine(a), Value::Coroutine(b)) => Rc::ptr_eq(a, b),
             // 混合类型比较：int和float可以比较
@@ -200,7 +205,8 @@ impl fmt::Display for Value {
             Value::Bool(b) => write!(f, "{}", b),
             Value::String(s) => write!(f, "{}", s),
             Value::Object(obj) => write!(f, "{}", obj.borrow()),
-            Value::Function(name) => write!(f, "<function {}", name),
+            Value::Closure(name, _) => write!(f, "<function {}>", name),
+            Value::Function(name) => write!(f, "<function {}>", name),
             Value::NativeFunction(_) => write!(f, "<native function>"),
             Value::Coroutine(fiber) => write!(f, "<coroutine: {:?}>", fiber.borrow().state),
             Value::Null => write!(f, "null"),
@@ -216,6 +222,7 @@ impl Debug for Value {
             Value::Bool(b) => write!(f, "Bool({})", b),
             Value::String(s) => write!(f, "String(\"{}\")", s),
             Value::Object(obj) => write!(f, "Object({:.?})", obj.borrow()),
+            Value::Closure(name, _) => write!(f, "Closure({})", name),
             Value::Function(name) => write!(f, "Function({})", name),
             Value::NativeFunction(_) => write!(f, "NativeFunction(<native fn>)"),
             Value::Coroutine(fiber) => write!(f, "Coroutine({:?})", fiber.borrow().state),

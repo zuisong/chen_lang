@@ -68,7 +68,7 @@ mod object_tests {
     /// 测试基础对象字面量和字段访问
     #[test]
     fn test_object_basics() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
 let obj = #{ name: "Chen", age: 25 }
 io.println(obj.name)
 io.println(obj.age)"#;
@@ -84,7 +84,7 @@ io.println(obj.age)"#;
     /// 测试字段赋值
     #[test]
     fn test_field_assignment() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
 let obj = #{ name: "Alice" }
 obj.city = "Shanghai"
 io.println(obj.city)"#;
@@ -99,7 +99,7 @@ io.println(obj.city)"#;
     /// 测试索引访问
     #[test]
     fn test_index_operations() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
 let obj = #{ name: "Bob" }
 obj["country"] = "China"
 io.println(obj["country"])"#;
@@ -114,7 +114,7 @@ io.println(obj["country"])"#;
     /// 测试嵌套对象
     #[test]
     fn test_nested_objects() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
 let person = #{ name: "Eve", address: #{ city: "Beijing", zip: 100000 } }
 io.println(person.address.city)"#;
 
@@ -128,7 +128,7 @@ io.println(person.address.city)"#;
     /// 测试 Metatable 原型继承
     #[test]
     fn test_metatable_inheritance() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
 let Animal = #{
     __index: #{
         speak: "Some sound",
@@ -155,7 +155,7 @@ io.println(dog.legs)"#;
     /// 测试 set_meta 和 get_meta
     #[test]
     fn test_metatable_functions() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
 let proto = #{ __index: #{ greet: "Hello" } }
 let obj = #{ name: "Alice" }
 set_meta(obj, proto)
@@ -171,7 +171,7 @@ io.println(obj.greet)"#;
     /// 测试直接字段优先于 metatable
     #[test]
     fn test_metatable_precedence() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
 let proto = #{ value: 100 }
 let obj = #{ value: 10 }
 set_meta(obj, proto)
@@ -192,7 +192,7 @@ io.println(obj.value)"#;
     /// 测试对象引用共享
     #[test]
     fn test_object_reference() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
 let obj1 = #{ value: 10 }
 let obj2 = obj1
 obj2.value = 20
@@ -209,7 +209,7 @@ io.println(obj1.value)"#;
     /// 测试动态添加字段
     #[test]
     fn test_dynamic_fields() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
 let person = #{ name: "Grace" }
 person.age = 28
 person.city = "Shanghai"
@@ -229,7 +229,7 @@ io.println(person.city)"#;
     /// 测试对象相等性（引用比较）
     #[test]
     fn test_object_equality() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
         let obj1 = #{ a: 1 }
         let obj2 = #{ a: 1 }
         let obj3 = obj1
@@ -250,7 +250,7 @@ io.println(person.city)"#;
     /// 测试对象存储多种类型
     #[test]
     fn test_object_mixed_types() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
         let obj = #{
             i: 42,
             f: 3.14,
@@ -281,7 +281,7 @@ io.println(person.city)"#;
     /// 测试多层 Metatable 继承
     #[test]
     fn test_metatable_chain() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
         let grand = #{ __index: #{ name: "Grandpa" } }
         let parent = #{ __index: #{ age: 50 } }
 
@@ -307,7 +307,7 @@ io.println(person.city)"#;
     /// 测试 get_meta 和清除 meta
     #[test]
     fn test_get_and_clear_meta() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
         let meta = #{ __index: #{ x: 1 } }
         let obj = #{ }
 
@@ -358,7 +358,7 @@ io.println(person.city)"#;
     /// 测试方法调用 (Assign function to field)
     #[test]
     fn test_method_call() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
         def greet(self, name) {
             return "Hello " + name
         }
@@ -378,7 +378,7 @@ io.println(person.city)"#;
     /// 测试循环引用（仅创建，不打印以免栈溢出）
     #[test]
     fn test_circular_reference() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
         let a = #{ name: "A" }
         let b = #{ name: "B" }
         a.next = b
@@ -398,7 +398,7 @@ io.println(person.city)"#;
     /// 测试原型方法继承 (通过 __index)
     #[test]
     fn test_prototype_method() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
         def speak(self) {
             return "I am an object"
         }
@@ -419,7 +419,7 @@ io.println(person.city)"#;
     /// 测试显式传递 self (模拟方法)
     #[test]
     fn test_explicit_self_method() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
         def increment(self) {
             self.count = self.count + 1
         }
@@ -443,7 +443,7 @@ io.println(person.city)"#;
     /// 模拟 Class 的行为 (构造函数 + 原型链方法)
     #[test]
     fn test_class_simulation() {
-        let code = r#"import stdlib/io
+        let code = r#"let io = import "stdlib/io"
 
 
         def point_str(self) {
@@ -483,7 +483,7 @@ io.println(person.city)"#;
 /// 测试嵌套函数定义 (Nested Functions)
 #[test]
 fn test_nested_function_class() {
-    let code = r#"import stdlib/io
+    let code = r#"let io = import "stdlib/io"
         def NewPoint(x, y) {
             # 嵌套定义函数
             def point_str(self) {

@@ -158,7 +158,7 @@ pub struct Fiber {
     pub stack: Vec<Value>,
     pub pc: usize,
     pub fp: usize,
-    pub call_stack: Vec<(usize, usize)>,
+    pub call_stack: Vec<(usize, usize, Option<Rc<Program>>)>,
     pub exception_handlers: Vec<ExceptionHandler>,
     pub state: FiberState,
     pub caller: Option<Rc<RefCell<Fiber>>>,
@@ -190,10 +190,12 @@ pub struct VM {
     pub variables: IndexMap<String, Value>, // 全局变量存储
     pub pc: usize,                          // 程序计数器
     pub fp: usize,                          // 帧指针
-    pub call_stack: Vec<(usize, usize)>,    // 调用栈（保存返回地址, 旧fp）
-    pub stdout: Box<dyn Write>,             // 标准输出
-    pub array_prototype: Value,             // 数组原型对象
-    pub string_prototype: Value,            // 字符串原型对象
+    // (pc, fp, program)
+    pub call_stack: Vec<(usize, usize, Option<Rc<Program>>)>, // 调用栈
+    pub module_cache: IndexMap<String, Value>,                // Module Cache
+    pub stdout: Box<dyn Write>,                               // 标准输出
+    pub array_prototype: Value,                               // 数组原型对象
+    pub string_prototype: Value,                              // 字符串原型对象
     // exception_handlers moved to Fiber effectively (current fiber context)
     // But VM still holds current running state.
     // When running, we use VM's vectors. When switching, we swap them.
@@ -239,6 +241,7 @@ impl VM {
             exception_handlers: Vec::new(),
             current_fiber: None,
             program: None,
+            module_cache: IndexMap::new(),
         }
     }
 
@@ -259,6 +262,7 @@ impl VM {
             exception_handlers: Vec::new(),
             current_fiber: None,
             program: None,
+            module_cache: IndexMap::new(),
         }
     }
 
@@ -311,21 +315,44 @@ impl VM {
     }
 
     pub fn execute_rc(&mut self, program: Rc<Program>) -> VMResult {
+        let saved_program = self.program.clone();
         self.program = Some(program.clone());
-        let res = self.execute_from(&program, 0);
-        self.program = None;
+        let res = self.execute_from(0);
+        self.program = saved_program; // Restore previous program
         res
     }
 
     /// 从指定PC开始执行程序
-    pub fn execute_from(&mut self, program: &Program, start_pc: usize) -> VMResult {
+    /// Note: This now uses self.program which must be set before calling
+    pub fn execute_from(&mut self, start_pc: usize) -> VMResult {
         self.pc = start_pc;
 
-        while self.pc < program.instructions.len() {
-            let instruction = &program.instructions[self.pc];
-            debug!("Executing instruction {}: {:?}", self.pc, instruction);
+        // Execute instructions from self.program, which can change during execution
+        loop {
+            // Get current program (it may change during CallStack)
+            let (instruction_clone, program_clone) = {
+                let program = self.program.as_ref().ok_or_else(|| RuntimeErrorWithContext {
+                    error: VMRuntimeError::UndefinedVariable("No program loaded".into()),
+                    line: 0,
+                    pc: self.pc,
+                })?;
 
-            match self.execute_instruction(instruction, program) {
+                if self.pc >= program.instructions.len() {
+                    break;
+                }
+
+                let instruction = program.instructions[self.pc].clone();
+                let program = program.clone();
+                (instruction, program)
+            };
+
+            // eprintln!(
+            //     "PC={}, Instruction={:?}, Stack={:?}",
+            //     self.pc, instruction_clone, self.stack
+            // );
+            debug!("Executing instruction {}: {:?}", self.pc, instruction_clone);
+
+            match self.execute_instruction(&instruction_clone, &program_clone) {
                 Ok(continue_execution) => {
                     if !continue_execution {
                         debug!("Execution stopped at PC {}", self.pc);
@@ -333,7 +360,7 @@ impl VM {
                     }
                 }
                 Err(error) => {
-                    let line = *program.lines.get(&self.pc).unwrap_or(&0);
+                    let line = *program_clone.lines.get(&self.pc).unwrap_or(&0);
                     debug!("Execution error at PC {} (Line {}): {}", self.pc, line, error);
                     return Err(RuntimeErrorWithContext {
                         error,
@@ -376,44 +403,104 @@ impl VM {
                 self.stack.push(value.clone());
             }
 
-            Instruction::Import(path) => match path.as_str() {
-                "stdlib/json" => {
-                    let module = create_json_object();
-                    self.variables.insert("JSON".to_string(), module.clone());
-                    self.stack.push(module);
-                }
-                "stdlib/date" => {
-                    let module = create_date_object();
-                    self.variables.insert("Date".to_string(), module.clone());
-                    self.stack.push(module);
-                }
-                "stdlib/fs" => {
-                    let module = create_fs_object();
-                    self.variables.insert("fs".to_string(), module.clone());
-                    self.stack.push(module);
-                }
-                "stdlib/http" => {
-                    #[cfg(feature = "http")]
-                    {
-                        let module = create_http_object();
-                        self.variables.insert("http".to_string(), module.clone());
-                        self.stack.push(module);
+            Instruction::Import(path) => {
+                // 1. Try Standard Library
+                if path.starts_with("stdlib/") {
+                    match path.as_str() {
+                        "stdlib/json" => {
+                            let module = create_json_object();
+                            self.stack.push(module);
+                        }
+                        "stdlib/date" => {
+                            let module = create_date_object();
+                            self.stack.push(module);
+                        }
+                        "stdlib/fs" => {
+                            let module = create_fs_object();
+                            self.stack.push(module);
+                        }
+                        "stdlib/http" => {
+                            #[cfg(feature = "http")]
+                            {
+                                let module = create_http_object();
+                                self.stack.push(module);
+                            }
+                            #[cfg(not(feature = "http"))]
+                            self.stack.push(Value::Null);
+                        }
+                        "stdlib/process" => {
+                            let module = create_process_object();
+                            self.stack.push(module);
+                        }
+                        "stdlib/io" => {
+                            let module = create_io_object();
+                            self.stack.push(module);
+                        }
+                        _ => {
+                            return Err(VMRuntimeError::UndefinedVariable(format!(
+                                "Stdlib module not found: {}",
+                                path
+                            )));
+                        }
+                    }
+                } else {
+                    // 2. Try User Module (File)
+                    // Check Cache
+                    if let Some(cached_val) = self.module_cache.get(path) {
+                        self.stack.push(cached_val.clone());
+                        // Important: Return Ok(true) to continue execution!
+                        return Ok(true);
+                    }
+
+                    let code = match std::fs::read_to_string(path) {
+                        Ok(c) => c,
+                        Err(e) => {
+                            return Err(VMRuntimeError::UncaughtException(format!(
+                                "Failed to import {}: {}",
+                                path, e
+                            )));
+                        }
+                    };
+
+                    // Compile module
+                    let ast = match crate::parser::parse_from_source(&code) {
+                        Ok(a) => a,
+                        Err(e) => {
+                            return Err(VMRuntimeError::UncaughtException(format!(
+                                "Parse error in {}: {}",
+                                path, e
+                            )));
+                        }
+                    };
+
+                    let module_program = crate::compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
+
+                    // Execute recursively
+                    // IMPORTANT: Save stack state to prevent pollution
+                    let saved_stack_size = self.stack.len();
+                    let saved_pc = self.pc;
+                    let saved_fp = self.fp;
+
+                    let res = self.execute_rc(Rc::new(module_program));
+
+                    self.pc = saved_pc;
+                    self.fp = saved_fp;
+
+                    match res {
+                        Ok(val) => {
+                            // Clean up stack: restore to saved size, then push result
+                            self.stack.truncate(saved_stack_size);
+                            self.module_cache.insert(path.clone(), val.clone());
+                            self.stack.push(val);
+                        }
+                        Err(e) => {
+                            // On error, also restore stack
+                            self.stack.truncate(saved_stack_size);
+                            return Err(e.error);
+                        }
                     }
                 }
-                "stdlib/process" => {
-                    let module = create_process_object();
-                    self.variables.insert("process".to_string(), module.clone());
-                    self.stack.push(module);
-                }
-                "stdlib/io" => {
-                    let module = create_io_object();
-                    self.variables.insert("io".to_string(), module.clone());
-                    self.stack.push(module);
-                }
-                _ => {
-                    return Err(VMRuntimeError::UndefinedVariable(format!("Module not found: {}", path)));
-                }
-            },
+            }
 
             Instruction::BuildArray(count) => {
                 let mut table = crate::value::Table {
@@ -471,10 +558,16 @@ impl VM {
                     debug!("All variables in VM: {:?}", self.variables);
                     self.stack.push(value.clone());
                 } else {
-                    // Check if it is a function
+                    // Check if it is a function in the current program
                     let func_label = format!("func_{}", var_name);
                     if program.syms.contains_key(&func_label) {
-                        self.stack.push(Value::Function(var_name.clone()));
+                        // Create a Closure capturing the current program
+                        if let Some(prog) = &self.program {
+                            self.stack.push(Value::Closure(var_name.clone(), prog.clone()));
+                        } else {
+                            // Fallback (should normally have a program)
+                            self.stack.push(Value::Function(var_name.clone()));
+                        }
                     } else {
                         debug!(
                             "Variable {} not found! Available variables: {:?}",
@@ -680,6 +773,7 @@ impl VM {
                 // 处理内置函数
                 match func_name.as_str() {
                     "set_meta" => {
+                        // ... existing set_meta logic ...
                         if *arg_count != 2 {
                             return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                                 operator: "set_meta".to_string(),
@@ -689,15 +783,11 @@ impl VM {
                         }
                         let metatable = self.stack.pop().unwrap_or(Value::null());
                         let obj = self.stack.pop().unwrap_or(Value::null());
-                        debug!(
-                            "set_meta called: obj_type={:?}, metatable_type={:?}",
-                            obj.get_type(),
-                            metatable.get_type()
-                        );
                         obj.set_metatable(metatable)?;
                         self.stack.push(Value::null());
                     }
                     "get_meta" => {
+                        // ... existing get_meta logic ...
                         if *arg_count != 1 {
                             return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                                 operator: "get_meta".to_string(),
@@ -712,39 +802,70 @@ impl VM {
                     _ => {
                         // 处理用户定义的函数
                         let func_label = format!("func_{}", func_name);
-                        debug!(
-                            "Calling function {} (label: {}), arg_count: {}",
-                            func_name, func_label, *arg_count
-                        );
 
-                        // Try direct symbol lookup, then variable lookup
-                        let target_symbol = if let Some(sym) = program.syms.get(&func_label) {
-                            Some(sym)
-                        } else if let Some(Value::Function(real_name)) = self.variables.get(func_name) {
-                            let real_label = format!("func_{}", real_name);
-                            program.syms.get(&real_label)
+                        // Decision: Should we look up 'program.syms' first?
+                        // If it's a value call (e.g. variable holds a closure), we should use variable lookup.
+                        // But typically `call foo` is for global functions.
+                        // Global functions in current module are in program.syms.
+                        // Global functions from imports are in variables (as Closures).
+                        // So checking variables is also important.
+                        // BUT `call` instruction is specific to simple calls.
+
+                        // Let's check variables first for Closure.
+                        // Wait, local variables shadowing?
+                        // `Call` usually resolves to checking variables if not strictly a "direct call".
+                        // Logic was: syms -> variables -> None.
+
+                        let target_info = if let Some(sym) = program.syms.get(&func_label) {
+                            Some((sym.clone(), self.program.clone()))
+                        } else if let Some(val) = self.variables.get(func_name) {
+                            match val {
+                                Value::Closure(name, prog) => {
+                                    let label = format!("func_{}", name);
+                                    if let Some(sym) = prog.syms.get(&label) {
+                                        Some((sym.clone(), Some(prog.clone())))
+                                    } else {
+                                        None
+                                    }
+                                }
+                                Value::Function(name) => {
+                                    // Legacy: assume current program
+                                    let label = format!("func_{}", name);
+                                    if let Some(sym) = program.syms.get(&label) {
+                                        Some((sym.clone(), self.program.clone()))
+                                    } else {
+                                        None
+                                    }
+                                }
+                                Value::NativeFunction(native_fn) => {
+                                    // Handle native below
+                                    None
+                                }
+                                _ => None,
+                            }
                         } else {
                             None
                         };
 
-                        // Check for NativeFunction in variables
-                        let native_fn_opt = self.variables.get(func_name).cloned();
-                        if target_symbol.is_none()
-                            && let Some(Value::NativeFunction(native_fn)) = native_fn_opt
-                        {
-                            // Native Call logic
-                            let args_start = self
-                                .stack
-                                .len()
-                                .checked_sub(*arg_count)
-                                .ok_or(VMRuntimeError::StackUnderflow("Native call missing args".into()))?;
-                            let args: Vec<Value> = self.stack.drain(args_start..).collect();
-                            let result = native_fn(self, args)?;
-                            self.stack.push(result);
-                            return Ok(true);
+                        // Check native function separately if needed (or integrated above?)
+                        // The above matching returns None for NativeFunction, so we fall through.
+                        if target_info.is_none() {
+                            let native_fn_opt = self.variables.get(func_name).cloned();
+                            if let Some(Value::NativeFunction(native_fn)) = native_fn_opt {
+                                // Native Call logic
+                                let args_start = self
+                                    .stack
+                                    .len()
+                                    .checked_sub(*arg_count)
+                                    .ok_or(VMRuntimeError::StackUnderflow("Native call missing args".into()))?;
+                                let args: Vec<Value> = self.stack.drain(args_start..).collect();
+                                let result = native_fn(self, args)?;
+                                self.stack.push(result);
+                                return Ok(true);
+                            }
                         }
 
-                        return if let Some(target_symbol) = target_symbol {
+                        if let Some((target_symbol, target_program_opt)) = target_info {
                             if *arg_count != target_symbol.narguments {
                                 return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                                     operator: "call".to_string(),
@@ -753,22 +874,27 @@ impl VM {
                                 }));
                             }
 
-                            // 1. 保存返回地址和旧fp
-                            self.call_stack.push((self.pc, self.fp));
+                            // 1. 保存返回地址和旧fp和旧program
+                            self.call_stack.push((self.pc, self.fp, self.program.clone()));
 
                             // 2. 设置新fp
                             self.fp = self.stack.len() - *arg_count;
+
+                            // 2.5 Switch Program
+                            if let Some(prog) = target_program_opt {
+                                self.program = Some(prog);
+                            }
 
                             // 3. 为局部变量分配空间
                             self.stack.resize(self.fp + target_symbol.nlocals, Value::null());
 
                             // 4. 跳转到函数
                             self.pc = (target_symbol.location as usize) - 1;
-                            Ok(true)
+                            return Ok(true);
                         } else {
-                            debug!("Function label {} not found in {:?}", func_label, program.syms);
-                            Err(VMRuntimeError::UndefinedVariable(format!("function: {}", func_name)))
-                        };
+                            // debug!("Function label {} not found in {:?}", func_label, program.syms);
+                            return Err(VMRuntimeError::UndefinedVariable(format!("function: {}", func_name)));
+                        }
                     }
                 }
             }
@@ -776,14 +902,19 @@ impl VM {
                 // 1. Pop the return value
                 let return_value = self.stack.pop().unwrap_or(Value::null());
 
-                // 2. Pop the call frame
-                return if let Some((return_pc, old_fp)) = self.call_stack.pop() {
+                // 2. Pop the call frame (pc, fp, program)
+                return if let Some((return_pc, old_fp, old_prog)) = self.call_stack.pop() {
                     // 3. Destroy the current stack frame
                     self.stack.truncate(self.fp);
 
                     // 4. Restore pc and fp
                     self.pc = return_pc;
                     self.fp = old_fp;
+
+                    // Restore Program if we switched
+                    if let Some(prog) = old_prog {
+                        self.program = Some(prog);
+                    }
 
                     // 5. Push return value onto the caller's stack
                     self.stack.push(return_value);
@@ -1004,6 +1135,10 @@ impl VM {
             }
 
             Instruction::CallStack(arg_count) => {
+                // DEBUG: Print stack state
+                // eprintln!("CallStack: arg_count={}, stack.len()={}", arg_count, self.stack.len());
+                // eprintln!("CallStack: Stack state: {:?}", self.stack);
+
                 // 1. Get function from stack (it's below args)
                 // Stack: [... func, arg1, ... argN]
                 let func_idx = self
@@ -1014,12 +1149,47 @@ impl VM {
                         "CallStack: missing function".to_string(),
                     ))?;
 
+                // eprintln!(
+                //     "CallStack: func_idx={}, func_val={:?}",
+                //     func_idx,
+                //     self.stack.get(func_idx)
+                // );
                 let func_val = self.stack.remove(func_idx);
 
                 return match func_val {
+                    Value::Closure(func_name, prog_rc) => {
+                        let func_label = format!("func_{}", func_name);
+                        // Use symbol map from the closure's program
+                        if let Some(target_symbol) = prog_rc.syms.get(&func_label) {
+                            if *arg_count != target_symbol.narguments {
+                                return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
+                                    operator: "call_stack".to_string(),
+                                    left_type: ValueType::Function,
+                                    right_type: ValueType::Null,
+                                }));
+                            }
+
+                            // 1. Save return address, old fp, and current program
+                            self.call_stack.push((self.pc, self.fp, self.program.clone()));
+
+                            // 2. Set new fp
+                            self.fp = self.stack.len() - *arg_count;
+
+                            // 2.5 Switch program
+                            self.program = Some(prog_rc.clone());
+
+                            // 3. Allocate space for locals
+                            self.stack.resize(self.fp + target_symbol.nlocals, Value::null());
+
+                            // 4. Jump
+                            self.pc = (target_symbol.location as usize) - 1;
+                            Ok(true)
+                        } else {
+                            Err(VMRuntimeError::UndefinedVariable(format!("function: {}", func_name)))
+                        }
+                    }
                     Value::Function(func_name) => {
-                        // Reuse logic for user defined functions
-                        // Note: We don't support builtins via CallStack yet (except NativeFunction now)
+                        // Reuse logic for user defined functions (same program)
                         let func_label = format!("func_{}", func_name);
                         debug!(
                             "Calling stack function {} (label: {}), arg_count: {}",
@@ -1036,7 +1206,7 @@ impl VM {
                             }
 
                             // 1. Save return address and old fp
-                            self.call_stack.push((self.pc, self.fp));
+                            self.call_stack.push((self.pc, self.fp, self.program.clone()));
 
                             // 2. Set new fp
                             // Stack is now [... args], so fp is at start of args

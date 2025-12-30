@@ -75,7 +75,7 @@ fn test_scheduler_simulation() {
     # 验证能获取 status
     
     async def task_a() {
-        import stdlib/io
+        let io = import "stdlib/io"
         let i = 0
         let i = 0
         for i < 3 {

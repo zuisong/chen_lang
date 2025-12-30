@@ -79,7 +79,8 @@ atom = {
     object_literal |
     function_def |
     array_literal |
-    await_expr
+    await_expr |
+    import_expr
 }
 
 postfix = { call_suffix | dot_suffix | method_suffix | index_suffix }
@@ -105,7 +106,7 @@ statement = {
     continue_stmt |
     try_catch |
     throw_stmt |
-    import_stmt |
+    throw_stmt |
     assignment |
     expression
 }
@@ -122,9 +123,7 @@ continue_stmt = { CONTINUE }
 try_catch = { TRY ~ block ~ CATCH ~ identifier? ~ block ~ (FINALLY ~ block)? }
 throw_stmt = { THROW ~ NEWLINE* ~ expression }
 await_expr = { AWAIT ~ NEWLINE* ~ unary }
-
-module_path = @{ (identifier ~ "/")* ~ identifier }
-import_stmt = { IMPORT ~ NEWLINE* ~ module_path }
+import_expr = { IMPORT ~ NEWLINE* ~ string }
 
 // 复合结构
 block = { "{" ~ NEWLINE* ~ (statement ~ stmt_sep)* ~ statement? ~ NEWLINE* ~ "}" }

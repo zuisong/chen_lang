@@ -132,7 +132,8 @@ fn repl() -> anyhow::Result<()> {
                 global_program.syms.extend(new_program.syms);
 
                 // Execute
-                match vm.execute_from(&global_program, start_pc) {
+                vm.program = Some(std::rc::Rc::new(global_program.clone()));
+                match vm.execute_from(start_pc) {
                     Ok(value) => {
                         if value != chen_lang::value::Value::Null {
                             println!("{}", value);
