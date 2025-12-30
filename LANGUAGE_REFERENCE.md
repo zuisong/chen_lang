@@ -1,7 +1,7 @@
 # Chen Lang 语言参考
 
 **版本**: 0.1.0  
-**更新日期**: 2025-12-10
+**更新日期**: 2025-12-30
 
 ---
 
@@ -36,6 +36,10 @@ Chen Lang 是一个简洁、动态类型的编程语言,具有以下特点:
 ### 快速开始
 
 ```python
+# 导入 IO 模块
+let io = import "stdlib/io"
+let println = io.println
+
 # Hello World
 println("Hello, Chen Lang!")
 
@@ -193,12 +197,14 @@ let global_var = "global"
 
 def my_function() {
     let local_var = "local"
-    println(global_var)  # 可以访问全局变量
-    println(local_var)   # 可以访问局部变量
+    # println 需要导入，这里假设已导入
+    # println(global_var)  # 可以访问全局变量
+    # println(local_var)   # 可以访问局部变量
 }
 
 # println(local_var)  # 错误!无法访问局部变量
 ```
+
 
 ### 块级作用域
 
@@ -637,13 +643,13 @@ Chen Lang 采用显式导入机制。除了极少数核心功能（如 `null`, `
 ### 导入语法
 
 ```python
-import <模块路径>
+let <变量名> = import "<模块路径>"
 ```
 
 示例:
 ```python
-import stdlib/json
-import stdlib/io
+let json = import "stdlib/json"
+let io = import "stdlib/io"
 ```
 
 ### 核心设计原则
@@ -653,14 +659,38 @@ import stdlib/io
 
 ### 常用标准库模块
 
-| 模块路径 | 提供的全局变量/函数 | 说明 |
+| 模块路径 | 返回对象包含的成员 | 说明 |
 | :--- | :--- | :--- |
-| `stdlib/io` | `io` | 包含 `io.print` 和 `io.println` |
-| `stdlib/json` | `JSON` | JSON.stringify() 和 JSON.parse() |
-| `stdlib/date` | `Date` | Date.new(), Date.now() 等时间操作 |
-| `stdlib/fs` | `fs` | fs.read_to_string(), fs.write_file() 等 (同步 IO) |
-| `stdlib/http` | `http` | http.get(), http.post() 等 (支持 WASM) |
-| `stdlib/process` | `process` | process.run(), process.exit() 等 |
+| `stdlib/io` | `print`, `println` | 标准输入输出 |
+| `stdlib/json` | `stringify`, `parse` | JSON 序列化与解析 |
+| `stdlib/date` | `new`, `now`, `parse` | 日期时间处理 |
+| `stdlib/fs` | `read_to_string`, `write_file` 等 | 文件系统操作 |
+| `stdlib/http` | `get`, `post` 等 | HTTP 客户端 |
+| `stdlib/process` | `exit`, `args`, `env` 等 | 进程与环境信息 |
+
+### 自定义模块
+
+你可以创建自己的 `.ch` 文件并导入它们。被导入的文件会作为独立的模块执行，最后一行表达式的值将作为模块的返回值。
+
+例如，创建 `math_utils.ch`:
+```python
+# math_utils.ch
+#{
+    add: def(a, b) { a + b },
+    sub: def(a, b) { a - b }
+}
+```
+
+在主程序中导入:
+```python
+let math_utils = import "math_utils.ch"
+
+let result = math_utils.add(10, 20)
+let io = import "stdlib/io"
+io.println(result)  # 30
+```
+
+注意：导入路径是相对于当前执行目录或绝对路径。模块会被缓存，重复导入不会重新执行。
 
 ### 示例程序
 

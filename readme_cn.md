@@ -13,6 +13,7 @@
 *   **函数**：支持一等函数和隐式返回。
 *   **控制流**：`if/else` 表达式、`for` 循环、`break` 和 `continue`。
 *   **对象系统**：支持对象字面量、属性访问、索引访问和元表 (Metatable)。
+*   **模块系统**：支持导入标准库和自定义模块。
 *   **作用域隔离**：支持块级作用域变量。
 
 
@@ -22,8 +23,9 @@
 
 #### 1. Hello World 与字符串操作
 ```python
+let io = import "stdlib/io"
 let name = "Chen Lang"
-println("Hello, " + name + "!")
+io.println("Hello, " + name + "!")
 # 输出: Hello, Chen Lang!
 ```
 
@@ -131,8 +133,9 @@ println(person[key])  # 输出: 张三
 *   [x] **函数**: 定义, 调用, 递归, 隐式返回
 *   [x] **类型**: 浮点数, 字符串
 *   [x] **对象系统**: 对象字面量, 属性访问, 索引访问, 元表（可用作数组）
-*   [ ] **标准库**: 文件 I/O, 数学函数
-*   [ ] **错误处理**: Try/Catch 或 Result 类型
+*   [x] **标准库**: 文件 I/O, 数学函数
+*   [x] **错误处理**: Try/Catch 或 Result 类型
+*   [ ] **闭包**: 捕获外部作用域变量
 
 
 ---
