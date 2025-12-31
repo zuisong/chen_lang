@@ -245,6 +245,37 @@ println("Popped value: " + popped)
 # Arrays can store any type
 arr:push("Mixed")
 println(JSON.stringify(arr))
+`,
+    closures: `# Feature: Closures
+let io = import "stdlib/io"
+let println = io.println
+
+def make_counter(start) {
+    let count = start
+    
+    # This inner function "captures" the 'count' variable
+    # from the outer scope. It remembers it even after
+    # make_counter has returned!
+    def counter() {
+        count = count + 1
+        return count
+    }
+    
+    return counter
+}
+
+let c1 = make_counter(0)
+let c2 = make_counter(10)
+
+println("Counter 1: " + c1()) # 1
+println("Counter 1: " + c1()) # 2
+println("Counter 1: " + c1()) # 3
+
+println("Counter 2: " + c2()) # 11
+println("Counter 2: " + c2()) # 12
+
+# c1 is unaffected by c2
+println("Counter 1 again: " + c1()) # 4
 `
 };
 
