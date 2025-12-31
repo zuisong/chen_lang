@@ -276,6 +276,44 @@ println("Counter 2: " + c2()) # 12
 
 # c1 is unaffected by c2
 println("Counter 1 again: " + c1()) # 4
+`,
+    async_task: `# Feature: Async/Await (Coroutines)
+let io = import "stdlib/io"
+let println = io.println
+
+# Coroutines using 'coroutine.create' and 'coroutine.yield'.
+# This mimics Lua's asymmetric coroutines.
+def generator(limit) {
+    println("Generator starting...")
+    let i = 0
+    for i < limit {
+        println("Generator yielding " + i)
+        coroutine.yield(i)
+        i = i + 1
+    }
+    return "Done"
+}
+
+# Create a coroutine from the function
+let gen = coroutine.create(generator)
+println("Generator status: " + coroutine.status(gen))
+
+# Resume the coroutine to start it, passing 'limit' argument (3)
+let val1 = coroutine.resume(gen, 3)
+println("Main got: " + val1)
+
+# Resume again
+let val2 = coroutine.resume(gen)
+println("Main got: " + val2)
+
+# Resume again
+let val3 = coroutine.resume(gen)
+println("Main got: " + val3)
+
+# Final resume gets the return value
+let result = coroutine.resume(gen)
+println("Main result: " + result)
+println("Generator status: " + coroutine.status(gen))
 `
 };
 

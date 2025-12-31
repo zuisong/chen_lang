@@ -46,9 +46,6 @@ pub enum Keyword {
     /// throw
     THROW,
     /// async
-    ASYNC,
-    /// await
-    AWAIT,
     /// import
     IMPORT,
 }
@@ -234,8 +231,6 @@ pub mod winnow {
                         "catch" => Token::Keyword(Keyword::CATCH),
                         "finally" => Token::Keyword(Keyword::FINALLY),
                         "throw" => Token::Keyword(Keyword::THROW),
-                        "async" => Token::Keyword(Keyword::ASYNC),
-                        "await" => Token::Keyword(Keyword::AWAIT),
                         "import" => Token::Keyword(Keyword::IMPORT),
                         "true" => Token::Bool(true),
                         "false" => Token::Bool(false),
@@ -413,8 +408,6 @@ mod handwritten {
                     "catch" => Token::Keyword(Keyword::CATCH),
                     "finally" => Token::Keyword(Keyword::FINALLY),
                     "throw" => Token::Keyword(Keyword::THROW),
-                    "async" => Token::Keyword(Keyword::ASYNC),
-                    "await" => Token::Keyword(Keyword::AWAIT),
                     "import" => Token::Keyword(Keyword::IMPORT),
                     "true" => Token::Bool(true),
                     "false" => Token::Bool(false),

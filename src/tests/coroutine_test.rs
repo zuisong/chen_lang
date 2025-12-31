@@ -5,15 +5,15 @@ use crate::vm::VM;
 #[test]
 fn test_async_await_basic() {
     let code = r#"
-    async def task(v) {
+    def task(v) {
         return v + 1
     }
 
-    let t = task(10)
-    # t should be a Fiber (Coroutine)
-    # Checking functionality by resuming it
+    # Manually create coroutine since 'async' keyword is removed
+    let t = coroutine.create(task)
     
-    let res = coroutine.resume(t)
+    # Passing arguments via resume for the first time
+    let res = coroutine.resume(t, 10)
     if res != 11 {
         throw "Async task failed: expected 11, got " + res
     }
@@ -74,26 +74,26 @@ fn test_scheduler_simulation() {
     # 我们简化测试：
     # 验证能获取 status
     
-    async def task_a() {
+    def task_a() {
         let io = import "stdlib/io"
-        let i = 0
         let i = 0
         for i < 3 {
              io.print("Task A: " + i)
-             await i # Yield control
+             coroutine.yield(i) # Yield control
              i = i + 1
         }
         return "A_DONE"
     }
     
-    let t = task_a()
+    # Create coroutine explicitly
+    let t = coroutine.create(task_a)
     if coroutine.status(t) != "suspended" { throw "Init status error" }
     
-    coroutine.resume(t) # 运行到 await 0
+    coroutine.resume(t) # 运行到 yield 0
     if coroutine.status(t) != "suspended" { throw "After yield status error" }
     
-    coroutine.resume(t) # await 1
-    coroutine.resume(t) # await 2
+    coroutine.resume(t) # yield 1
+    coroutine.resume(t) # yield 2
     let final_res = coroutine.resume(t) # return "A_DONE"
     
     if coroutine.status(t) != "dead" { throw "Finish status error: " + coroutine.status(t) }
