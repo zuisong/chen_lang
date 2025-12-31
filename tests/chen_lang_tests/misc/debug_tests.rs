@@ -1,7 +1,6 @@
 use crate::common::run_chen_lang_code as run_captured;
 
 #[test]
-#[ignore] // Temporarily disabled - investigating function call issue
 fn test_import_simple_debug() {
     let source = r#"
         let io = import "stdlib/io"  

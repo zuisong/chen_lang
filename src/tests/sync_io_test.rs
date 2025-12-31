@@ -59,14 +59,17 @@ fn test_fs_exists() {
 }
 
 #[test]
+#[ignore = "require network"]
 #[cfg(feature = "http")]
-#[ignore] // Requires internet
 fn test_http_get() {
     let code = r#"
-        let resp = http.get("https://httpbin.org/get")
-        print("Success")
+        let http = import "stdlib/http"
+        let io = import "stdlib/io"
+        let resp = http.request("GET", "https://httpbin.org/get")
+        io.print("Success")
     "#;
     let result = run_captured(code.to_string());
+    dbg!(&result);
     assert!(result.is_ok());
 }
 

@@ -1,20 +1,24 @@
 /* tslint:disable */
 /* eslint-disable */
 
-export function run_wasm(code: string): string;
+export function run_wasm(code: string): Promise<string>;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly run: (a: number, b: number) => void;
-  readonly run_wasm: (a: number, b: number) => [number, number];
+  readonly run_wasm: (a: number, b: number) => any;
+  readonly wasm_bindgen_47816a2d43ec07ce___convert__closures_____invoke___wasm_bindgen_47816a2d43ec07ce___JsValue_____: (a: number, b: number, c: any) => void;
+  readonly wasm_bindgen_47816a2d43ec07ce___closure__destroy___dyn_core_3cd24c61823388c3___ops__function__FnMut__wasm_bindgen_47816a2d43ec07ce___JsValue____Output_______: (a: number, b: number) => void;
+  readonly wasm_bindgen_47816a2d43ec07ce___convert__closures_____invoke______: (a: number, b: number) => void;
+  readonly wasm_bindgen_47816a2d43ec07ce___closure__destroy___dyn_core_3cd24c61823388c3___ops__function__FnMut_____Output_______: (a: number, b: number) => void;
+  readonly wasm_bindgen_47816a2d43ec07ce___convert__closures_____invoke___wasm_bindgen_47816a2d43ec07ce___JsValue__wasm_bindgen_47816a2d43ec07ce___JsValue_____: (a: number, b: number, c: any, d: any) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;
   readonly __externref_table_alloc: () => number;
   readonly __wbindgen_externrefs: WebAssembly.Table;
-  readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_start: () => void;
 }
 

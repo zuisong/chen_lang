@@ -15,7 +15,7 @@ use codespan_reporting::diagnostic::{Diagnostic, Label};
 use codespan_reporting::files::SimpleFiles;
 use codespan_reporting::term::{Config, emit_into_string};
 use thiserror::Error;
-#[cfg(feature = "wasm")]
+#[cfg(all(feature = "wasm", target_arch = "wasm32"))]
 use wasm_bindgen::prelude::*;
 
 use crate::vm::RuntimeErrorWithContext;
@@ -191,10 +191,31 @@ fn get_line_range(code: &str, line: u32) -> Range<usize> {
     if len > 0 { len - 1..len } else { 0..0 }
 }
 
-#[cfg(feature = "wasm")]
+#[cfg(all(feature = "wasm", target_arch = "wasm32"))]
 #[wasm_bindgen]
-pub fn run_wasm(code: String) -> String {
-    match run_captured(code.clone()) {
+pub async fn run_wasm(code: String) -> String {
+    use std::rc::Rc;
+
+    let result = async {
+        let ast = parser::parse_from_source(&code).map_err(ChenError::Parser)?;
+
+        let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
+
+        let output = Arc::new(Mutex::new(Vec::new()));
+        let writer = SharedWriter(output.clone());
+
+        {
+            let mut vm = vm::VM::with_writer(Box::new(writer));
+            // Execute async to handle HTTP requests and other async operations
+            let _result = vm.execute_async(Rc::new(program)).await?;
+        }
+
+        let output_vec = output.lock().unwrap().clone();
+        Ok::<String, ChenError>(String::from_utf8(output_vec)?)
+    }
+    .await;
+
+    match result {
         Ok(output) => output,
         Err(e) => {
             let error_report = report_error(&code, "<input>", &e);

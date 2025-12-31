@@ -314,6 +314,19 @@ println("Main got: " + val3)
 let result = coroutine.resume(gen)
 println("Main result: " + result)
 println("Generator status: " + coroutine.status(gen))
+`,
+    async_http: `# Feature: Async HTTP Request
+let http = import "stdlib/http"
+let json = import "stdlib/json"
+let println = import "stdlib/io".println
+
+println("Sending request to httpbin.org...")
+let url = "https://httpbin.org/anything"
+let resp = http.request("GET", url)
+
+println("Status: " + resp.status)
+let data = json.parse(resp.body)
+println("Response JSON origin: " + data.origin)
 `
 };
 
@@ -403,10 +416,10 @@ async function run() {
     codeArea.addEventListener('input', updateLineNumbers);
     codeArea.addEventListener('scroll', syncScroll);
 
-    runBtn.addEventListener('click', () => {
+    runBtn.addEventListener('click', async () => {
         const code = codeArea.value;
         try {
-            const result = run_wasm(code);
+            const result = await run_wasm(code);
             outputArea.textContent = result;
         } catch (e) {
             outputArea.textContent = `Error: ${e}`;
