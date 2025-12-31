@@ -155,13 +155,15 @@ fn repl() -> anyhow::Result<()> {
 }
 
 fn run_file(code_file: String) -> Result<(), chen_lang::ChenError> {
-    let s = std::env::current_dir()?.join(&code_file);
-
-    debug!(?s);
-    let mut f = OpenOptions::new().read(true).open(s)?;
-
     let mut code = String::new();
-    f.read_to_string(&mut code)?;
+    if code_file == "-" {
+        io::stdin().read_to_string(&mut code)?;
+    } else {
+        let s = std::env::current_dir()?.join(&code_file);
+        debug!(?s);
+        let mut f = OpenOptions::new().read(true).open(s)?;
+        f.read_to_string(&mut code)?;
+    }
     debug!(?code);
 
     if let Err(e) = chen_lang::run(code.clone()) {

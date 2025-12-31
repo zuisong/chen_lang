@@ -34,19 +34,17 @@ Chen Lang 是一个简洁、动态类型的编程语言,具有以下特点:
 - 🛡️ **异常处理** - 完整的 try-catch-finally 机制
 - 🚀 **快速执行** - 基于字节码的虚拟机
 
-### 快速开始
+### 运行示例
 
-```python
-# 导入 IO 模块
-let io = import "stdlib/io"
-let println = io.println
+```bash
+# 运行demo文件
+cargo run --bin chen_lang -- run demo_codes/fibonacci.ch
 
-# Hello World
-println("Hello, Chen Lang!")
+# 从标准输入运行程序
+echo 'let io = import "stdlib/io"; io.println("Hello from stdin")' | cargo run --bin chen_lang -- run -
 
-# 简单计算
-let result = 10 + 20
-println("Result: " + result)
+# 直接运行代码
+echo 'let x = 5; let y = 3; print(x + y)' | cargo run --bin chen_lang -- run -
 ```
 
 ---
@@ -666,10 +664,10 @@ let io = import "stdlib/io"
 
 ### 常用标准库模块
 
-| 模块路径         | 返回对象包含的成员                | 说明              |
-| :--------------- | :-------------------------------- | :---------------- |
-| `stdlib/io`      | `print`, `println`                | 标准输入输出      |
-| `stdlib/json`    | `stringify`, `parse`              | JSON 序列化与解析 |
+| 模块路径         | 返回对象包含的成员                         | 说明              |
+| :--------------- | :----------------------------------------- | :---------------- |
+| `stdlib/io`      | `print`, `println`, `readline`             | 标准输入输出      |
+| `stdlib/json`    | `stringify`, `parse`                       | JSON 序列化与解析 |
 | `stdlib/date`    | `new`, `now`, `parse`             | 日期时间处理      |
 | `stdlib/fs`      | `read_to_string`, `write_file` 等 | 文件系统操作      |
 | `stdlib/http`    | `get`, `post` 等                  | HTTP 客户端       |
@@ -1106,7 +1104,6 @@ for i < arr.len() {
 以下功能目前尚未支持:
 
 - ❌ **闭包** - 内部函数无法捕获外部作用域的变量
-- ❌ **标准输入** - 无法读取用户输入
 
 ---
 
