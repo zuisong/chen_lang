@@ -1,3 +1,4 @@
+mod async_timer_test;
 mod coroutine_test;
 mod lua_coroutine_test;
 mod object_test;

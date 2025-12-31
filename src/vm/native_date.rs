@@ -22,6 +22,10 @@ pub fn create_date_object() -> Value {
         "timestamp".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_date_timestamp) as Box<NativeFnType>)),
     );
+    table.data.insert(
+        "now".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(native_date_now) as Box<NativeFnType>)),
+    );
 
     let table_rc = Rc::new(RefCell::new(table));
     let val = Value::Object(table_rc.clone());
@@ -104,4 +108,9 @@ fn native_date_timestamp(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRunt
         }
     }
     Ok(Value::Null)
+}
+
+fn native_date_now(_vm: &mut VM, _args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+    let now = Timestamp::now().as_millisecond();
+    Ok(Value::float(Decimal::from(now)))
 }

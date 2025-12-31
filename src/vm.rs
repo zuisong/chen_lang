@@ -22,6 +22,10 @@ mod native_io;
 mod native_json;
 mod native_process;
 mod native_string_prototype;
+mod native_timer;
+
+pub mod rt;
+use rt::AsyncState;
 
 #[cfg(test)]
 mod vm_tests;
@@ -53,6 +57,9 @@ pub struct VM {
     pub current_fiber: Option<Rc<RefCell<Fiber>>>,
     pub program: Option<Rc<Program>>,
     pub current_closure: Option<Rc<ObjClosure>>,
+
+    // Async Runtime State
+    pub async_state: AsyncState,
 }
 
 impl Default for VM {
@@ -86,6 +93,7 @@ impl VM {
             program: None,
             current_closure: None,
             module_cache: IndexMap::new(),
+            async_state: AsyncState::new(),
         }
     }
 

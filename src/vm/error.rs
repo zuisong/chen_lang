@@ -17,6 +17,8 @@ pub enum VMRuntimeError {
     ValueError(#[from] ValueError),
     #[error("Uncaught exception: {0}")]
     UncaughtException(String),
+    #[error("Yield")]
+    Yield,
 }
 
 /// 包含上下文信息的运行时错误

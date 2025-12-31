@@ -24,7 +24,80 @@ impl VM {
     pub fn execute_rc(&mut self, program: Rc<Program>) -> VMResult {
         let saved_program = self.program.clone();
         self.program = Some(program.clone());
-        let res = self.execute_from(0);
+
+        // Create a temporary runtime to drive the LocalSet
+        // This allows us to run !Send futures (LocalSet) and block synchronously
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let local = tokio::task::LocalSet::new();
+
+        let res = local.block_on(&rt, async {
+            // Initial Execution
+            let mut last_res = self.execute_from(0);
+
+            // Event Loop
+            loop {
+                // Check if we have a result that is NOT an error (or is a recoverable yield?)
+                // For now, execute_from returns on Error or End of Program.
+                // But we need to handle "Suspended" if the main program yields?
+                // Actually execute_from returns result value.
+
+                // Process Ready Queue (Async Tasks Completion)
+                let mut did_work = false;
+                let queue = self.async_state.ready_queue.clone();
+
+                // We must detach borrow to allow mutation during resume
+                let mut ready_tasks = Vec::new();
+                {
+                    let mut q = queue.borrow_mut();
+                    while let Some(task) = q.pop_front() {
+                        ready_tasks.push(task);
+                    }
+                }
+
+                if !ready_tasks.is_empty() {
+                    did_work = true;
+                    // Resume all ready tasks
+                    for (fiber, val) in ready_tasks {
+                        // Resume Logic (Similar to native_coroutine_resume but from Root)
+                        // 1. Set current fiber
+                        self.current_fiber = Some(fiber.clone());
+                        self.load_state_from_fiber(&fiber.borrow());
+
+                        // 2. Push result to stack (as return from yield)
+                        self.stack.push(val);
+
+                        // 3. Continue execution
+                        fiber.borrow_mut().state = FiberState::Running;
+                        last_res = self.execute_from(self.pc);
+
+                        // 4. Check if we need to propagate error
+                        if let Err(_) = last_res {
+                            return last_res;
+                        }
+                    }
+                }
+
+                if !did_work {
+                    // Check if we have any pending tasks in the runtime
+                    let pending = *self.async_state.pending_tasks.borrow();
+                    if pending == 0 {
+                        // No ready tasks AND no pending background tasks -> We are done.
+                        break;
+                    }
+
+                    // We have pending tasks (e.g. Timer, I/O), so we wait.
+                    // Yield to Tokio runtime to let it poll resources.
+                    tokio::task::yield_now().await;
+                }
+            }
+
+            last_res
+        });
+
         self.program = saved_program; // Restore previous program
         res
     }
@@ -102,6 +175,12 @@ impl VM {
                     }
                 }
                 Err(error) => {
+                    if let VMRuntimeError::Yield = error {
+                        // PC has been handled by the native function if necessary
+                        break;
+                        break;
+                    }
+
                     let line = *program_clone.lines.get(&self.pc).unwrap_or(&0);
                     debug!("Execution error at PC {} (Line {}): {}", self.pc, line, error);
                     return Err(RuntimeErrorWithContext {
@@ -178,6 +257,10 @@ impl VM {
                         }
                         "stdlib/io" => {
                             let module = create_io_object();
+                            self.stack.push(module);
+                        }
+                        "stdlib/timer" => {
+                            let module = super::native_timer::create_timer_object();
                             self.stack.push(module);
                         }
                         _ => {

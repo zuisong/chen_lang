@@ -40,12 +40,13 @@ serde_json = "1.0"
 anyhow = { version = "1.0.100" }
 codespan-reporting = { version = "0.13.1",default-features = false , features = ["std"]}
 rust_decimal = { version = "1.39.0", features = ["serde-float", "macros"] }
+tokio = { version = "1.48.0", features = ["full"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-reqwest = { version = "0.12", features = ["json", "blocking"], optional = true }
+reqwest = { version = "0.13", features = ["json", "blocking"], optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-reqwest = { version = "0.12", features = ["json"], optional = true }
+reqwest = { version = "0.13", features = ["json"], optional = true }
 
 [dev-dependencies]
 assert_cmd = "2"
