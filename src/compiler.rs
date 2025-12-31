@@ -8,6 +8,7 @@ use crate::vm::{Instruction, Program, Symbol};
 struct Scope {
     locals: HashMap<String, i32>,
     is_global_scope: bool, // true for the outermost scope
+    is_function_boundary: bool,
 }
 
 enum VarLocation {
@@ -16,10 +17,11 @@ enum VarLocation {
 }
 
 impl Scope {
-    fn new(is_global: bool) -> Self {
+    fn new(is_global: bool, is_function_boundary: bool) -> Self {
         Self {
             locals: HashMap::new(),
             is_global_scope: is_global,
+            is_function_boundary,
         }
     }
 }
@@ -140,7 +142,7 @@ pub fn compile_with_offset(raw: &[char], ast: Ast, offset: usize) -> Program {
 impl<'a> Compiler<'a> {
     fn new(raw: &'a [char], offset: usize) -> Self {
         // Start with one global scope.
-        let scopes = vec![Scope::new(true)];
+        let scopes = vec![Scope::new(true, false)];
 
         Self {
             _raw: raw,
@@ -158,8 +160,8 @@ impl<'a> Compiler<'a> {
 
     // --- Scope Management ---
 
-    fn begin_scope(&mut self) {
-        self.scopes.push(Scope::new(false));
+    fn begin_scope(&mut self, is_function_boundary: bool) {
+        self.scopes.push(Scope::new(false, is_function_boundary));
     }
 
     fn end_scope(&mut self) {
@@ -190,12 +192,15 @@ impl<'a> Compiler<'a> {
                 // If found in a local scope
                 return Some(VarLocation::Local(*index));
             }
+            if scope.is_function_boundary {
+                break;
+            }
             if scope.is_global_scope {
                 // If reached global scope and not found locally, it's a global variable
                 return Some(VarLocation::Global(name.to_string()));
             }
         }
-        None // Not found in any scope
+        Some(VarLocation::Global(name.to_string()))
     }
 
     // --- Helper for emitting instructions with line numbers ---
@@ -552,7 +557,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn compile_block_expression(&mut self, stmts: Vec<Statement>, line: u32) {
-        self.begin_scope();
+        self.begin_scope(false);
         let len = stmts.len();
         for (i, stmt) in stmts.into_iter().enumerate() {
             if i == len - 1 {
@@ -694,7 +699,7 @@ impl<'a> Compiler<'a> {
 
     fn compile_declaration(&mut self, fd: FunctionDeclaration) {
         let line = fd.line;
-        self.begin_scope();
+        self.begin_scope(true);
         let function_index = self.program.instructions.len() as i32;
         let narguments = fd.parameters.len();
 
@@ -809,7 +814,7 @@ impl<'a> Compiler<'a> {
         self.compile_expression(loop_.test);
         self.emit(Instruction::JumpIfFalse(loop_end.clone()), line);
 
-        self.begin_scope();
+        self.begin_scope(false);
         for stmt in loop_.body {
             self.compile_statement(stmt);
         }
@@ -839,7 +844,7 @@ impl<'a> Compiler<'a> {
         self.emit(Instruction::PushExceptionHandler(catch_label.clone()), line);
 
         // Compile try block
-        self.begin_scope();
+        self.begin_scope(false);
         for stmt in tc.try_body {
             self.compile_statement(stmt);
         }
@@ -865,7 +870,7 @@ impl<'a> Compiler<'a> {
             },
         );
 
-        self.begin_scope();
+        self.begin_scope(false);
 
         // Define error variable if provided
         if let Some(error_name) = tc.error_name {
@@ -908,7 +913,7 @@ impl<'a> Compiler<'a> {
                 },
             );
 
-            self.begin_scope();
+            self.begin_scope(false);
             for stmt in finally_body {
                 self.compile_statement(stmt);
             }
