@@ -8,13 +8,32 @@ use rust_decimal::Decimal;
 use rust_decimal::prelude::*;
 use thiserror::Error;
 
-use crate::vm::{Program, VMRuntimeError};
+use crate::vm::{Program, Symbol, VMRuntimeError};
 
 /// Table 结构，用于实现对象和 Map
 #[derive(Debug, Clone, PartialEq)]
 pub struct Table {
     pub data: IndexMap<String, Value>,
     pub metatable: Option<Rc<RefCell<Table>>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum UpvalueState {
+    Open(usize), // Stack index
+    Closed(Value),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ObjUpvalue {
+    pub state: Rc<RefCell<UpvalueState>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ObjClosure {
+    pub name: String,
+    pub func_symbol: Symbol,
+    pub program: Rc<Program>,
+    pub upvalues: Vec<ObjUpvalue>,
 }
 
 /// 原生函数类型
@@ -29,14 +48,27 @@ pub enum Value {
     String(Rc<String>),
     /// 对象类型 (Table)
     Object(Rc<RefCell<Table>>),
-    /// 函数引用 (Name, Program)
-    Closure(String, Rc<Program>),
-    /// 函数引用 (函数名 - Chen 语言定义的函数) - DEPRECATED but kept for compatibility if needed.
-    /// In fact, we should replace Function with simple name lookup if we didn't have Closure.
-    /// But now we use Closure for cross-module function calls.
-    Function(String),
+
+    /// 闭包/函数 - 统一的函数类型
+    ///
+    /// 所有用户定义的函数都使用此类型，支持完整的闭包特性。
+    /// 包含：
+    /// - 函数符号信息（参数数量、局部变量数量、入口地址）
+    /// - 所属的 Program（字节码）
+    /// - Upvalues 列表（捕获的外部变量，可以为空）
+    ///
+    /// 用途：
+    /// - 普通函数定义
+    /// - 嵌套函数
+    /// - 匿名函数
+    /// - 模块导入的函数
+    Fn(Rc<ObjClosure>),
+
     /// 原生函数 (Rust 定义的函数)
+    ///
+    /// 用于标准库和内置函数，由 Rust 代码实现。
     NativeFunction(Rc<Box<NativeFnType>>),
+
     /// 协程
     Coroutine(Rc<RefCell<crate::vm::Fiber>>),
     Null,
@@ -127,8 +159,7 @@ impl Value {
             Value::Bool(_) => ValueType::Bool,
             Value::String(_) => ValueType::String,
             Value::Object(_) => ValueType::Object,
-            Value::Closure(_, _) => ValueType::Function,
-            Value::Function(_) => ValueType::Function,
+            Value::Fn(_) => ValueType::Function,
             Value::NativeFunction(_) => ValueType::Function,
             Value::Coroutine(_) => ValueType::Coroutine,
             Value::Null => ValueType::Null,
@@ -169,9 +200,8 @@ impl PartialEq for Value {
             (Value::Null, Value::Null) => true,
             // 对象比较：引用比较
             (Value::Object(a), Value::Object(b)) => Rc::ptr_eq(a, b),
-            // 函数比较：名称比较
-            (Value::Function(a), Value::Function(b)) => a == b,
-            (Value::Closure(a, pa), Value::Closure(b, pb)) => a == b && Rc::ptr_eq(pa, pb),
+            // 函数比较
+            (Value::Fn(a), Value::Fn(b)) => Rc::ptr_eq(a, b),
             (Value::NativeFunction(a), Value::NativeFunction(b)) => Rc::ptr_eq(a, b),
             (Value::Coroutine(a), Value::Coroutine(b)) => Rc::ptr_eq(a, b),
             // 混合类型比较：int和float可以比较
@@ -205,8 +235,7 @@ impl fmt::Display for Value {
             Value::Bool(b) => write!(f, "{}", b),
             Value::String(s) => write!(f, "{}", s),
             Value::Object(obj) => write!(f, "{}", obj.borrow()),
-            Value::Closure(name, _) => write!(f, "<function {}>", name),
-            Value::Function(name) => write!(f, "<function {}>", name),
+            Value::Fn(closure) => write!(f, "<fn {}>", closure.name),
             Value::NativeFunction(_) => write!(f, "<native function>"),
             Value::Coroutine(fiber) => write!(f, "<coroutine: {:?}>", fiber.borrow().state),
             Value::Null => write!(f, "null"),
@@ -222,8 +251,7 @@ impl Debug for Value {
             Value::Bool(b) => write!(f, "Bool({})", b),
             Value::String(s) => write!(f, "String(\"{}\")", s),
             Value::Object(obj) => write!(f, "Object({:.?})", obj.borrow()),
-            Value::Closure(name, _) => write!(f, "Closure({})", name),
-            Value::Function(name) => write!(f, "Function({})", name),
+            Value::Fn(closure) => write!(f, "Fn({})", closure.name),
             Value::NativeFunction(_) => write!(f, "NativeFunction(<native fn>)"),
             Value::Coroutine(fiber) => write!(f, "Coroutine({:?})", fiber.borrow().state),
             Value::Null => write!(f, "Null"),
@@ -594,7 +622,7 @@ impl Value {
                         let metatable = metatable_ref.borrow();
                         if let Some(metamethod_val) = metatable.data.get(metamethod_name) {
                             return match metamethod_val {
-                                Value::Function(_) | Value::NativeFunction(_) => Some(metamethod_val.clone()),
+                                Value::Fn(_) | Value::NativeFunction(_) => Some(metamethod_val.clone()),
                                 _ => {
                                     // Found a value, but it's not a function, treat as not found
                                     None
@@ -613,7 +641,7 @@ impl Value {
     }
     /// Get field with metatable support (__index metamethod)
     pub fn get_field_with_meta(&self, key: &str) -> Value {
-        match self {
+        let val = match self {
             Value::Object(table_ref) => {
                 let table = table_ref.borrow();
 
@@ -633,7 +661,7 @@ impl Value {
                             Value::Object(index_table_ref) => {
                                 return Value::Object(index_table_ref.clone()).get_field_with_meta(key);
                             }
-                            Value::Function(_) => {
+                            Value::Fn(_) => {
                                 // TODO: If __index is a function, call it (future feature)
                             }
                             _ => {}
@@ -641,11 +669,34 @@ impl Value {
                     }
                 }
 
-                // Not found anywhere
+                Value::null()
+            }
+            Value::Fn(closure) => {
+                if key == "__name" {
+                    return Value::string(closure.name.clone());
+                }
                 Value::null()
             }
             _ => Value::null(),
+        };
+
+        if matches!(val, Value::Null) && key == "__type" {
+            return Value::string(
+                match self {
+                    Value::Int(_) => "int",
+                    Value::Float(_) => "float",
+                    Value::Bool(_) => "bool",
+                    Value::String(_) => "string",
+                    Value::Object(_) => "object",
+                    Value::Fn(_) | Value::NativeFunction(_) => "function",
+                    Value::Coroutine(_) => "coroutine",
+                    Value::Null => "null",
+                }
+                .to_string(),
+            );
         }
+
+        val
     }
 
     /// Set field with metatable support (__newindex metamethod placeholder)

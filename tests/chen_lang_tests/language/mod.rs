@@ -1,5 +1,6 @@
 mod arithmetic_tests;
 mod array_tests;
+mod closure_tests;
 mod complex_tests;
 mod control_flow_tests;
 mod custom_import_tests;

@@ -48,9 +48,9 @@ fn native_coroutine_create(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
     }
 
     let func_val = &args[0];
-    // Allow Reference to Function, Closure, or NativeFunction
+    // Allow Reference to Fn or NativeFunction
     match func_val {
-        Value::Function(_) | Value::Closure(_, _) => {
+        Value::Fn(_) => {
             // Create a new fiber
             let mut fiber = Fiber::new();
             // Push all arguments (function + params) to stack
@@ -133,9 +133,8 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
     if is_new {
         let func_val = fiber.stack.remove(0);
 
-        let func_name = match func_val {
-            Value::Function(name) => name,
-            Value::Closure(name, _) => name,
+        let closure = match func_val {
+            Value::Fn(c) => c,
             Value::NativeFunction(_) => {
                 return Err(ValueError::InvalidOperation {
                     operator: "resume native coroutine not fully supported".into(),
@@ -155,11 +154,8 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
         };
 
         // Resolve function address
-        let program = vm
-            .program
-            .as_ref()
-            .ok_or_else(|| VMRuntimeError::UndefinedVariable("Program not loaded in VM".into()))?;
-        let func_label = format!("func_{}", func_name);
+        let program = closure.program.clone();
+        let func_label = format!("func_{}", closure.name);
 
         if let Some(sym) = program.syms.get(&func_label) {
             // Setup stack frame
@@ -175,8 +171,12 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
 
             // 3. Set PC (-1 because loop increments)
             fiber.pc = (sym.location as usize) - 1;
+
+            // 4. Set program and current_closure for the fiber
+            fiber.program = Some(program);
+            fiber.current_closure = Some(closure);
         } else {
-            return Err(VMRuntimeError::UndefinedVariable(format!("function: {}", func_name)));
+            return Err(VMRuntimeError::UndefinedVariable(format!("function: {}", closure.name)));
         }
     } else {
         // Resuming yielded fiber

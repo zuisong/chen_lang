@@ -30,7 +30,10 @@ pub fn create_io_object() -> Value {
         let readline_fn = |_vm: &mut VM, _args: Vec<Value>| {
             let stdin = io::stdin();
             let mut line = String::new();
-            stdin.lock().read_line(&mut line).map_err(|e| crate::vm::VMRuntimeError::UncaughtException(e.to_string()))?;
+            stdin
+                .lock()
+                .read_line(&mut line)
+                .map_err(|e| crate::vm::VMRuntimeError::UncaughtException(e.to_string()))?;
             // Remove the trailing newline character(s)
             if line.ends_with('\n') {
                 line.pop();

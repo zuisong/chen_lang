@@ -2,15 +2,16 @@ use indexmap::IndexMap;
 
 use crate::value::Value;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Symbol {
     pub location: i32,
     pub narguments: usize,
     pub nlocals: usize,
+    pub upvalues: Vec<(bool, usize)>, // (is_local, index)
 }
 
 /// 指令集 - 简化后的统一指令
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
     // 栈操作
     Push(Value), // 推入常量值
@@ -56,6 +57,11 @@ pub enum Instruction {
     // New Scope-related Instructions
     DupPlusFP(i32),
     MovePlusFP(usize),
+    GetUpvalue(usize),
+    SetUpvalue(usize),
+    Closure(String),           // Create closure from symbol name
+    CloseUpvalue,              // Close upvalues up to stack top (used before return/pop scope)
+    CloseUpvaluesAbove(usize), // Close all upvalues at or above fp + offset.
 
     // Object operations
     NewObject,         // 创建空对象
@@ -79,7 +85,7 @@ pub enum Instruction {
 }
 
 /// 程序表示
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct Program {
     pub instructions: Vec<Instruction>,
     pub syms: IndexMap<String, Symbol>, // 符号表

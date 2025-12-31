@@ -7,22 +7,17 @@ use crate::vm::{Instruction, Program, Symbol};
 // A scope holds the local variables for a block or function.
 struct Scope {
     locals: HashMap<String, i32>,
-    is_global_scope: bool, // true for the outermost scope
-    is_function_boundary: bool,
 }
 
 enum VarLocation {
     Local(i32),     // Offset from FP
+    Upvalue(usize), // Index in closure's upvalue list
     Global(String), // Global variable name
 }
 
 impl Scope {
-    fn new(is_global: bool, is_function_boundary: bool) -> Self {
-        Self {
-            locals: HashMap::new(),
-            is_global_scope: is_global,
-            is_function_boundary,
-        }
+    fn new() -> Self {
+        Self { locals: HashMap::new() }
     }
 }
 ///
@@ -111,19 +106,57 @@ impl Scope {
 ///   可以线性执行的指令流。局部变量通过编译时计算的栈偏移量（Stack
 ///   Offset）来访问，从而避免了运行时的哈希表查找（相比全局变量更快）。
 ///
-///
 struct Compiler<'a> {
     _raw: &'a [char],
     program: Program,
-    scopes: Vec<Scope>,
-    locals_count: usize, // For current function's local stack frame
-    loop_stack: Vec<LoopLabels>,
     offset: usize,
+    states: Vec<FunctionState>,
 }
 
 struct LoopLabels {
     start: String,
     end: String,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct Upvalue {
+    index: usize,
+    is_local: bool,
+}
+
+struct FunctionState {
+    scopes: Vec<Scope>,
+    locals_count: usize,
+    loop_stack: Vec<LoopLabels>,
+    upvalues: Vec<Upvalue>,
+}
+
+impl FunctionState {
+    fn new() -> Self {
+        Self {
+            scopes: vec![Scope::new()],
+            locals_count: 0,
+            loop_stack: Vec::new(),
+            upvalues: Vec::new(),
+        }
+    }
+
+    fn resolve_local(&self, name: &str) -> Option<i32> {
+        // Search scopes from inside out, BUT STOP AT FUNCTION BOUNDARY
+        // Note: FunctionState represents ONE function context.
+        // Its scopes are blocks within that function.
+        // So we search all scopes in this state.
+        // The is_function_boundary flag in Scope is actually redundant if we have FunctionState,
+        // because FunctionState IS the boundary.
+        // But for compatibility with existing logic, let's keep it or simplify.
+
+        for scope in self.scopes.iter().rev() {
+            if let Some(index) = scope.locals.get(name) {
+                return Some(*index);
+            }
+        }
+        None
+    }
 }
 
 // The main entry point for compilation.
@@ -141,15 +174,13 @@ pub fn compile_with_offset(raw: &[char], ast: Ast, offset: usize) -> Program {
 
 impl<'a> Compiler<'a> {
     fn new(raw: &'a [char], offset: usize) -> Self {
-        // Start with one global scope.
-        let scopes = vec![Scope::new(true, false)];
+        // Start with one global state.
+        let states = vec![FunctionState::new()];
 
         Self {
             _raw: raw,
             program: Program::default(),
-            scopes,
-            locals_count: 0,
-            loop_stack: Vec::new(),
+            states,
             offset,
         }
     }
@@ -158,48 +189,105 @@ impl<'a> Compiler<'a> {
         self.offset + self.program.instructions.len()
     }
 
-    // --- Scope Management ---
-
-    fn begin_scope(&mut self, is_function_boundary: bool) {
-        self.scopes.push(Scope::new(false, is_function_boundary));
+    fn current_state(&mut self) -> &mut FunctionState {
+        self.states.last_mut().expect("Compiler state stack empty")
     }
 
-    fn end_scope(&mut self) {
-        self.scopes.pop();
+    // --- Scope Management ---
+
+    fn begin_scope(&mut self) {
+        self.current_state().scopes.push(Scope::new());
+    }
+
+    fn end_scope(&mut self, line: u32, preserve_top: bool) {
+        let (count, first_idx) = {
+            let state = self.current_state();
+            let scope = state.scopes.pop().expect("No scope to end");
+            let c = scope.locals.len();
+            let first = state.locals_count - c;
+            state.locals_count -= c;
+            (c, first)
+        };
+
+        if count > 0 {
+            if preserve_top {
+                self.emit(Instruction::CloseUpvaluesAbove(first_idx), line);
+                self.emit(Instruction::MovePlusFP(first_idx), line);
+                for _ in 0..count - 1 {
+                    self.emit(Instruction::Pop, line);
+                }
+            } else {
+                for _ in 0..count {
+                    self.emit(Instruction::CloseUpvalue, line);
+                }
+            }
+        }
     }
 
     // Defines a variable in the current scope.
     // Returns its location (offset for local, name for global).
     fn define_variable(&mut self, name: String) -> VarLocation {
-        let current_scope_idx = self.scopes.len() - 1;
-        let is_global = self.scopes[current_scope_idx].is_global_scope;
+        // Check if we are in global scope (bottom of state stack, and bottom of scope stack)
+        let is_global = self.states.len() == 1 && self.states[0].scopes.len() == 1;
 
         if is_global {
             VarLocation::Global(name)
         } else {
-            let scope = self.scopes.last_mut().unwrap();
-            let index = self.locals_count as i32;
+            let state = self.current_state();
+            let scope = state.scopes.last_mut().unwrap();
+            let index = state.locals_count as i32;
             scope.locals.insert(name, index);
-            self.locals_count += 1;
+            state.locals_count += 1;
             VarLocation::Local(index)
         }
     }
 
-    // Resolves a variable by searching from the innermost to outermost scope.
-    fn resolve_variable(&self, name: &str) -> Option<VarLocation> {
-        for scope in self.scopes.iter().rev() {
-            if let Some(index) = scope.locals.get(name) {
-                // If found in a local scope
-                return Some(VarLocation::Local(*index));
-            }
-            if scope.is_function_boundary {
-                break;
-            }
-            if scope.is_global_scope {
-                // If reached global scope and not found locally, it's a global variable
-                return Some(VarLocation::Global(name.to_string()));
+    fn resolve_upvalue(&mut self, state_idx: usize, name: &str) -> Option<usize> {
+        if state_idx == 0 {
+            return None;
+        }
+
+        let enclosing_idx = state_idx - 1;
+
+        // 1. Check local in enclosing function
+        if let Some(local_idx) = self.states[enclosing_idx].resolve_local(name) {
+            return Some(self.add_upvalue(state_idx, local_idx as usize, true));
+        }
+
+        // 2. Recursive check upvalue in enclosing function
+        if let Some(up_idx) = self.resolve_upvalue(enclosing_idx, name) {
+            return Some(self.add_upvalue(state_idx, up_idx, false));
+        }
+
+        None
+    }
+
+    fn add_upvalue(&mut self, state_idx: usize, index: usize, is_local: bool) -> usize {
+        let state = &mut self.states[state_idx];
+        for (i, up) in state.upvalues.iter().enumerate() {
+            if up.index == index && up.is_local == is_local {
+                return i;
             }
         }
+        state.upvalues.push(Upvalue { index, is_local });
+        state.upvalues.len() - 1
+    }
+
+    // Resolves a variable: Local -> Upvalue -> Global
+    fn resolve_variable(&mut self, name: &str) -> Option<VarLocation> {
+        let state_idx = self.states.len() - 1;
+
+        // 1. Local
+        if let Some(index) = self.states[state_idx].resolve_local(name) {
+            return Some(VarLocation::Local(index));
+        }
+
+        // 2. Upvalue
+        if let Some(up_idx) = self.resolve_upvalue(state_idx, name) {
+            return Some(VarLocation::Upvalue(up_idx));
+        }
+
+        // 3. Global
         Some(VarLocation::Global(name.to_string()))
     }
 
@@ -243,6 +331,7 @@ impl<'a> Compiler<'a> {
                     location: self.program.instructions.len() as i32,
                     narguments: 0,
                     nlocals: 0,
+                    upvalues: Vec::new(),
                 },
             );
         }
@@ -270,12 +359,24 @@ impl<'a> Compiler<'a> {
             Statement::Loop(e) => self.compile_loop(e),
             Statement::Assign(e) => self.compile_assign(e),
             Statement::Break(line) => {
-                let labels = self.loop_stack.last().expect("break outside of loop");
-                self.emit(Instruction::Jump(labels.end.clone()), line);
+                let end_label = self
+                    .current_state()
+                    .loop_stack
+                    .last()
+                    .expect("break outside of loop")
+                    .end
+                    .clone();
+                self.emit(Instruction::Jump(end_label), line);
             }
             Statement::Continue(line) => {
-                let labels = self.loop_stack.last().expect("continue outside of loop");
-                self.emit(Instruction::Jump(labels.start.clone()), line);
+                let start_label = self
+                    .current_state()
+                    .loop_stack
+                    .last()
+                    .expect("continue outside of loop")
+                    .start
+                    .clone();
+                self.emit(Instruction::Jump(start_label), line);
             }
             Statement::SetField {
                 object,
@@ -350,6 +451,7 @@ impl<'a> Compiler<'a> {
                     location: self.program.instructions.len() as i32,
                     narguments: 0,
                     nlocals: 0,
+                    upvalues: Vec::new(),
                 },
             );
 
@@ -359,10 +461,7 @@ impl<'a> Compiler<'a> {
             self.emit(Instruction::Jump(wrapper_skip_label.clone()), line);
 
             // Construct arguments for coroutine.create(impl, ...params)
-            let mut create_args = vec![Expression::Literal(
-                Literal::Value(crate::value::Value::Function(impl_name)),
-                line,
-            )];
+            let mut create_args = vec![Expression::Identifier(impl_name.clone(), line)];
             for param in &fd.parameters {
                 create_args.push(Expression::Identifier(param.clone(), line));
             }
@@ -396,6 +495,7 @@ impl<'a> Compiler<'a> {
                     location: self.program.instructions.len() as i32,
                     narguments: 0,
                     nlocals: 0,
+                    upvalues: Vec::new(),
                 },
             );
         } else {
@@ -413,15 +513,17 @@ impl<'a> Compiler<'a> {
                     location: self.program.instructions.len() as i32,
                     narguments: 0,
                     nlocals: 0,
+                    upvalues: Vec::new(),
                 },
             );
         }
 
         let var_location = self.define_variable(func_name.clone());
-        self.emit(Instruction::Push(crate::value::Value::Function(func_name)), line);
+        self.emit(Instruction::Closure(format!("func_{}", func_name)), line);
         match var_location {
             VarLocation::Local(offset) => self.emit(Instruction::MovePlusFP(offset as usize), line),
             VarLocation::Global(name) => self.emit(Instruction::Store(name), line),
+            _ => panic!("Cannot define variable in Upvalue location"),
         }
     }
 
@@ -436,6 +538,9 @@ impl<'a> Compiler<'a> {
                     match var_location {
                         VarLocation::Local(offset) => {
                             self.emit(Instruction::DupPlusFP(offset), line);
+                        }
+                        VarLocation::Upvalue(index) => {
+                            self.emit(Instruction::GetUpvalue(index), line);
                         }
                         VarLocation::Global(name) => {
                             self.emit(Instruction::Load(name), line);
@@ -506,6 +611,7 @@ impl<'a> Compiler<'a> {
                             location: self.program.instructions.len() as i32,
                             narguments: 0,
                             nlocals: 0,
+                            upvalues: Vec::new(),
                         },
                     );
 
@@ -513,7 +619,7 @@ impl<'a> Compiler<'a> {
                     // coroutine.create(impl_func)
                     self.emit(Instruction::Load("coroutine".to_string()), line);
                     self.emit(Instruction::GetField("create".to_string()), line);
-                    self.emit(Instruction::Push(crate::value::Value::Function(impl_name)), line);
+                    self.emit(Instruction::Closure(format!("func_{}", impl_name)), line);
                     self.emit(Instruction::CallStack(1), line);
                 } else {
                     let unique_id = self.unique_id();
@@ -528,10 +634,11 @@ impl<'a> Compiler<'a> {
                             location: self.program.instructions.len() as i32,
                             narguments: 0,
                             nlocals: 0,
+                            upvalues: Vec::new(),
                         },
                     );
 
-                    self.emit(Instruction::Push(crate::value::Value::Function(func_name)), line);
+                    self.emit(Instruction::Closure(format!("func_{}", func_name)), line);
                 }
             }
             Expression::Await { expr, line } => {
@@ -557,7 +664,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn compile_block_expression(&mut self, stmts: Vec<Statement>, line: u32) {
-        self.begin_scope(false);
+        self.begin_scope();
         let len = stmts.len();
         for (i, stmt) in stmts.into_iter().enumerate() {
             if i == len - 1 {
@@ -576,7 +683,7 @@ impl<'a> Compiler<'a> {
         if len == 0 {
             self.emit(Instruction::Push(crate::value::Value::Null), line);
         }
-        self.end_scope();
+        self.end_scope(line, true);
     }
 
     fn compile_literal(&mut self, lit: Literal, line: u32) {
@@ -598,6 +705,7 @@ impl<'a> Compiler<'a> {
             VarLocation::Global(name) => {
                 self.emit(Instruction::Store(name), line);
             }
+            VarLocation::Upvalue(_) => panic!("Cannot define local variable as Upvalue"),
         }
     }
 
@@ -612,6 +720,9 @@ impl<'a> Compiler<'a> {
             }
             VarLocation::Global(name) => {
                 self.emit(Instruction::Store(name), line);
+            }
+            VarLocation::Upvalue(index) => {
+                self.emit(Instruction::SetUpvalue(index), line);
             }
         }
     }
@@ -649,9 +760,9 @@ impl<'a> Compiler<'a> {
             // Optimized call
             let is_optimized_call = if let Expression::Identifier(ref name, _) = other_callee {
                 match self.resolve_variable(name) {
-                    Some(VarLocation::Local(_)) => false,
+                    Some(VarLocation::Local(_)) | Some(VarLocation::Upvalue(_)) => false,
                     _ => {
-                        //
+                        // Global or not found (function declaration)
                         true
                     }
                 }
@@ -699,19 +810,14 @@ impl<'a> Compiler<'a> {
 
     fn compile_declaration(&mut self, fd: FunctionDeclaration) {
         let line = fd.line;
-        self.begin_scope(true);
         let function_index = self.program.instructions.len() as i32;
         let narguments = fd.parameters.len();
 
-        let old_locals_count = self.locals_count;
-        self.locals_count = 0;
+        // Push new function state
+        self.states.push(FunctionState::new());
 
         for param in fd.parameters {
-            if let VarLocation::Local(_) = self.define_variable(param) {
-                // ok
-            } else {
-                panic!("Function parameter cannot be global");
-            }
+            self.define_variable(param);
         }
 
         let len = fd.body.len();
@@ -735,12 +841,13 @@ impl<'a> Compiler<'a> {
             self.emit(Instruction::Push(crate::value::Value::Null), line);
         }
 
-        let nlocals = self.locals_count;
-        self.end_scope();
-        self.locals_count = old_locals_count;
-
         self.emit(Instruction::Return, line);
         self.emit(Instruction::Return, line); // Safety?
+
+        // Pop state
+        let state = self.states.pop().expect("Popped global state");
+        let nlocals = state.locals_count;
+        let upvalues: Vec<(bool, usize)> = state.upvalues.into_iter().map(|u| (u.is_local, u.index)).collect();
 
         self.program.syms.insert(
             format!("func_{}", fd.name.as_ref().expect("Function must have a name")),
@@ -748,6 +855,7 @@ impl<'a> Compiler<'a> {
                 location: function_index,
                 nlocals,
                 narguments,
+                upvalues,
             },
         );
     }
@@ -772,6 +880,7 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 nlocals: 0,
                 narguments: 0,
+                upvalues: Vec::new(),
             },
         );
 
@@ -787,6 +896,7 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 nlocals: 0,
                 narguments: 0,
+                upvalues: Vec::new(),
             },
         );
     }
@@ -803,10 +913,11 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
+                upvalues: Vec::new(),
             },
         );
 
-        self.loop_stack.push(LoopLabels {
+        self.current_state().loop_stack.push(LoopLabels {
             start: loop_start.clone(),
             end: loop_end.clone(),
         });
@@ -814,12 +925,12 @@ impl<'a> Compiler<'a> {
         self.compile_expression(loop_.test);
         self.emit(Instruction::JumpIfFalse(loop_end.clone()), line);
 
-        self.begin_scope(false);
+        self.begin_scope();
         for stmt in loop_.body {
             self.compile_statement(stmt);
         }
-        self.end_scope();
-        self.loop_stack.pop();
+        self.end_scope(line, false);
+        self.current_state().loop_stack.pop();
 
         self.emit(Instruction::Jump(loop_start.clone()), line);
 
@@ -829,6 +940,7 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
+                upvalues: Vec::new(),
             },
         );
     }
@@ -844,11 +956,11 @@ impl<'a> Compiler<'a> {
         self.emit(Instruction::PushExceptionHandler(catch_label.clone()), line);
 
         // Compile try block
-        self.begin_scope(false);
+        self.begin_scope();
         for stmt in tc.try_body {
             self.compile_statement(stmt);
         }
-        self.end_scope();
+        self.end_scope(line, false);
 
         // Pop exception handler if no exception occurred
         self.emit(Instruction::PopExceptionHandler, line);
@@ -867,10 +979,11 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
+                upvalues: Vec::new(),
             },
         );
 
-        self.begin_scope(false);
+        self.begin_scope();
 
         // Define error variable if provided
         if let Some(error_name) = tc.error_name {
@@ -882,6 +995,7 @@ impl<'a> Compiler<'a> {
                 VarLocation::Global(name) => {
                     self.emit(Instruction::Store(name), line);
                 }
+                VarLocation::Upvalue(_) => panic!("Cannot define error variable as Upvalue"),
             }
         } else {
             // Pop the error value if no variable to store it
@@ -893,7 +1007,7 @@ impl<'a> Compiler<'a> {
             self.compile_statement(stmt);
         }
 
-        self.end_scope();
+        self.end_scope(line, false);
 
         // Jump to finally or end after catch
         if tc.finally_body.is_some() {
@@ -910,14 +1024,15 @@ impl<'a> Compiler<'a> {
                     location: self.program.instructions.len() as i32,
                     narguments: 0,
                     nlocals: 0,
+                    upvalues: Vec::new(),
                 },
             );
 
-            self.begin_scope(false);
+            self.begin_scope();
             for stmt in finally_body {
                 self.compile_statement(stmt);
             }
-            self.end_scope();
+            self.end_scope(line, false);
         }
 
         // End label
@@ -927,6 +1042,7 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
+                upvalues: Vec::new(),
             },
         );
     }

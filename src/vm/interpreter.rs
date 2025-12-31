@@ -11,8 +11,8 @@ use super::native_http::create_http_object;
 use super::native_io::create_io_object;
 use super::native_json::create_json_object;
 use super::native_process::create_process_object;
-use crate::value::{Value, ValueError, ValueType};
-use crate::vm::fiber::ExceptionHandler;
+use crate::value::{ObjClosure, ObjUpvalue, UpvalueState, Value, ValueError, ValueType};
+use crate::vm::fiber::{CallFrame, ExceptionHandler};
 use crate::vm::{Fiber, FiberState, Instruction, Program, RuntimeErrorWithContext, VM, VMResult, VMRuntimeError};
 
 impl VM {
@@ -27,6 +27,48 @@ impl VM {
         let res = self.execute_from(0);
         self.program = saved_program; // Restore previous program
         res
+    }
+
+    fn capture_upvalue(&mut self, location: usize) -> Rc<RefCell<UpvalueState>> {
+        for upvalue in &self.open_upvalues {
+            let state = upvalue.borrow();
+            if let UpvalueState::Open(idx) = *state
+                && idx == location
+            {
+                return upvalue.clone();
+            }
+        }
+        let created = Rc::new(RefCell::new(UpvalueState::Open(location)));
+        self.open_upvalues.push(created.clone());
+        created
+    }
+
+    fn close_upvalues(&mut self, last: usize) {
+        let mut i = 0;
+        while i < self.open_upvalues.len() {
+            let upvalue_rc = &self.open_upvalues[i];
+            let should_close = {
+                let state = upvalue_rc.borrow();
+                if let UpvalueState::Open(location) = *state {
+                    location >= last
+                } else {
+                    true
+                }
+            };
+
+            if should_close {
+                let upvalue_rc = self.open_upvalues.remove(i);
+                let location = if let UpvalueState::Open(loc) = *upvalue_rc.borrow() {
+                    loc
+                } else {
+                    0
+                };
+                let value = self.stack[location].clone();
+                *upvalue_rc.borrow_mut() = UpvalueState::Closed(value);
+            } else {
+                i += 1;
+            }
+        }
     }
 
     /// 从指定PC开始执行程序
@@ -85,6 +127,8 @@ impl VM {
         fiber.fp = self.fp;
         fiber.call_stack = self.call_stack.clone();
         fiber.exception_handlers = self.exception_handlers.clone();
+        fiber.current_closure = self.current_closure.clone();
+        fiber.program = self.program.clone();
     }
 
     pub fn load_state_from_fiber(&mut self, fiber: &Fiber) {
@@ -93,6 +137,8 @@ impl VM {
         self.fp = fiber.fp;
         self.call_stack = fiber.call_stack.clone();
         self.exception_handlers = fiber.exception_handlers.clone();
+        self.current_closure = fiber.current_closure.clone();
+        self.program = fiber.program.clone();
     }
 
     /// 执行单条指令
@@ -195,7 +241,11 @@ impl VM {
             Instruction::BuildArray(count) => {
                 let mut table = crate::value::Table {
                     data: IndexMap::new(),
-                    metatable: None,
+                    metatable: if let Value::Object(proto_rc) = &self.array_prototype {
+                        Some(proto_rc.clone())
+                    } else {
+                        None
+                    },
                 };
 
                 let start_index = self
@@ -242,11 +292,18 @@ impl VM {
                     self.stack.push(value.clone());
                 } else {
                     let func_label = format!("func_{}", var_name);
-                    if program.syms.contains_key(&func_label) {
-                        if let Some(prog) = &self.program {
-                            self.stack.push(Value::Closure(var_name.clone(), prog.clone()));
+                    if let Some(prog) = &self.program {
+                        if let Some(symbol) = prog.syms.get(&func_label) {
+                            // Create a closure with empty upvalues for legacy function references
+                            let closure = crate::value::ObjClosure {
+                                name: var_name.clone(),
+                                func_symbol: symbol.clone(),
+                                program: prog.clone(),
+                                upvalues: Vec::new(), // No upvalues for top-level functions
+                            };
+                            self.stack.push(Value::Fn(Rc::new(closure)));
                         } else {
-                            self.stack.push(Value::Function(var_name.clone()));
+                            return Err(VMRuntimeError::UndefinedVariable(var_name.clone()));
                         }
                     } else {
                         return Err(VMRuntimeError::UndefinedVariable(var_name.clone()));
@@ -436,106 +493,137 @@ impl VM {
                 }
             }
 
-            Instruction::Call(func_name, arg_count) => match func_name.as_str() {
-                "set_meta" => {
-                    if *arg_count != 2 {
-                        return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                            operator: "set_meta".to_string(),
-                            left_type: ValueType::Null,
-                            right_type: ValueType::Null,
-                        }));
-                    }
-                    let metatable = self.stack.pop().unwrap_or(Value::null());
-                    let obj = self.stack.pop().unwrap_or(Value::null());
-                    obj.set_metatable(metatable)?;
-                    self.stack.push(Value::null());
-                }
-                "get_meta" => {
-                    if *arg_count != 1 {
-                        return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                            operator: "get_meta".to_string(),
-                            left_type: ValueType::Null,
-                            right_type: ValueType::Null,
-                        }));
-                    }
-                    let obj = self.stack.pop().unwrap_or(Value::null());
-                    let metatable = obj.get_metatable();
-                    self.stack.push(metatable);
-                }
-                _ => {
-                    let func_label = format!("func_{}", func_name);
-
-                    let target_info = if let Some(sym) = program.syms.get(&func_label) {
-                        Some((sym.clone(), self.program.clone()))
-                    } else if let Some(val) = self.variables.get(func_name) {
-                        match val {
-                            Value::Closure(name, prog) => {
-                                let label = format!("func_{}", name);
-                                prog.syms.get(&label).map(|sym| (sym.clone(), Some(prog.clone())))
-                            }
-                            Value::Function(name) => {
-                                let label = format!("func_{}", name);
-                                if let Some(sym) = program.syms.get(&label) {
-                                    Some((sym.clone(), self.program.clone()))
-                                } else {
-                                    None
-                                }
-                            }
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    };
-
-                    if target_info.is_none() {
-                        let native_fn_opt = self.variables.get(func_name).cloned();
-                        if let Some(Value::NativeFunction(native_fn)) = native_fn_opt {
-                            let args_start = self
-                                .stack
-                                .len()
-                                .checked_sub(*arg_count)
-                                .ok_or(VMRuntimeError::StackUnderflow("Native call missing args".into()))?;
-                            let args: Vec<Value> = self.stack.drain(args_start..).collect();
-                            let result = native_fn(self, args)?;
-                            self.stack.push(result);
-                            return Ok(true);
-                        }
-                    }
-
-                    if let Some((target_symbol, target_program_opt)) = target_info {
-                        if *arg_count != target_symbol.narguments {
+            Instruction::Call(func_name, arg_count) => {
+                return match func_name.as_str() {
+                    "set_meta" => {
+                        if *arg_count != 2 {
                             return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                                operator: "call".to_string(),
+                                operator: "set_meta".to_string(),
                                 left_type: ValueType::Null,
                                 right_type: ValueType::Null,
                             }));
                         }
-
-                        self.call_stack.push((self.pc, self.fp, self.program.clone()));
-                        self.fp = self.stack.len() - *arg_count;
-
-                        if let Some(prog) = target_program_opt {
-                            self.program = Some(prog);
-                        }
-
-                        self.stack.resize(self.fp + target_symbol.nlocals, Value::null());
-                        self.pc = (target_symbol.location as usize) - 1;
-                        return Ok(true);
-                    } else {
-                        return Err(VMRuntimeError::UndefinedVariable(format!("function: {}", func_name)));
+                        let metatable = self.stack.pop().unwrap_or(Value::null());
+                        let obj = self.stack.pop().unwrap_or(Value::null());
+                        obj.set_metatable(metatable)?;
+                        self.stack.push(Value::null());
+                        Ok(true)
                     }
-                }
-            },
+                    "get_meta" => {
+                        if *arg_count != 1 {
+                            return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
+                                operator: "get_meta".to_string(),
+                                left_type: ValueType::Null,
+                                right_type: ValueType::Null,
+                            }));
+                        }
+                        let obj = self.stack.pop().unwrap_or(Value::null());
+                        let metatable = obj.get_metatable();
+                        self.stack.push(metatable);
+                        Ok(true)
+                    }
+                    _ => {
+                        let func_label = format!("func_{}", func_name);
+
+                        // Try to find the function: either as a direct symbol or as a variable holding a closure
+                        if let Some(sym) = program.syms.get(&func_label) {
+                            // Direct symbol call (e.g. top-level function)
+                            if *arg_count != sym.narguments {
+                                return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
+                                    operator: "call".to_string(),
+                                    left_type: ValueType::Null,
+                                    right_type: ValueType::Null,
+                                }));
+                            }
+
+                            self.call_stack.push(CallFrame {
+                                pc: self.pc,
+                                fp: self.fp,
+                                program: self.program.clone(),
+                                closure: self.current_closure.clone(),
+                            });
+                            self.fp = self.stack.len() - *arg_count;
+
+                            // For direct symbol calls, we should create a "base" closure if we want current_closure to be set,
+                            // but usually these are top-level and don't need it.
+                            // However, to be consistent with unified types, we should probably set it.
+                            let closure = ObjClosure {
+                                name: func_name.clone(),
+                                func_symbol: sym.clone(),
+                                program: self.program.clone().unwrap(),
+                                upvalues: Vec::new(),
+                            };
+                            self.current_closure = Some(Rc::new(closure));
+
+                            self.stack.resize(self.fp + sym.nlocals, Value::null());
+                            self.pc = (sym.location as usize) - 1;
+                            Ok(true)
+                        } else if let Some(val) = self.variables.get(func_name).cloned() {
+                            // Variable lookup
+                            match val {
+                                Value::Fn(closure) => {
+                                    let sym = &closure.func_symbol;
+                                    if *arg_count != sym.narguments {
+                                        return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
+                                            operator: "call".to_string(),
+                                            left_type: ValueType::Function,
+                                            right_type: ValueType::Null,
+                                        }));
+                                    }
+
+                                    self.call_stack.push(CallFrame {
+                                        pc: self.pc,
+                                        fp: self.fp,
+                                        program: self.program.clone(),
+                                        closure: self.current_closure.clone(),
+                                    });
+                                    self.fp = self.stack.len() - *arg_count;
+                                    self.program = Some(closure.program.clone());
+                                    self.current_closure = Some(closure.clone());
+
+                                    self.stack.resize(self.fp + sym.nlocals, Value::null());
+                                    self.pc = (sym.location as usize) - 1;
+                                    Ok(true)
+                                }
+                                Value::NativeFunction(native_fn) => {
+                                    let start_index = self
+                                        .stack
+                                        .len()
+                                        .checked_sub(*arg_count)
+                                        .ok_or(VMRuntimeError::StackUnderflow("Native call missing args".into()))?;
+                                    let args: Vec<Value> = self.stack.drain(start_index..).collect();
+                                    let result = native_fn(self, args)?;
+                                    self.stack.push(result);
+                                    Ok(true)
+                                }
+                                _ => Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
+                                    operator: "call".to_string(),
+                                    left_type: val.get_type(),
+                                    right_type: ValueType::Null,
+                                })),
+                            }
+                        } else {
+                            Err(VMRuntimeError::UndefinedVariable(format!("function: {}", func_name)))
+                        }
+                    }
+                };
+            }
             Instruction::Return => {
                 let return_value = self.stack.pop().unwrap_or(Value::null());
+                self.close_upvalues(self.fp);
 
-                return if let Some((return_pc, old_fp, old_prog)) = self.call_stack.pop() {
+                return if let Some(frame) = self.call_stack.pop() {
                     self.stack.truncate(self.fp);
-                    self.pc = return_pc;
-                    self.fp = old_fp;
-                    if let Some(prog) = old_prog {
+                    self.pc = frame.pc;
+                    self.fp = frame.fp;
+                    if let Some(prog) = frame.program {
                         self.program = Some(prog);
                     }
+                    debug!(
+                        "[VM DEBUG] Return: restoring closure to {:?}",
+                        frame.closure.as_ref().map(|c| &c.name)
+                    );
+                    self.current_closure = frame.closure;
                     self.stack.push(return_value);
                     Ok(true)
                 } else if let Some(fiber_rc) = &self.current_fiber {
@@ -576,6 +664,84 @@ impl VM {
                 let index = self.fp + (*offset as usize);
                 let value = self.stack.get(index).cloned().unwrap_or(Value::null());
                 self.stack.push(value);
+            }
+
+            Instruction::GetUpvalue(index) => {
+                let closure = self.current_closure.as_ref().ok_or_else(|| {
+                    debug!(
+                        "[VM DEBUG] GetUpvalue failed: current_closure is None! PC: {}, FP: {}",
+                        self.pc, self.fp
+                    );
+                    VMRuntimeError::ValueError(ValueError::InvalidOperation {
+                        operator: "get_upvalue".into(),
+                        left_type: ValueType::Null,
+                        right_type: ValueType::Null,
+                    })
+                })?;
+                let upvalue = &closure.upvalues[*index];
+                let val = match &*upvalue.state.borrow() {
+                    UpvalueState::Open(location) => self.stack[*location].clone(),
+                    UpvalueState::Closed(value) => value.clone(),
+                };
+                self.stack.push(val);
+            }
+
+            Instruction::SetUpvalue(index) => {
+                let val = self.stack.pop().unwrap();
+                let closure = self.current_closure.as_ref().ok_or_else(|| {
+                    VMRuntimeError::ValueError(ValueError::InvalidOperation {
+                        operator: "set_upvalue".into(),
+                        left_type: ValueType::Null,
+                        right_type: ValueType::Null,
+                    })
+                })?;
+                let upvalue = &closure.upvalues[*index];
+                match &mut *upvalue.state.borrow_mut() {
+                    UpvalueState::Open(location) => self.stack[*location] = val,
+                    UpvalueState::Closed(closed_val) => *closed_val = val,
+                }
+            }
+
+            Instruction::CloseUpvalue => {
+                self.close_upvalues(self.stack.len() - 1);
+                self.stack.pop();
+            }
+            Instruction::CloseUpvaluesAbove(offset) => {
+                self.close_upvalues(self.fp + offset);
+            }
+
+            Instruction::Closure(name) => {
+                let symbol = program
+                    .syms
+                    .get(name)
+                    .ok_or_else(|| VMRuntimeError::UndefinedVariable(format!("Function symbol not found: {}", name)))?;
+
+                let mut upvalues = Vec::new();
+                for (is_local, index) in &symbol.upvalues {
+                    if *is_local {
+                        upvalues.push(ObjUpvalue {
+                            state: self.capture_upvalue(self.fp + index),
+                        });
+                    } else {
+                        let current = self.current_closure.as_ref().ok_or_else(|| {
+                            VMRuntimeError::ValueError(ValueError::InvalidOperation {
+                                operator: "closure".into(),
+                                left_type: ValueType::Null,
+                                right_type: ValueType::Null,
+                            })
+                        })?;
+                        upvalues.push(current.upvalues[*index].clone());
+                    }
+                }
+
+                let closure = ObjClosure {
+                    name: name.clone(),
+                    func_symbol: symbol.clone(),
+                    program: self.program.clone().unwrap(),
+                    upvalues,
+                };
+
+                self.stack.push(Value::Fn(Rc::new(closure)));
             }
 
             Instruction::NewObject => {
@@ -738,47 +904,33 @@ impl VM {
                 let func_val = self.stack.remove(func_idx);
 
                 return match func_val {
-                    Value::Closure(func_name, prog_rc) => {
-                        let func_label = format!("func_{}", func_name);
-                        if let Some(target_symbol) = prog_rc.syms.get(&func_label) {
-                            if *arg_count != target_symbol.narguments {
-                                return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                                    operator: "call_stack".to_string(),
-                                    left_type: ValueType::Function,
-                                    right_type: ValueType::Null,
-                                }));
-                            }
-
-                            self.call_stack.push((self.pc, self.fp, self.program.clone()));
-                            self.fp = self.stack.len() - *arg_count;
-                            self.program = Some(prog_rc.clone());
-
-                            self.stack.resize(self.fp + target_symbol.nlocals, Value::null());
-                            self.pc = (target_symbol.location as usize) - 1;
-                            Ok(true)
-                        } else {
-                            Err(VMRuntimeError::UndefinedVariable(format!("function: {}", func_name)))
+                    Value::Fn(closure) => {
+                        let sym = &closure.func_symbol;
+                        if *arg_count != sym.narguments {
+                            return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
+                                operator: "call_stack".to_string(),
+                                left_type: ValueType::Function,
+                                right_type: ValueType::Null,
+                            }));
                         }
-                    }
-                    Value::Function(func_name) => {
-                        let func_label = format!("func_{}", func_name);
-                        if let Some(target_symbol) = program.syms.get(&func_label) {
-                            if *arg_count != target_symbol.narguments {
-                                return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                                    operator: "call_stack".to_string(),
-                                    left_type: ValueType::Function,
-                                    right_type: ValueType::Null,
-                                }));
-                            }
 
-                            self.call_stack.push((self.pc, self.fp, self.program.clone()));
-                            self.fp = self.stack.len() - *arg_count;
-                            self.stack.resize(self.fp + target_symbol.nlocals, Value::null());
-                            self.pc = (target_symbol.location as usize) - 1;
-                            Ok(true)
-                        } else {
-                            Err(VMRuntimeError::UndefinedVariable(format!("function: {}", func_name)))
-                        }
+                        self.call_stack.push(CallFrame {
+                            pc: self.pc,
+                            fp: self.fp,
+                            program: self.program.clone(),
+                            closure: self.current_closure.clone(),
+                        });
+                        self.fp = self.stack.len() - *arg_count;
+                        self.program = Some(closure.program.clone());
+                        self.current_closure = Some(closure.clone());
+                        debug!(
+                            "[VM DEBUG] Call Fn: {}, new current_closure: Some({})",
+                            closure.name, closure.name
+                        );
+
+                        self.stack.resize(self.fp + sym.nlocals, Value::null());
+                        self.pc = (sym.location as usize) - 1;
+                        Ok(true)
                     }
                     Value::NativeFunction(native_fn) => {
                         let start_index = self

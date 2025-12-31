@@ -33,7 +33,7 @@ use native_coroutine::create_coroutine_object;
 use native_string_prototype::create_string_prototype;
 pub use program::{Instruction, Program, Symbol};
 
-pub(crate) use crate::value::{NativeFnType, Value, ValueError, ValueType};
+pub(crate) use crate::value::{NativeFnType, ObjClosure, Value, ValueError, ValueType};
 
 /// 虚拟机实现
 pub struct VM {
@@ -41,16 +41,18 @@ pub struct VM {
     pub variables: IndexMap<String, Value>, // 全局变量存储
     pub pc: usize,                          // 程序计数器
     pub fp: usize,                          // 帧指针
-    // (pc, fp, program)
-    pub call_stack: Vec<(usize, usize, Option<Rc<Program>>)>, // 调用栈
-    pub module_cache: IndexMap<String, Value>,                // Module Cache
-    pub stdout: Box<dyn Write>,                               // 标准输出
-    pub array_prototype: Value,                               // 数组原型对象
-    pub string_prototype: Value,                              // 字符串原型对象
+    // (pc, fp, program, closure)
+    pub call_stack: Vec<fiber::CallFrame>,     // 调用栈
+    pub module_cache: IndexMap<String, Value>, // Module Cache
+    pub stdout: Box<dyn Write>,                // 标准输出
+    pub array_prototype: Value,                // 数组原型对象
+    pub string_prototype: Value,               // 字符串原型对象
     pub exception_handlers: Vec<ExceptionHandler>,
+    pub open_upvalues: Vec<Rc<RefCell<crate::value::UpvalueState>>>,
 
     pub current_fiber: Option<Rc<RefCell<Fiber>>>,
     pub program: Option<Rc<Program>>,
+    pub current_closure: Option<Rc<ObjClosure>>,
 }
 
 impl Default for VM {
@@ -79,8 +81,10 @@ impl VM {
             array_prototype: create_array_prototype(),
             string_prototype: create_string_prototype(),
             exception_handlers: Vec::new(),
+            open_upvalues: Vec::new(),
             current_fiber: None,
             program: None,
+            current_closure: None,
             module_cache: IndexMap::new(),
         }
     }
