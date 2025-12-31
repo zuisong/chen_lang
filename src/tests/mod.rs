@@ -1,4 +1,5 @@
 mod coroutine_test;
+mod lua_coroutine_test;
 mod object_test;
 mod parse_test;
 mod parser_comprehensive_test;
