@@ -64,23 +64,38 @@ impl VM {
                     last_res = self.execute_from(self.pc);
 
                     // 4. Check fiber completion and save result
-                    {
+                    // Only if execution finished successfully (not yielded)
+                    if let Ok(ref result) = last_res {
                         let mut f = fiber.borrow_mut();
-                        if f.state == FiberState::Dead || f.call_stack.is_empty() {
-                            if let Ok(ref result) = last_res {
-                                f.result = Some(result.clone());
-                            }
+
+                        // We consider the fiber finished if:
+                        // 1. It is explicitly marked Dead (by Return instruction)
+                        // 2. It is still Running but call stack is empty (ran off end of script)
+                        // IMPORTANT: If it is Suspended, it yielded (e.g. async I/O), so we must NOT mark it dead.
+                        let is_finished =
+                            f.state == FiberState::Dead || (f.state == FiberState::Running && f.call_stack.is_empty());
+
+                        if is_finished {
+                            f.result = Some(result.clone());
                             f.state = FiberState::Dead;
                             if f.is_spawned {
-                                *self.async_state.pending_tasks.borrow_mut() -= 1;
+                                let mut pt = self.async_state.pending_tasks.borrow_mut();
+                                // println!("DEBUG: Fiber finished. Decrementing pending: {} -> {}", *pt, *pt - 1);
+                                *pt -= 1;
                             }
                             self.async_state.notify.notify_waiters();
                         }
                     }
 
                     // 5. Check if we need to propagate error
-                    if let Err(_) = last_res {
-                        return last_res;
+                    if let Err(e) = &last_res {
+                        // If it's just a Yield, we don't propagate it as a VM error
+                        // The fiber is already suspended.
+                        if matches!(e.error, VMRuntimeError::Yield) {
+                            // Continue loop
+                        } else {
+                            return last_res;
+                        }
                     }
                 }
             }
@@ -1061,8 +1076,11 @@ impl VM {
                             .checked_sub(*arg_count)
                             .ok_or(VMRuntimeError::StackUnderflow("CallStack native: missing args".into()))?;
                         let args: Vec<Value> = self.stack.drain(start_index..).collect();
-                        let result = native_fn(self, args)?;
-                        self.stack.push(result);
+
+                        let result = native_fn(self, args);
+                        let val = result?;
+
+                        self.stack.push(val);
                         Ok(true)
                     }
                     _ => Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {

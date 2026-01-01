@@ -327,6 +327,43 @@ let resp = http.request("GET", url)
 println("Status: " + resp.status)
 let data = json.parse(resp.body)
 println("Response JSON origin: " + data.origin)
+`,
+    concurrent_http: `# Feature: Concurrent HTTP Requests
+let http = import "stdlib/http"
+let json = import "stdlib/json"
+let println = import "stdlib/io".println
+
+println("Starting concurrent HTTP requests...")
+
+# Helper function to fetch URL and return status
+def fetch_status(url) {
+    let resp = http.request("GET", url)
+    return resp.status
+}
+
+# Create coroutines for parallel requests
+let co1 = coroutine.create(def() { fetch_status("https://httpbin.org/delay/1") })
+let co2 = coroutine.create(def() { fetch_status("https://httpbin.org/delay/1") })
+let co3 = coroutine.create(def() {
+    let resp = http.request("GET", "https://httpbin.org/uuid")
+    let data = json.parse(resp.body)
+    return data.uuid
+})
+
+# Spawn all coroutines (non-blocking)
+coroutine.spawn(co1)
+coroutine.spawn(co2)
+coroutine.spawn(co3)
+
+println("All requests started, waiting for completion...")
+
+# Wait for all to complete
+let results = coroutine.await_all([co1, co2, co3])
+
+println("All requests completed!")
+println("Request 1 status: " + results[0])
+println("Request 2 status: " + results[1])
+println("Request 3 UUID: " + results[2])
 `
 };
 

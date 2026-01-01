@@ -445,7 +445,11 @@ fn native_coroutine_spawn(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRunt
         .ready_queue
         .borrow_mut()
         .push_back((fiber_rc.clone(), Value::Null));
+
     *vm.async_state.pending_tasks.borrow_mut() += 1;
+
+    // 通知事件循环有新任务
+    vm.async_state.notify.notify_waiters();
 
     // 立即返回协程对象（不阻塞）
     Ok(args[0].clone())

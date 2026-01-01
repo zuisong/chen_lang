@@ -16,20 +16,6 @@ fn run_code(code: &str) -> String {
 fn test_timer_sleep() {
     // Tests that we can sleep for a duration
     // And that the VM waits for it.
-    let code = r#"
-    let timer = import "stdlib/timer"
-    let start = stdlib.date.now()
-    timer.sleep(200)
-    let end = stdlib.date.now()
-    
-    # Check if time passed is at least 200ms
-    # Using a small margin for error (Rust test env might be slow or fast, but delta should be positive)
-    if (end - start) >= 200 { 
-        return "OK" 
-    } else {
-        return "Too fast: " + (end - start)
-    }
-    "#;
 
     // NOTE: stdlib.date.now() returns milliseconds.
     // importing stdlib/date implicitly? No, `stdlib.date` is not standard.
@@ -69,4 +55,43 @@ fn test_async_interleaving() {
     return "Done"
     "#;
     assert_eq!(run_code(code), "Done");
+}
+
+#[test]
+fn test_spawn_closure_with_sleep() {
+    let code = r#"
+    let timer = import "stdlib/timer"
+    let co = coroutine.create(def() {
+        # 匿名函数直接调用 native async，这会触发 Yield
+        timer.sleep(50)
+        return "WakeUp"
+    })
+    
+    coroutine.spawn(co)
+    let results = coroutine.await_all([co])
+    
+    return results[0]
+    "#;
+
+    assert_eq!(run_code(code), "WakeUp");
+}
+
+#[test]
+fn test_spawn_closure_captures_and_sleep() {
+    let code = r#"
+    let timer = import "stdlib/timer"
+    let msg = "Capturing"
+    
+    let co = coroutine.create(def() {
+        timer.sleep(10)
+        return msg + " Works"
+    })
+    
+    coroutine.spawn(co)
+    let results = coroutine.await_all([co])
+    
+    return results[0]
+    "#;
+
+    assert_eq!(run_code(code), "Capturing Works");
 }
