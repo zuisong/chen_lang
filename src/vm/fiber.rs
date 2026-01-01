@@ -39,6 +39,12 @@ pub struct Fiber {
     pub caller: Option<Rc<RefCell<Fiber>>>,
     pub current_closure: Option<Rc<ObjClosure>>,
     pub program: Option<Rc<Program>>,
+    /// 协程完成时的返回值（用于 await_all）
+    pub result: Option<Value>,
+    /// 标记：恢复执行时是否跳过 push 值（用于 spawn 的新协程）
+    pub skip_push_on_resume: bool,
+    /// 标记：是否是 spawn 创建的协程（完成时需要减少 pending_tasks）
+    pub is_spawned: bool,
 }
 
 impl Default for Fiber {
@@ -59,6 +65,9 @@ impl Fiber {
             caller: None,
             current_closure: None,
             program: None,
+            result: None,
+            skip_push_on_resume: false,
+            is_spawned: false,
         }
     }
 }

@@ -21,13 +21,10 @@ impl VM {
         self.execute_rc(Rc::new(program.clone()))
     }
 
-    /// Execute program asynchronously (for WASM).
-    /// This keeps the VM alive to handle callbacks.
-    #[cfg(target_arch = "wasm32")]
-    pub async fn execute_async(&mut self, program: Rc<Program>) -> VMResult {
-        let saved_program = self.program.clone();
-        self.program = Some(program.clone());
-
+    /// 核心事件循环 - 处理就绪任务并等待新任务
+    /// 统一的 async 实现，被 Native 和 WASM 版本共用
+    async fn run_event_loop(&mut self) -> VMResult {
+        // Initial Execution
         let mut last_res = self.execute_from(0);
 
         loop {
@@ -46,16 +43,43 @@ impl VM {
 
             if !ready_tasks.is_empty() {
                 did_work = true;
+                // Resume all ready tasks
                 for (fiber, val) in ready_tasks {
+                    // 1. Set current fiber
                     self.current_fiber = Some(fiber.clone());
                     self.load_state_from_fiber(&fiber.borrow());
 
-                    self.stack.push(val);
+                    // 2. Push result to stack (only if not a new spawned coroutine)
+                    {
+                        let mut f = fiber.borrow_mut();
+                        if f.skip_push_on_resume {
+                            f.skip_push_on_resume = false;
+                        } else {
+                            self.stack.push(val);
+                        }
+                    }
+
+                    // 3. Continue execution
                     fiber.borrow_mut().state = FiberState::Running;
                     last_res = self.execute_from(self.pc);
 
+                    // 4. Check fiber completion and save result
+                    {
+                        let mut f = fiber.borrow_mut();
+                        if f.state == FiberState::Dead || f.call_stack.is_empty() {
+                            if let Ok(ref result) = last_res {
+                                f.result = Some(result.clone());
+                            }
+                            f.state = FiberState::Dead;
+                            if f.is_spawned {
+                                *self.async_state.pending_tasks.borrow_mut() -= 1;
+                            }
+                            self.async_state.notify.notify_waiters();
+                        }
+                    }
+
+                    // 5. Check if we need to propagate error
                     if let Err(_) = last_res {
-                        self.program = saved_program;
                         return last_res;
                     }
                 }
@@ -66,31 +90,34 @@ impl VM {
                 if pending == 0 {
                     break;
                 }
-
-                // Wait for notification
+                // Wait for notification from async tasks
                 self.async_state.notify.notified().await;
             }
         }
 
-        self.program = saved_program;
         last_res
+    }
+
+    /// Execute program asynchronously (for WASM).
+    /// This keeps the VM alive to handle callbacks.
+    #[cfg(target_arch = "wasm32")]
+    pub async fn execute_async(&mut self, program: Rc<Program>) -> VMResult {
+        let saved_program = self.program.clone();
+        self.program = Some(program.clone());
+
+        let res = self.run_event_loop().await;
+
+        self.program = saved_program;
+        res
     }
 
     pub fn execute_rc(&mut self, program: Rc<Program>) -> VMResult {
         let saved_program = self.program.clone();
         self.program = Some(program.clone());
 
-        // Check if we are already in a usage runtime (e.g. recursive import or nested call)
-        // If so, we should not create a new runtime or block_on.
-        // We just run the logic directly in the current context.
+        // Check if we are already in a runtime (e.g. recursive import or nested call)
         if tokio::runtime::Handle::try_current().is_ok() {
-            // Already in a runtime.
-            // Just run execute_from(0) synchronously (as far as this frame is concerned).
-            // If it Yields, it returns Err(Yield).
-            // Note: If we are in 'block_on' of outer VM, we are driving the LocalSet.
-            // If we just call execute_from, any new async tasks spawned via spawn_local
-            // will be registered to the CURRENT LocalSet (thread-local).
-            // So this works perfectly for recursive imports.
+            // Already in a runtime - just run synchronously
             let res = self.execute_from(0);
             self.program = saved_program;
             return res;
@@ -105,77 +132,13 @@ impl VM {
 
             let local = tokio::task::LocalSet::new();
 
-            local.block_on(&rt, async {
-                // Initial Execution
-                let mut last_res = self.execute_from(0);
-
-                // Event Loop
-                loop {
-                    // Check if we have a result that is NOT an error (or is a recoverable yield?)
-                    // For now, execute_from returns on Error or End of Program.
-                    // But we need to handle "Suspended" if the main program yields?
-                    // Actually execute_from returns result value.
-
-                    // Process Ready Queue (Async Tasks Completion)
-                    let mut did_work = false;
-                    let queue = self.async_state.ready_queue.clone();
-
-                    // We must detach borrow to allow mutation during resume
-                    let mut ready_tasks = Vec::new();
-                    {
-                        let mut q = queue.borrow_mut();
-                        while let Some(task) = q.pop_front() {
-                            ready_tasks.push(task);
-                        }
-                    }
-
-                    if !ready_tasks.is_empty() {
-                        did_work = true;
-                        // Resume all ready tasks
-                        for (fiber, val) in ready_tasks {
-                            // Resume Logic (Similar to native_coroutine_resume but from Root)
-                            // 1. Set current fiber
-                            self.current_fiber = Some(fiber.clone());
-                            self.load_state_from_fiber(&fiber.borrow());
-
-                            // 2. Push result to stack (as return from yield)
-                            self.stack.push(val);
-
-                            // 3. Continue execution
-                            fiber.borrow_mut().state = FiberState::Running;
-                            last_res = self.execute_from(self.pc);
-
-                            // 4. Check if we need to propagate error
-                            if let Err(_) = last_res {
-                                return last_res;
-                            }
-                        }
-                    }
-
-                    if !did_work {
-                        // Check if we have any pending tasks in the runtime
-                        let pending = *self.async_state.pending_tasks.borrow();
-                        if pending == 0 {
-                            // No ready tasks AND no pending background tasks -> We are done.
-                            break;
-                        }
-
-                        // We have pending tasks (e.g. Timer, I/O), so we wait.
-                        // We have pending tasks (e.g. Timer, I/O), so we wait.
-                        // Yield to Tokio runtime to let it poll resources.
-                        // On Native, we notify wait.
-                        self.async_state.notify.notified().await;
-                    }
-                }
-
-                last_res
-            })
+            local.block_on(&rt, self.run_event_loop())
         };
 
         #[cfg(target_arch = "wasm32")]
         let res = self.execute_from(0);
 
-        self.program = saved_program; // Restore previous program
+        self.program = saved_program;
         res
     }
 
