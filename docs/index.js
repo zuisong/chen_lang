@@ -364,6 +364,48 @@ println("All requests completed!")
 println("Request 1 status: " + results[0])
 println("Request 2 status: " + results[1])
 println("Request 3 UUID: " + results[2])
+`,
+    christmas_tree: `# Merry Christmas!
+let println = import "stdlib/io".println
+
+# Simple string repeat function
+def repeat(str, count) {
+    let res = ""
+    let i = 0
+    for i < count {
+        res = res + str
+        i = i + 1
+    }
+    return res
+}
+
+def print_tree(height) {
+    println("🎄 Merry Christmas! 🎄")
+    println("")
+
+    # Print leaves
+    let i = 1
+    for i <= height {
+        let spaces = repeat(" ", height - i)
+        let stars = repeat("*", 2 * i - 1)
+        println(spaces + stars)
+        i = i + 1
+    }
+
+    # Print trunk
+    let trunk_padding = repeat(" ", height - 2)
+    
+    let j = 0
+    for j < 2 {
+        println(trunk_padding + "###")
+        j = j + 1
+    }
+    
+    println("")
+    println(repeat(" ", height - 4) + "Happy New Year!")
+}
+
+print_tree(10)
 `
 };
 
@@ -455,11 +497,20 @@ async function run() {
 
     runBtn.addEventListener('click', async () => {
         const code = codeArea.value;
+        outputArea.textContent = '';
+
+        window.print_output = (text) => {
+            outputArea.textContent += text;
+            outputArea.scrollTop = outputArea.scrollHeight;
+        };
+
         try {
             const result = await run_wasm(code);
-            outputArea.textContent = result;
+            if (result) outputArea.textContent += result;
         } catch (e) {
-            outputArea.textContent = `Error: ${e}`;
+            outputArea.textContent += `Error: ${e}`;
+        } finally {
+            window.print_output = null;
         }
     });
 

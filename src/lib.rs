@@ -193,6 +193,28 @@ fn get_line_range(code: &str, line: u32) -> Range<usize> {
 
 #[cfg(all(feature = "wasm", target_arch = "wasm32"))]
 #[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_name = print_output)]
+    fn print_output(s: &str);
+}
+
+#[cfg(all(feature = "wasm", target_arch = "wasm32"))]
+struct RealtimeWriter;
+
+#[cfg(all(feature = "wasm", target_arch = "wasm32"))]
+impl Write for RealtimeWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let s = String::from_utf8_lossy(buf);
+        print_output(&s);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[cfg(all(feature = "wasm", target_arch = "wasm32"))]
+#[wasm_bindgen]
 pub async fn run_wasm(code: String) -> String {
     use std::rc::Rc;
 
@@ -201,8 +223,7 @@ pub async fn run_wasm(code: String) -> String {
 
         let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
 
-        let output = Arc::new(Mutex::new(Vec::new()));
-        let writer = SharedWriter(output.clone());
+        let writer = RealtimeWriter;
 
         {
             let mut vm = vm::VM::with_writer(Box::new(writer));
@@ -210,8 +231,7 @@ pub async fn run_wasm(code: String) -> String {
             let _result = vm.execute_async(Rc::new(program)).await?;
         }
 
-        let output_vec = output.lock().unwrap().clone();
-        Ok::<String, ChenError>(String::from_utf8(output_vec)?)
+        Ok::<String, ChenError>(String::new())
     }
     .await;
 
