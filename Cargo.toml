@@ -1,34 +1,29 @@
 [package]
-authors = ["zuisong <378818573@qq.com>"]
-default-run = "chen_lang"
-edition = "2024"
 name = "chen_lang"
 version = "0.1.0"
-description = "A tiny programming language written in rust"
+edition = "2024"
 rust-version = "1.90"
-
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = false
+description = "A tiny programming language written in rust"
+default-run = "chen_lang"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [features]
 binaries = ["dep:clap", "dep:clap_complete", "dep:tracing-subscriber"]
-wasm = ["dep:wasm-bindgen"]
+wasm = ["dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
 pest-parser = ["dep:pest", "dep:pest_derive"]
 http = ["dep:reqwest"]  # HTTP 客户端（支持 WASM）
-default = ["binaries", "wasm", "winnow-tokenizer", "http"]
 winnow-tokenizer = ["dep:winnow"]
-
-
+default = ["binaries", "wasm", "winnow-tokenizer", "http"]
 
 [dependencies]
 thiserror = "2"
-winnow = { version = "0.7",optional = true }
+winnow = { version = "0.7", optional = true }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
 clap = { version = "4", optional = true, default-features = false, features = ["derive", "help", "suggestions"] }
 clap_complete = { version = "4", optional = true }
 pest = { version = "2.8.4", optional = true }
@@ -38,25 +33,16 @@ jiff = { version = "0.2", features = ["js"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 anyhow = { version = "1.0.100" }
-codespan-reporting = { version = "0.13.1",default-features = false , features = ["std"]}
+codespan-reporting = { version = "0.13.1", default-features = false, features = ["std"] }
 rust_decimal = { version = "1.39.0", features = ["serde-float", "macros"] }
+reqwest = { version = "0.13", features = ["json"], optional = true }
 tokio = { version = "1.48.0", default-features = false, features = ["sync", "macros", "rt", "time", "io-util"] }
-reqwest = { version = "0.13", features = ["json"], optional = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tokio = { version = "1.48.0", features = ["full"] }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-reqwest = { version = "0.13", features = ["json"], optional = true }
-wasm-bindgen-futures = "0.4"
-getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
+pretty_assertions = { version = "1", features = ["unstable"] }
 assert_cmd = "2"
 mockito = "1.7.1"
-pretty_assertions = { version = "1", features = ["unstable"] }
 tempfile = "3"
-
 
 #[profile.release]
 #strip = true      # Automatically strip symbols from the binary.

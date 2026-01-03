@@ -1,9 +1,6 @@
 {
   "name": "chen_lang",
   "type": "module",
-  "collaborators": [
-    "zuisong <378818573@qq.com>"
-  ],
   "description": "A tiny programming language written in rust",
   "version": "0.1.0",
   "files": [

@@ -9,11 +9,11 @@ export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly run: (a: number, b: number) => void;
   readonly run_wasm: (a: number, b: number) => any;
-  readonly wasm_bindgen_3453c9d0e447211b___convert__closures_____invoke___wasm_bindgen_3453c9d0e447211b___JsValue_____: (a: number, b: number, c: any) => void;
-  readonly wasm_bindgen_3453c9d0e447211b___closure__destroy___dyn_core_1ea7ec8b69c1cd75___ops__function__FnMut__wasm_bindgen_3453c9d0e447211b___JsValue____Output_______: (a: number, b: number) => void;
-  readonly wasm_bindgen_3453c9d0e447211b___convert__closures_____invoke______: (a: number, b: number) => void;
-  readonly wasm_bindgen_3453c9d0e447211b___closure__destroy___dyn_core_1ea7ec8b69c1cd75___ops__function__FnMut_____Output_______: (a: number, b: number) => void;
-  readonly wasm_bindgen_3453c9d0e447211b___convert__closures_____invoke___wasm_bindgen_3453c9d0e447211b___JsValue__wasm_bindgen_3453c9d0e447211b___JsValue_____: (a: number, b: number, c: any, d: any) => void;
+  readonly wasm_bindgen_fe44445030365f0d___convert__closures_____invoke______: (a: number, b: number) => void;
+  readonly wasm_bindgen_fe44445030365f0d___closure__destroy___dyn_core_1ea7ec8b69c1cd75___ops__function__FnMut_____Output_______: (a: number, b: number) => void;
+  readonly wasm_bindgen_fe44445030365f0d___convert__closures_____invoke___wasm_bindgen_fe44445030365f0d___JsValue_____: (a: number, b: number, c: any) => void;
+  readonly wasm_bindgen_fe44445030365f0d___closure__destroy___dyn_core_1ea7ec8b69c1cd75___ops__function__FnMut__wasm_bindgen_fe44445030365f0d___JsValue____Output_______: (a: number, b: number) => void;
+  readonly wasm_bindgen_fe44445030365f0d___convert__closures_____invoke___wasm_bindgen_fe44445030365f0d___JsValue__wasm_bindgen_fe44445030365f0d___JsValue_____: (a: number, b: number, c: any, d: any) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;
