@@ -1,0 +1,13 @@
+{
+  "languageserver": {
+    "chen": {
+      "command": "chen_lang_lsp",
+      "filetypes": ["chen"],
+      "rootPatterns": [".git/"],
+      "settings": {}
+    }
+  },
+  "files.associations": {
+    "*.ch": "chen"
+  }
+}

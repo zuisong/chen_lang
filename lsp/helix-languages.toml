@@ -1,0 +1,14 @@
+[language-server.chens]
+command = "chen_lang_lsp"
+
+[[language]]
+name = "chen"
+scope = "source.chen"
+file-types = ["ch"]
+roots = [".git/"]
+language-servers = ["chens"]
+indent = { tab-width = 4, unit = "    " }
+
+[[grammar]]
+name = "chen"
+source = { git = "https://github.com/chen-lang/tree-sitter-chen", rev = "main" }
