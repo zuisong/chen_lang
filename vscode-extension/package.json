@@ -1,0 +1,86 @@
+{
+  "name": "chen-lang",
+  "displayName": "Chen Lang",
+  "description": "Chen Lang language support with LSP",
+  "version": "0.2.0",
+  "publisher": "chen-lang",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zuisong/chen_lang"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "chen",
+    "chen-lang",
+    "language-server"
+  ],
+  "activationEvents": [
+    "onLanguage:chen"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "chen",
+        "aliases": [
+          "Chen Lang",
+          "chen"
+        ],
+        "extensions": [
+          ".ch"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icon.png",
+          "dark": "./icon.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "chen",
+        "scopeName": "source.chen",
+        "path": "./syntaxes/chen.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Chen Lang",
+      "properties": {
+        "chenLang.lsp.path": {
+          "type": "string",
+          "default": "chen_lang_lsp",
+          "description": "Path to chen_lang_lsp executable (default: use PATH)"
+        },
+        "chenLang.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the language server"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "bun run compile",
+    "compile": "bun build src/extension.ts --outdir out --target node --format cjs --external vscode",
+    "watch": "bun build src/extension.ts --outdir out --target node --format cjs --external vscode --watch",
+    "package": "bun run compile && bunx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "@types/vscode": "^1.75.0",
+    "@vscode/vsce": "^3.7.1",
+    "typescript": "^5.3.0",
+    "vscode-languageclient": "^9.0.1"
+  }
+}

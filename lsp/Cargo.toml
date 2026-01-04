@@ -1,0 +1,24 @@
+[package]
+name = "chen_lang_lsp"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chen_lang = { path = ".." }
+tower-lsp-server = "0.23"
+tokio = { version = "1", features = ["rt-multi-thread", "io-std", "macros"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+ropey = "1.6"
+dashmap = "6"
+anyhow = "1"
+
+[lib]
+name = "chen_lang_lsp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "chen_lang_lsp"
+path = "src/bin.rs"

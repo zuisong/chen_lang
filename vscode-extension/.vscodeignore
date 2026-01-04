@@ -1,0 +1,9 @@
+node_modules/
+src/
+*.vsix
+.vscode-test/
+tsconfig.json
+.gitignore
+build.sh
+*.md
+!README.md
