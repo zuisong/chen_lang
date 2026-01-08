@@ -44,6 +44,8 @@ pub mod tokenizer;
 pub mod value;
 /// 虚拟机模块
 pub mod vm;
+/// TinyCompiler 演示编译器
+pub mod tiny_compiler;
 
 /// 测试模块
 #[cfg(test)]
