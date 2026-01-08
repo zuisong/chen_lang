@@ -2,7 +2,7 @@ let io = import "stdlib/io"
 let print = io.print
 let println = io.println
 
-let obj = #{ a: 1, b: 2 }
+let obj = ${ a: 1, b: 2 }
 let keys = obj:keys()
 println("Object keys:", keys)
 println("Keys length:", keys:len())

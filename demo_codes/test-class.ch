@@ -11,15 +11,15 @@ def NewPoint(x, y) {
         return "(" + self.x + "," + self.y + "," + self.now:format('%Y-%m-%d %H:%M:%S') + ")"
     }
 
-    let methods = #{
+    let methods = ${
         str: point_str
     }
     let d = Date:new()
     println(d.__type)
     println(d:format('%Y'))
 
-    let instance = #{ x: x, y: y, now: d }
-    set_meta(instance, #{ __index: methods })
+    let instance = ${ x: x, y: y, now: d }
+    set_meta(instance, ${ __index: methods })
 
     return instance
 }

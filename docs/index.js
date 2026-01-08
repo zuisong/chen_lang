@@ -68,15 +68,15 @@ let io = import "stdlib/io"
 let println = io.println
 
 def Person(name) {
-    let p = #{ name: name }
+    let p = \${ name: name }
 
     def greet(self) {
         println("Hello, my name is " + self.name)
     }
 
     # Set prototype (methods)
-    set_meta(p, #{
-        __index: #{ greet: greet }
+    set_meta(p, \${ 
+        __index: \${ greet: greet }
     })
     return p
 }
@@ -90,11 +90,11 @@ let println = io.println
 
 # Base "Class"
 def Animal(name) {
-    let a = #{ name: name }
+    let a = \${ name: name }
     def speak(self) {
         println(self.name + " makes a noise.")
     }
-    set_meta(a, #{ __index: #{ speak: speak } })
+    set_meta(a, \${ __index: \${ speak: speak } })
     return a
 }
 
@@ -113,11 +113,11 @@ def Dog(name) {
     let base_proto = get_meta(d).__index
 
     # Create new prototype that inherits from base_proto
-    let dog_proto = #{ bark: bark }
-    set_meta(dog_proto, #{ __index: base_proto })
+    let dog_proto = \${ bark: bark }
+    set_meta(dog_proto, \${ __index: base_proto })
 
     # 4. Update instance's metatable to use new prototype
-    set_meta(d, #{ __index: dog_proto })
+    set_meta(d, \${ __index: dog_proto })
 
     return d
 }
@@ -132,8 +132,8 @@ let println = io.println
 
 
 # Define Point prototype (shared methods and metamethods)
-let Point = #{
-    __index: #{
+let Point = \${ 
+    __index: \${ 
         # Method: Return string representation
         to_string: def(self) {
             return "Point(" + self.x + ", " + self.y + ")"
@@ -161,7 +161,7 @@ let Point = #{
 
 # Constructor function for Point objects
 def new_Point(x_coord, y_coord) {
-    let instance = #{
+    let instance = \${ 
         x: x_coord,
         y: y_coord
     }
@@ -215,7 +215,7 @@ let io = import "stdlib/io"
 let JSON = import "stdlib/json"
 let println = io.println
 
-let data = #{
+let data = \${ 
     name: "Chen Lang",
     features: ["Simple", "Dynamic", "Rust-based"],
     version: 0.1
@@ -435,7 +435,7 @@ async function run() {
 
         // Syntax Rules
         const rules = [
-            { rex: /(?<=^|\s|;)(#[^\{].*|#$)/g, cls: 'comment' },
+            { rex: /(?<=^|\\s|;)(#.*|#$)/g, cls: 'comment' },
             { rex: /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g, cls: 'string' },
             { rex: /\b(let|def|if|else|return|for|break|continue|async|await|try|catch|finally|throw)\b/g, cls: 'keyword' },
             { rex: /\b(true|false)\b/g, cls: 'boolean' },

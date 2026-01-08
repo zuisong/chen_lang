@@ -54,16 +54,16 @@ fn test_metatable_add_operator() {
     let code = r#"
         let io = import "stdlib/io"
         let print = io.print
-        let PointMeta = #{
+        let PointMeta = ${
             __add: def(a, b) {
-                return #{ x: a.x + b.x, y: a.y + b.y }
+                return ${ x: a.x + b.x, y: a.y + b.y }
             }
         }
 
-        let p1 = #{ x: 10, y: 20 }
+        let p1 = ${ x: 10, y: 20 }
         set_meta(p1, PointMeta)
 
-        let p2 = #{ x: 3, y: 5 }
+        let p2 = ${ x: 3, y: 5 }
         set_meta(p2, PointMeta)
 
         let p3 = p1 + p2
@@ -81,15 +81,15 @@ fn test_metatable_add_symmetric_lookup() {
     let code = r#"
         let io = import "stdlib/io"
         let print = io.print
-        let VectorMeta = #{
+        let VectorMeta = ${
             __add: def(a, b) {
-                return #{ x: a.x + b.x, y: a.y + b.y }
+                return ${ x: a.x + b.x, y: a.y + b.y }
             }
         }
 
-        let point = #{ x: 1, y: 2 } # No metatable for point
+        let point = ${ x: 1, y: 2 } # No metatable for point
 
-        let vector = #{ x: 10, y: 20 }
+        let vector = ${ x: 10, y: 20 }
         set_meta(vector, VectorMeta)
 
         let result = point + vector # point is left_val, vector is right_val. left_val has no metamethod.
@@ -107,16 +107,16 @@ fn test_metatable_subtract_operator() {
     let code = r#"
         let io = import "stdlib/io"
         let print = io.print
-        let PointMeta = #{
+        let PointMeta = ${
             __sub: def(a, b) {
-                return #{ x: a.x - b.x, y: a.y - b.y }
+                return ${ x: a.x - b.x, y: a.y - b.y }
             }
         }
 
-        let p1 = #{ x: 30, y: 25 }
+        let p1 = ${ x: 30, y: 25 }
         set_meta(p1, PointMeta)
 
-        let p2 = #{ x: 10, y: 5 }
+        let p2 = ${ x: 10, y: 5 }
         set_meta(p2, PointMeta)
 
         let p3 = p1 - p2
@@ -134,16 +134,16 @@ fn test_metatable_multiply_operator() {
     let code = r#"
         let io = import "stdlib/io"
         let print = io.print
-        let PointMeta = #{
+        let PointMeta = ${
             __mul: def(a, b) {
-                return #{ x: a.x * b.x, y: a.y * b.y }
+                return ${ x: a.x * b.x, y: a.y * b.y }
             }
         }
 
-        let p1 = #{ x: 5, y: 10 }
+        let p1 = ${ x: 5, y: 10 }
         set_meta(p1, PointMeta)
 
-        let p2 = #{ x: 2, y: 3 }
+        let p2 = ${ x: 2, y: 3 }
         set_meta(p2, PointMeta)
 
         let p3 = p1 * p2
@@ -161,15 +161,15 @@ fn test_metatable_subtract_symmetric_lookup() {
     let code = r#"
         let io = import "stdlib/io"
         let print = io.print
-        let VectorMeta = #{
+        let VectorMeta = ${
             __sub: def(a, b) {
-                return #{ x: a.x - b.x, y: a.y - b.y }
+                return ${ x: a.x - b.x, y: a.y - b.y }
             }
         }
 
-        let point = #{ x: 10, y: 20 } # No metatable for point
+        let point = ${ x: 10, y: 20 } # No metatable for point
 
-        let vector = #{ x: 100, y: 50 }
+        let vector = ${ x: 100, y: 50 }
         set_meta(vector, VectorMeta)
 
         let result = vector - point # vector is left_val, point is right_val. point has no metamethod.
@@ -187,15 +187,15 @@ fn test_metatable_multiply_symmetric_lookup() {
     let code = r#"
         let io = import "stdlib/io"
         let print = io.print
-        let VectorMeta = #{
+        let VectorMeta = ${
             __mul: def(a, b) {
-                return #{ x: a.x * b.x, y: a.y * b.y }
+                return ${ x: a.x * b.x, y: a.y * b.y }
             }
         }
 
-        let point = #{ x: 3, y: 5 } # No metatable for point
+        let point = ${ x: 3, y: 5 } # No metatable for point
 
-        let vector = #{ x: 10, y: 20 }
+        let vector = ${ x: 10, y: 20 }
         set_meta(vector, VectorMeta)
 
         let result = vector * point # vector is left_val, point is right_val. point has no metamethod.

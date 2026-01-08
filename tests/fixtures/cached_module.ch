@@ -1,3 +1,3 @@
 let io = import "stdlib/io"
 io.print("Module Loaded")
-return #{ val: 1 }
+return ${ val: 1 }

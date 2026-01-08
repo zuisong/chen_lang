@@ -6,7 +6,7 @@
 Chen Lang 的对象系统将模仿 Lua 的极简主义设计：
 *   **数据结构**: 仅引入一种通用数据结构 **Table** (哈希表)，用于同时表示对象 (Object) 和 字典 (Map)。
 *   **面向对象**: 不引入传统的 `class` 关键字。通过 **Metatable (元表)** 机制实现原型继承、运算符重载和自定义行为。
-*   **语法支持**: 支持对象字面量 `#{ k: v }`，属性访问 `obj.field` 和索引访问 `obj[index]`。
+*   **语法支持**: 支持对象字面量 `${ k: v }`，属性访问 `obj.field` 和索引访问 `obj[index]`。
 
 ---
 
@@ -33,12 +33,12 @@ Chen Lang 的对象系统将模仿 Lua 的极简主义设计：
 **目标**: 让 Parser 能识别对象相关的语法。
 
 *   **设计**:
-    *   **对象字面量**: `#{ key: val, key2: val2 }`。使用 `#{` 而不是 `{` 是为了避免与代码块 `Block` 的歧义。
+    *   **对象字面量**: `${ key: val, key2: val2 }`。使用 `${` 而不是 `{` 是为了避免与代码块 `Block` 的歧义。
     *   **属性访问**: `obj.field`。
     *   **索引访问**: `obj["field"]` 或 `obj[expr]`。
     *   **赋值目标**: 支持 `obj.field = val` 和 `obj[expr] = val` 作为赋值语句的左值。
 *   **实现细节**:
-    *   **Token**: `src/token.rs` 新增 `Token::Dot` (.) 和 `Token::HashLBig` (#{)。
+    *   **Token**: `src/token.rs` 新增 `Token::Dot` (.) 和 `Token::HashLBig` (${)。
     *   **AST**: `src/expression.rs` 新增 `ObjectLiteral`, `GetField`, `Index` (Expression) 和 `SetField`, `SetIndex` (Statement)。
     *   **Pest Parser**: 更新 `src/chen.pest` 和 `src/parse_pest.rs`，重构 `primary` 规则以支持后缀表达式 (`atom ~ postfix*`)。
     *   **Handwritten Parser**: 更新 `src/parse.rs`，重构 `parse_primary` 并新增 `parse_postfix_expr` 以支持链式调用和成员访问。
@@ -90,14 +90,14 @@ Chen Lang 的对象系统将模仿 Lua 的极简主义设计：
 
 *   **用户代码示例 (最终效果)**:
     ```chen
-    let Person = #{
-        __index: #{
+    let Person = ${
+        __index: ${
             say_hi: def(self) { println("Hi " + self.name) }
         }
     }
     
     def new_person(name) {
-        let p = #{ name: name }
+        let p = ${ name: name }
         set_meta(p, Person)
         return p
     }

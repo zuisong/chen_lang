@@ -2,7 +2,7 @@ let name = "Module"
 def greet(n) {
     return "Hello, " + n + " from " + name
 }
-return #{
+return ${
     name: name,
     greet: greet
 }

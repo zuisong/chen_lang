@@ -105,7 +105,7 @@ fn test_array_type_tag() {
 #[test]
 fn test_array_like_object_creation() {
     let code = r#"
-        let arr = #{ 
+        let arr = ${ 
             0: "first",
             1: "second",
             2: "third"
@@ -124,7 +124,7 @@ fn test_array_like_object_creation() {
 #[test]
 fn test_array_like_index_access() {
     let code = r#"
-        let arr = #{ 0: 10, 1: 20, 2: 30 }
+        let arr = ${ 0: 10, 1: 20, 2: 30 }
         let sum = arr[0] + arr[1] + arr[2]
         println(sum)
     "#;
@@ -136,7 +136,7 @@ fn test_array_like_index_access() {
 #[test]
 fn test_array_like_index_assignment() {
     let code = r#"
-        let arr = #{ 0: 1, 1: 2, 2: 3 }
+        let arr = ${ 0: 1, 1: 2, 2: 3 }
         arr[0] = 100
         arr[1] = 200
         println(arr[0])
@@ -153,7 +153,7 @@ fn test_array_like_index_assignment() {
 #[test]
 fn test_array_like_dynamic_indexing() {
     let code = r#"
-        let arr = #{ 0: "a", 1: "b", 2: "c" }
+        let arr = ${ 0: "a", 1: "b", 2: "c" }
         let i = 0
         for i < 3 {
             println(arr[i])
@@ -171,7 +171,7 @@ fn test_array_like_dynamic_indexing() {
 fn test_array_like_sparse_array() {
     let code = r#"
         # 稀疏数组：只有索引 0 和 100
-        let sparse = #{ 0: "start", 100: "end" }
+        let sparse = ${ 0: "start", 100: "end" }
         println(sparse[0])
         println(sparse[100])
     "#;
@@ -185,7 +185,7 @@ fn test_array_like_sparse_array() {
 fn test_array_like_mixed_keys() {
     let code = r#"
         # 混合使用数字键和字符串键
-        let mixed = #{ 
+        let mixed = ${ 
             0: "first element",
             1: "second element",
             name: "my array",
@@ -208,9 +208,9 @@ fn test_array_like_mixed_keys() {
 fn test_array_like_nested() {
     let code = r#"
         # 嵌套数组（二维数组）
-        let matrix = #{ 
-            0: #{ 0: 1, 1: 2 },
-            1: #{ 0: 3, 1: 4 }
+        let matrix = ${ 
+            0: ${ 0: 1, 1: 2 },
+            1: ${ 0: 3, 1: 4 }
         }
         println(matrix[0][0])
         println(matrix[0][1])
@@ -229,7 +229,7 @@ fn test_array_like_nested() {
 fn test_array_like_iteration() {
     let code = r#"
         # 模拟数组迭代
-        let arr = #{ 0: 10, 1: 20, 2: 30, 3: 40 }
+        let arr = ${ 0: 10, 1: 20, 2: 30, 3: 40 }
         let sum = 0
         let i = 0
         for i < 4 {
@@ -246,7 +246,7 @@ fn test_array_like_iteration() {
 #[test]
 fn test_array_like_with_strings() {
     let code = r#"
-        let names = #{ 
+        let names = ${ 
             0: "Alice",
             1: "Bob",
             2: "Charlie"

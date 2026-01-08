@@ -1,9 +1,9 @@
 // 隐式规则：自动忽略空格和注释（但不包括换行）
 WHITESPACE = _{ " " | "\t" | "\r" }
 NEWLINE = _{ "\n" }
-// 注释：# 后面不能是 { (避免和对象字面量 #{ 冲突)
+// 注释：# 开头直到行尾
 // 注意：注释不吞掉换行符，留给 stmt_sep 处理
-COMMENT = _{ "#" ~ !"{" ~ (!NEWLINE ~ ANY)* }
+COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
 
 // 关键字
 // 关键字
@@ -86,7 +86,7 @@ dot_suffix = { "." ~ identifier }
 method_suffix = { ":" ~ identifier ~ call_suffix }
 index_suffix = { "[" ~ NEWLINE* ~ expression ~ NEWLINE* ~ "]" }
 
-object_literal = { "#{" ~ NEWLINE* ~ (pair ~ ("," ~ NEWLINE* ~ pair)*)? ~ NEWLINE* ~ "}" }
+object_literal = { "${" ~ NEWLINE* ~ (pair ~ ("," ~ NEWLINE* ~ pair)*)? ~ NEWLINE* ~ "}" }
 array_literal = { "[" ~ NEWLINE* ~ (expression ~ ("," ~ NEWLINE* ~ expression)*)? ~ NEWLINE* ~ "]" }
 pair = { (identifier | integer) ~ ":" ~ NEWLINE* ~ expression }
 

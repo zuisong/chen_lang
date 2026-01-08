@@ -137,10 +137,10 @@ let empty = null
 
 ### 6. 对象 (Object)
 
-使用 `#{}` 创建对象:
+使用 `${}` 创建对象:
 
 ```python
-let person = #{
+let person = ${
     name: "Alice",
     age: 30,
     city: "Beijing"
@@ -428,7 +428,7 @@ let result = apply(double, 10)  # 20
 ### 创建对象
 
 ```python
-let person = #{
+let person = ${
     name: "Alice",
     age: 30,
     city: "Beijing"
@@ -456,7 +456,7 @@ person.email = "alice@example.com"  # 添加新属性
 调用，对象**不会**作为参数传递。
 
 ```python
-let calculator = #{
+let calculator = ${
     value: 0,
     add: def(self, n) {
         self.value = self.value + n
@@ -478,8 +478,8 @@ println(calculator:get())  # 15
 
 ```python
 # 定义 Point 原型
-let Point = #{
-    __index: #{
+let Point = ${
+    __index: ${
         to_string: def(self) {
             "Point(" + self.x + ", " + self.y + ")"
         }
@@ -491,7 +491,7 @@ let Point = #{
 
 # 构造函数
 def new_Point(x, y) {
-    let instance = #{ x: x, y: y }
+    let instance = ${ x: x, y: y }
     set_meta(instance, Point)
     return instance
 }
@@ -682,7 +682,7 @@ let io = import "stdlib/io"
 
 ```python
 # math_utils.ch
-#{
+${
     add: def(a, b) { a + b },
     sub: def(a, b) { a - b }
 }
@@ -709,7 +709,7 @@ let JSON = import "stdlib/json"
 let score = 85
 let level = if score >= 90 { "A" } else if score >= 60 { "P" } else { "F" }
 
-let result = #{
+let result = ${
     score: score,
     level: level
 }
@@ -759,7 +759,7 @@ println(formatted)  # 例如: 2025-12-10 22:40:00
 
 ```python
 # 序列化为 JSON
-let data = #{
+let data = ${
     name: "Alice",
     age: 30,
     hobbies: ["reading", "coding"]
@@ -797,7 +797,7 @@ println(text.__type)  # "String"
 ### 对象方法
 
 ```python
-let obj = #{
+let obj = ${
     name: "Alice",
     age: 30,
     city: "Beijing"
@@ -856,7 +856,7 @@ for i <= 9 {
 ### 3. 计算器对象
 
 ```python
-let calculator = #{
+let calculator = ${
     value: 0,
     add: def(self, n) {
         self.value = self.value + n
@@ -894,8 +894,8 @@ try {
 
 ```python
 # Point 原型
-let Point = #{
-    __index: #{
+let Point = ${
+    __index: ${
         to_string: def(self) {
             "Point(" + self.x + ", " + self.y + ")"
         },
@@ -913,7 +913,7 @@ let Point = #{
 }
 
 def new_Point(x, y) {
-    let instance = #{ x: x, y: y }
+    let instance = ${ x: x, y: y }
     set_meta(instance, Point)
     return instance
 }
@@ -974,7 +974,7 @@ let MAX_SIZE = 100
 
 ```python
 # 将相关功能组织在一起
-let MathUtils = #{
+let MathUtils = ${
     PI: 3.14159,
     square: def(x) { x * x },
     cube: def(x) { x * x * x }

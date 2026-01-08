@@ -69,7 +69,7 @@ mod object_tests {
     #[test]
     fn test_object_basics() {
         let code = r#"let io = import "stdlib/io"
-let obj = #{ name: "Chen", age: 25 }
+let obj = ${ name: "Chen", age: 25 }
 io.println(obj.name)
 io.println(obj.age)"#;
 
@@ -85,7 +85,7 @@ io.println(obj.age)"#;
     #[test]
     fn test_field_assignment() {
         let code = r#"let io = import "stdlib/io"
-let obj = #{ name: "Alice" }
+let obj = ${ name: "Alice" }
 obj.city = "Shanghai"
 io.println(obj.city)"#;
 
@@ -100,7 +100,7 @@ io.println(obj.city)"#;
     #[test]
     fn test_index_operations() {
         let code = r#"let io = import "stdlib/io"
-let obj = #{ name: "Bob" }
+let obj = ${ name: "Bob" }
 obj["country"] = "China"
 io.println(obj["country"])"#;
 
@@ -115,7 +115,7 @@ io.println(obj["country"])"#;
     #[test]
     fn test_nested_objects() {
         let code = r#"let io = import "stdlib/io"
-let person = #{ name: "Eve", address: #{ city: "Beijing", zip: 100000 } }
+let person = ${ name: "Eve", address: ${ city: "Beijing", zip: 100000 } }
 io.println(person.address.city)"#;
 
         let result = crate::run_captured(code.to_string());
@@ -129,14 +129,14 @@ io.println(person.address.city)"#;
     #[test]
     fn test_metatable_inheritance() {
         let code = r#"let io = import "stdlib/io"
-let Animal = #{
-    __index: #{
+let Animal = ${
+    __index: ${
         speak: "Some sound",
         legs: 4
     }
 }
 
-let dog = #{ name: "Buddy" }
+let dog = ${ name: "Buddy" }
 set_meta(dog, Animal)
 
 io.println(dog.name)
@@ -156,8 +156,8 @@ io.println(dog.legs)"#;
     #[test]
     fn test_metatable_functions() {
         let code = r#"let io = import "stdlib/io"
-let proto = #{ __index: #{ greet: "Hello" } }
-let obj = #{ name: "Alice" }
+let proto = ${ __index: ${ greet: "Hello" } }
+let obj = ${ name: "Alice" }
 set_meta(obj, proto)
 io.println(obj.greet)"#;
 
@@ -172,8 +172,8 @@ io.println(obj.greet)"#;
     #[test]
     fn test_metatable_precedence() {
         let code = r#"let io = import "stdlib/io"
-let proto = #{ value: 100 }
-let obj = #{ value: 10 }
+let proto = ${ value: 100 }
+let obj = ${ value: 10 }
 set_meta(obj, proto)
 io.println(obj.value)"#;
 
@@ -193,7 +193,7 @@ io.println(obj.value)"#;
     #[test]
     fn test_object_reference() {
         let code = r#"let io = import "stdlib/io"
-let obj1 = #{ value: 10 }
+let obj1 = ${ value: 10 }
 let obj2 = obj1
 obj2.value = 20
 io.println(obj1.value)"#;
@@ -210,7 +210,7 @@ io.println(obj1.value)"#;
     #[test]
     fn test_dynamic_fields() {
         let code = r#"let io = import "stdlib/io"
-let person = #{ name: "Grace" }
+let person = ${ name: "Grace" }
 person.age = 28
 person.city = "Shanghai"
 io.println(person.name)
@@ -230,8 +230,8 @@ io.println(person.city)"#;
     #[test]
     fn test_object_equality() {
         let code = r#"let io = import "stdlib/io"
-        let obj1 = #{ a: 1 }
-        let obj2 = #{ a: 1 }
+        let obj1 = ${ a: 1 }
+        let obj2 = ${ a: 1 }
         let obj3 = obj1
 
         io.println(obj1 == obj2) # Should be false (different references)
@@ -251,13 +251,13 @@ io.println(person.city)"#;
     #[test]
     fn test_object_mixed_types() {
         let code = r#"let io = import "stdlib/io"
-        let obj = #{
+        let obj = ${
             i: 42,
             f: 3.14,
             b: true,
             s: "string",
             n: null,
-            o: #{ nested: true }
+            o: ${ nested: true }
         }
         io.println(obj.i)
         io.println(obj.f)
@@ -282,13 +282,13 @@ io.println(person.city)"#;
     #[test]
     fn test_metatable_chain() {
         let code = r#"let io = import "stdlib/io"
-        let grand = #{ __index: #{ name: "Grandpa" } }
-        let parent = #{ __index: #{ age: 50 } }
+        let grand = ${ __index: ${ name: "Grandpa" } }
+        let parent = ${ __index: ${ age: 50 } }
 
         # Chain: parent -> grand
         set_meta(parent.__index, grand)
 
-        let child = #{ }
+        let child = ${ }
         # Chain: child -> parent
         set_meta(child, parent)
 
@@ -308,8 +308,8 @@ io.println(person.city)"#;
     #[test]
     fn test_get_and_clear_meta() {
         let code = r#"let io = import "stdlib/io"
-        let meta = #{ __index: #{ x: 1 } }
-        let obj = #{ }
+        let meta = ${ __index: ${ x: 1 } }
+        let obj = ${ }
 
         # 1. Initial should be null
         if get_meta(obj) == null {
@@ -363,7 +363,7 @@ io.println(person.city)"#;
             return "Hello " + name
         }
 
-        let obj = #{ }
+        let obj = ${ }
         obj.say = greet
 
         io.println(obj:say("World"))
@@ -379,8 +379,8 @@ io.println(person.city)"#;
     #[test]
     fn test_circular_reference() {
         let code = r#"let io = import "stdlib/io"
-        let a = #{ name: "A" }
-        let b = #{ name: "B" }
+        let a = ${ name: "A" }
+        let b = ${ name: "B" }
         a.next = b
         b.prev = a
         io.println(a.next.name)
@@ -403,9 +403,9 @@ io.println(person.city)"#;
             return "I am an object"
         }
 
-        let proto = #{ speak: speak }
-        let obj = #{ }
-        set_meta(obj, #{ __index: proto })
+        let proto = ${ speak: speak }
+        let obj = ${ }
+        set_meta(obj, ${ __index: proto })
 
         io.println(obj:speak())
         "#;
@@ -424,7 +424,7 @@ io.println(person.city)"#;
             self.count = self.count + 1
         }
 
-        let counter = #{ count: 0 }
+        let counter = ${ count: 0 }
         counter.inc = increment
 
         counter:inc()
@@ -453,15 +453,15 @@ io.println(person.city)"#;
 
 
             # 1. 定义方法 (通常这些放在外面作为公共原型)
-            let methods = #{
+            let methods = ${
                 str: point_str
             }
 
             # 2. 创建实例
-            let instance = #{ x: x, y: y }
+            let instance = ${ x: x, y: y }
 
             # 3. 建立继承关系
-            set_meta(instance, #{ __index: methods })
+            set_meta(instance, ${ __index: methods })
 
             return instance
         }
@@ -490,12 +490,12 @@ fn test_nested_function_class() {
                 return "(" + self.x + "," + self.y + ")"
             }
 
-            let methods = #{
+            let methods = ${
                 str: point_str
             }
 
-            let instance = #{ x: x, y: y }
-            set_meta(instance, #{ __index: methods })
+            let instance = ${ x: x, y: y }
+            set_meta(instance, ${ __index: methods })
 
             return instance
         }

@@ -171,7 +171,7 @@ try {
 throw "String error"
 throw 42
 throw true
-throw #{ code: 500, message: "Server error" }
+throw ${ code: 500, message: "Server error" }
 ```
 
 ---

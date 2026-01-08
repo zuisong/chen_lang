@@ -42,7 +42,7 @@ pub enum Expression {
     Identifier(String, u32),
     Block(Vec<Statement>, u32),
     If(If),
-    /// 对象字面量: #{ k: v, ... }
+    /// 对象字面量: ${ k: v, ... }
     ObjectLiteral(Vec<(String, Expression)>, u32),
     /// 数组字面量
     ArrayLiteral(Vec<Expression>, u32),

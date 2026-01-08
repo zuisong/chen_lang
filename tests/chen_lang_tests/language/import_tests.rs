@@ -6,7 +6,7 @@ fn test_import_stdlib_io_json() {
         let io = import "stdlib/io"
         let JSON = import "stdlib/json"
 
-        let data = #{ name: "Chen", version: 0.1 }
+        let data = ${ name: "Chen", version: 0.1 }
         let json_str = JSON.stringify(data)
         io.println("JSON: " + json_str)
     "#
@@ -20,7 +20,7 @@ fn test_import_stdlib_io_json() {
 fn test_no_import_fail() {
     let source = r#"
         # No import for json
-        let data = #{ name: "Chen" }
+        let data = ${ name: "Chen" }
         let json_str = JSON.stringify(data)
     "#
     .to_string();

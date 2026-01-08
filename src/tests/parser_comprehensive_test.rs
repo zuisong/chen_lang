@@ -164,8 +164,8 @@ fn test_function_call_with_args() {
 
 #[test]
 fn test_object_literal() {
-    // #{ x: 1, y: 2 }
-    let expr = parse_expr_str("#{ x: 1, y: 2 }");
+    // ${ x: 1, y: 2 }
+    let expr = parse_expr_str("${ x: 1, y: 2 }");
     if let Expression::ObjectLiteral(fields, _) = expr {
         assert_eq!(fields.len(), 2);
         assert_eq!(fields[0].0, "x");

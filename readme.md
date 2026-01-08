@@ -90,7 +90,7 @@ for i <= 9 {
 #### 6. Object System
 ```python
 # Object literal
-let person = #{ 
+let person = ${ 
     name: "Alice", 
     age: 25 
 }

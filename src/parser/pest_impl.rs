@@ -437,7 +437,7 @@ fn parse_postfix(base: Expression, pair: Pair<Rule>) -> Expression {
 }
 
 fn parse_object_literal(pair: Pair<Rule>) -> Expression {
-    // object_literal = { "#{" ~ (pair ~ ("," ~ pair)*)? ~ "}" }
+    // object_literal = { "${" ~ (pair ~ ("," ~ pair)*)? ~ "}" }
     let line = pair.as_span().start_pos().line_col().0 as u32;
     let mut fields = Vec::new();
 

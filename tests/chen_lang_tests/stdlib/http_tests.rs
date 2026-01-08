@@ -99,7 +99,7 @@ fn test_http_request_with_headers() {
         r#"
     let http = import "stdlib/http"
     let io = import "stdlib/io"
-    let headers = #{{}}
+    let headers = ${{}}
     headers["X-Auth"] = "secret123"
     let res = http.request("GET", "{}/headers", null, headers)
     io.print(res.body)

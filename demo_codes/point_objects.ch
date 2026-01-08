@@ -5,8 +5,8 @@ let println = io.println
 # Pattern: Custom Objects (Point with methods and operators)
 
 # Define Point prototype (shared methods and metamethods)
-let Point = #{
-    __index: #{
+let Point = ${
+    __index: ${
         # Method: Return string representation
         to_string: def(self) {
             return "Point(" + self.x + ", " + self.y + ")"
@@ -34,7 +34,7 @@ let Point = #{
 
 # Constructor function for Point objects
 def new_Point(x_coord, y_coord) {
-    let instance = #{
+    let instance = ${
         x: x_coord,
         y: y_coord
     }

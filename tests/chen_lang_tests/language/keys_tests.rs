@@ -10,7 +10,7 @@ let println = io.println
 #[test]
 fn test_object_keys_basic() {
     let code = r#"
-        let obj = #{ a: 1, b: 2 }
+        let obj = ${ a: 1, b: 2 }
         let keys = obj:keys()
         
         # Verify length
@@ -30,7 +30,7 @@ fn test_object_keys_basic() {
 #[test]
 fn test_object_keys_iteration() {
     let code = r#"
-        let obj = #{ x: 10, y: 20, z: 30 }
+        let obj = ${ x: 10, y: 20, z: 30 }
         let keys = obj:keys()
         let i = 0
         for i < keys:len() {
@@ -65,7 +65,7 @@ fn test_array_keys() {
 #[test]
 fn test_empty_object_keys() {
     let code = r#"
-        let obj = #{}
+        let obj = ${}
         let keys = obj:keys()
         println(keys:len())
     "#;

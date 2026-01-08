@@ -26,35 +26,35 @@ impl Scope {
 ///
 /// Compiler 结构体的核心工作是将抽象语法树（AST）递归遍历并转换为线性的字节码指令序列（Program）。
 ///
-///   以下是它如何利用各个字段将 AST 编译为指令的详细解释：
+/// 以下是它如何利用各个字段将 AST 编译为指令的详细解释：
 ///
-///   1. 结构体字段的作用
+/// 1. 结构体字段的作用
 ///
-///    * `program: Program`:
-///        * 这是编译器的输出缓冲区。所有的 Instruction（如 Push, Add, Jump）都会被 emit 函数推入这个结构体中的
-///          instructions 向量。
-///        * 它还包含 syms（符号表），用于记录函数入口地址、跳转标签（Label）的位置。
-///    * `scopes: Vec<Scope>`:
-///        * 这是变量作用域栈。每当进入一个新的代码块（如函数体、if 块、loop 块），编译器就会调用 begin_scope
-///          推入一个新的 Scope。
-///        * 作用：它决定了变量是局部变量还是全局变量。
-///            * Scope 内部维护了一个 HashMap<String, i32>，将变量名映射到当前栈帧的偏移量（Offset）。
-///            * 编译器在编译 x = 1 时，会先从内层向外层查找
-///              scopes。如果在某层找到，说明是局部变量；如果直到最外层（Global
-///              Scope）都没找到，或者是在最外层定义的，就是全局变量。
-///    * `locals_count: usize`:
-///        * 作用：统计当前正在编译的函数内声明了多少个局部变量。
-///        * 编译过程：每当遇到 let x = ...，如果是在函数内，locals_count 就加 1。这个计数值最终会作为 nlocals
-///          存入函数的符号表信息中。VM 在调用该函数时，会根据这个值预分配栈空间（stack.resize）。
-///    * `loop_stack: Vec<LoopLabels>`:
-///        * 作用：处理 break 和 continue。
-///        * 编译过程：每当编译一个 loop（或 while/for），编译器会生成两个标签：start_label 和
-///          end_label，并将它们推入 loop_stack。
-///        * 当遇到 break 时，编译器查看栈顶的 end_label 并生成 Jump(end_label)。
-///        * 当遇到 continue 时，编译器查看栈顶的 start_label 并生成 Jump(start_label)。
-///    * `offset: usize`:
-///        * 这似乎是一个用于生成唯一 ID 的基数（配合 unique_id() 方法），防止不同编译单元生成的标签名冲突（例如
-///          label_1, label_2）。
+///   * `program: Program`:
+///       * 编译器的输出缓冲区。所有 Instruction（如 Push, Add, Jump）都会通过 emit 写入
+///         `program.instructions`。
+///       * `program.syms` 是符号表，用于记录函数入口地址和跳转标签的位置。
+///       * `program.lines` 记录指令索引到源码行号的映射，便于运行时报错定位。
+///   * `states: Vec<FunctionState>`:
+///       * 函数编译状态栈。进入函数时 push，退出函数时 pop。
+///       * 每个 FunctionState 代表一个函数边界，包含块级作用域、局部变量计数、循环栈、闭包 upvalue。
+///   * `offset: usize`:
+///       * 用于生成唯一 ID 的基数（配合 unique_id() 方法），防止不同编译单元生成的标签名冲突。
+///   * `_raw: &[char]`:
+///       * 当前源码字符切片，占位保留，便于未来与源码位置相关的优化或诊断。
+///
+/// FunctionState 里的关键字段：
+///   * `scopes: Vec<Scope>`:
+///       * 变量作用域栈。进入代码块（如 if/loop/函数体）时 begin_scope 推入 Scope。
+///       * Scope 内部维护 `HashMap<String, i32>`，把变量名映射到当前栈帧的偏移量（FP + offset）。
+///       * 变量解析顺序：本函数的内层 Scope -> 外层 Scope -> Upvalue -> Global。
+///   * `locals_count: usize`:
+///       * 记录当前函数内局部变量数量。每次 `let` 增加 1。
+///       * 编译完成后写入 `Symbol.nlocals`，VM 调用函数时按此预分配栈空间。
+///   * `loop_stack: Vec<LoopLabels>`:
+///       * 处理 break / continue。循环开始时压入 (start, end)，退出时弹出。
+///   * `upvalues: Vec<Upvalue>`:
+///       * 记录闭包捕获的变量（来自外层函数的局部或 upvalue）。
 ///
 ///   ---
 ///
@@ -91,15 +91,34 @@ impl Scope {
 ///    8. 插入标签位置：在 program.syms 中记录 end_label 指向当前指令索引。
 ///
 ///   D. 函数定义 (def foo() { ... })
-///    1. 生成跳过函数体的指令 Jump(skip_label)（防止程序顺序执行时误入函数定义）。
-///    2. 记录函数入口：在当前位置记录函数名 func_foo 到符号表。
-///    3. 调用 begin_scope()，重置 locals_count = 0。
-///    4. 将参数名注册到 Scope 中（作为最早的局部变量）。
-///    5. 编译函数体内的所有语句。
-///    6. 记录 nlocals（局部变量总数）。
-///    7. 发射 Return。
-///    8. 调用 end_scope()。
-///    9. 插入标签位置：记录 skip_label，让之前的 Jump 能跳到函数定义之后。
+///    1. 生成跳过函数体的指令 Jump(skip_label)，避免顺序执行进入函数体。
+///    2. 进入新的 FunctionState（函数边界），为参数/局部变量建立新作用域栈。
+///    3. 将参数名注册为局部变量（写入 Scope，并增加 locals_count）。
+///    4. 编译函数体语句，保证最后有返回值（无显式 return 时自动压入 null）。
+///    5. 发射 Return。
+///    6. 退出 FunctionState，并把 nlocals/upvalues 写入函数符号表 `func_foo`。
+///    7. 插入 skip_label 位置，使 Jump(skip_label) 落到函数定义之后。
+///
+///   E. 程序入口与函数定义顺序
+///    * 编译时会先把“非函数声明语句”作为主逻辑编译到前面。
+///    * 若存在函数声明，会插入 `Jump(program_end)` 跳过所有函数体定义。
+///    * 所有函数体被编译到指令末尾，并用符号表记录入口地址。
+///    * 最后在 `program_end` 处落地，确保主逻辑执行完后结束。
+///
+///   F. 闭包捕获（Upvalue）编译要点
+///    * 变量解析顺序：Local -> Upvalue -> Global。
+///    * 当内层函数引用外层变量时，`resolve_upvalue` 会先在外层函数的 local 中查找。
+///      - 若找到，则在当前函数的 upvalues 中记录 `(is_local=true, index=local_idx)`。
+///      - 若未找到，递归向更外层查找 upvalue，并记录 `(is_local=false, index=upvalue_idx)`。
+///    * 编译函数值时发射 `Instruction::Closure(func_name)`，VM 根据符号表里的 upvalues
+///      列表，捕获对应的栈槽或上层 upvalue，形成运行时闭包。
+///
+///   G. Block 表达式返回值规则
+///    * Block 是表达式：最后一个语句若是表达式，则其结果作为 Block 的值留在栈顶。
+///    * 最后一个语句若不是表达式，会自动 `Push Null` 作为 Block 值。
+///    * 空 Block 直接返回 `Null`。
+///    * `end_scope(line, preserve_top=true)` 会关闭 upvalue 并保留栈顶返回值，
+///      确保 block 结果不被作用域清理掉。
 ///
 ///   总结
 ///   编译器本质上是一个状态机，它一边遍历 AST，一边维护上下文（Scope, Loop Stack），将树状结构的逻辑“压平”成 VM
@@ -635,7 +654,9 @@ impl<'a> Compiler<'a> {
             Operator::GtE => Instruction::GreaterThanOrEqual,
             Operator::And => Instruction::And,
             Operator::Or => Instruction::Or,
-            _ => panic!("Unable to compile binary operation: {:?}", bop.operator),
+            Operator::Assign |
+            Operator::Not =>
+                panic!("Unable to compile binary operation: {:?}", bop.operator),
         };
         self.emit(instruction, line);
     }

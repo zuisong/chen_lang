@@ -87,7 +87,7 @@ for i <= 9 {
 #### 6. 对象系统
 ```python
 # 对象字面量
-let person = #{ 
+let person = ${ 
     name: "张三", 
     age: 25 
 }

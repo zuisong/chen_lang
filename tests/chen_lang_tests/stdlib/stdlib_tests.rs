@@ -34,7 +34,7 @@ fn test_json_float_precision() {
     let code = r#"
     let JSON = import "stdlib/json"
     let io = import "stdlib/io"
-    let data = #{
+    let data = ${
         simple_add: 0.1 + 2,
         decimal_add: 0.1 + 0.2,
         int_float: 1 + 0.5,
@@ -68,7 +68,7 @@ fn test_json_roundtrip_precision() {
     let code = r#"
     let JSON = import "stdlib/json"
     let io = import "stdlib/io"
-    let original = #{ value: 0.1 + 2 }
+    let original = ${ value: 0.1 + 2 }
     let json_str = JSON.stringify(original)
     let parsed = JSON.parse(json_str)
     io.println(parsed.value)
@@ -88,8 +88,8 @@ fn test_json_nested_floats() {
     let code = r#"
     let JSON = import "stdlib/json"
     let io = import "stdlib/io"
-    let data = #{
-        nested: #{
+    let data = ${
+        nested: ${
             a: 0.1,
             b: 0.2,
             sum: 0.1 + 0.2
@@ -112,7 +112,7 @@ fn test_json_large_precision() {
     let code = r#"
     let JSON = import "stdlib/json"
     let io = import "stdlib/io"
-    let data = #{
+    let data = ${
         pi: 3.141592653589793,
         e: 2.718281828459045,
         small: 0.000000001

@@ -109,8 +109,8 @@ pub enum Token {
     String(String),
     /// 标识符
     Identifier(String),
-    /// #{
-    HashLBig,
+    /// ${
+    DollarLBig,
     /// .
     Dot,
     /// 左大括号
@@ -171,7 +171,7 @@ pub mod winnow {
 
     pub fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
         alt((
-            literal("#{").value(Token::HashLBig),
+            literal("${").value(Token::DollarLBig),
             (literal("#"), till_line_ending).map(|_| Token::Comment),
             alt((
                 line_ending.value(Token::NewLine),
@@ -290,17 +290,20 @@ mod handwritten {
         let cur = *chars.get(loc.index).unwrap_or(&' ');
         let next = *chars.get(loc.index + 1).unwrap_or(&' ');
         let res = match cur {
-            '#' => {
-                // Check for #{
+            '$' => {
+                // Check for ${
                 if next == '{' {
-                    (Token::HashLBig, loc.incr2())
+                    (Token::DollarLBig, loc.incr2())
                 } else {
-                    let mut l = loc.incr();
-                    while l.index < chars.len() && chars[l.index] != '\n' {
-                        l = l.incr();
-                    }
-                    (Token::Comment, l) // Don't consume newline here, let next iteration handle it or just stop at newline
+                    return Err(TokenError::UnknownToken { token: cur });
                 }
+            }
+            '#' => {
+                let mut l = loc.incr();
+                while l.index < chars.len() && chars[l.index] != '\n' {
+                    l = l.incr();
+                }
+                (Token::Comment, l) // Don't consume newline here, let next iteration handle it or just stop at newline
             }
             '\n' | '\r' => (Token::NewLine, loc.new_line()),
             _ if cur.is_whitespace() => (Token::Space, loc.incr()),

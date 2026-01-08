@@ -104,7 +104,7 @@ impl Parser {
             (Token::RSquare, Token::RSquare) => true,
             (Token::Colon, Token::Colon) => true,
             (Token::Dot, Token::Dot) => true,
-            (Token::HashLBig, Token::HashLBig) => true,
+            (Token::DollarLBig, Token::DollarLBig) => true,
             (Token::NewLine, Token::NewLine) => true,
             (Token::COMMA, Token::COMMA) => true,
             _ => false,
@@ -610,7 +610,7 @@ impl Parser {
             Token::Bool(b) => Ok(Expression::Literal(Literal::Value(Value::Bool(b)), start_line)),
             Token::String(s) => Ok(Expression::Literal(Literal::Value(Value::string(s)), start_line)),
             Token::Identifier(name) => Ok(Expression::Identifier(name, start_line)),
-            Token::HashLBig => self.parse_object_literal(),
+            Token::DollarLBig => self.parse_object_literal(),
             Token::LSquare => self.parse_array_literal(),
             Token::Keyword(Keyword::IF) => self.parse_if(),
             Token::Keyword(Keyword::DEF) => {
