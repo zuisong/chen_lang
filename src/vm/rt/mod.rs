@@ -5,12 +5,12 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use crate::value::Value;
-use crate::vm::Fiber;
+use crate::vm::{Fiber, VMRuntimeError};
 
 /// 异步运行时状态
 pub struct AsyncState {
     /// 待恢复的任务队列 (Fiber, ResumeValue)
-    pub ready_queue: Rc<RefCell<VecDeque<(Rc<RefCell<Fiber>>, Value)>>>,
+    pub ready_queue: Rc<RefCell<VecDeque<(Rc<RefCell<Fiber>>, Result<Value, VMRuntimeError>)>>>,
     /// 对待处理任务的计数
     pub pending_tasks: Rc<RefCell<usize>>,
     pub notify: Rc<tokio::sync::Notify>,
@@ -43,7 +43,7 @@ impl AsyncState {
         tokio::task::spawn_local(async move {
             tokio::time::sleep(duration).await;
             // 唤醒：将 Fiber 加入就绪队列，Resume 值为 null
-            queue.borrow_mut().push_back((fiber, Value::null()));
+            queue.borrow_mut().push_back((fiber, Ok(Value::null())));
             *pending.borrow_mut() -= 1;
             notify.notify_one();
         });
@@ -60,7 +60,7 @@ impl AsyncState {
     /// 注册一个通用的 Future 任务
     pub fn spawn_future<F>(&self, fut: F, fiber: Rc<RefCell<Fiber>>)
     where
-        F: Future<Output = Value> + 'static,
+        F: Future<Output = Result<Value, VMRuntimeError>> + 'static,
     {
         let queue = self.ready_queue.clone();
         let pending = self.pending_tasks.clone();

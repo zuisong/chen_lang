@@ -422,7 +422,7 @@ fn native_coroutine_spawn(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRunt
     vm.async_state
         .ready_queue
         .borrow_mut()
-        .push_back((fiber_rc.clone(), Value::Null));
+        .push_back((fiber_rc.clone(), Ok(Value::Null)));
 
     *vm.async_state.pending_tasks.borrow_mut() += 1;
 
@@ -560,7 +560,7 @@ fn native_coroutine_await_all(vm: &mut VM, args: Vec<Value>) -> Result<Value, VM
                     metatable: None,
                 })));
 
-                queue.borrow_mut().push_back((fiber_for_await, result_value));
+                queue.borrow_mut().push_back((fiber_for_await, Ok(result_value)));
                 *pending.borrow_mut() -= 1;
                 notify.notify_one();
                 break;
@@ -589,7 +589,7 @@ fn native_coroutine_await_all(vm: &mut VM, args: Vec<Value>) -> Result<Value, VM
                     metatable: None,
                 })));
 
-                queue.borrow_mut().push_back((fiber_for_await, result_value));
+                queue.borrow_mut().push_back((fiber_for_await, Ok(result_value)));
                 *pending.borrow_mut() -= 1;
                 notify.notify_one();
                 break;

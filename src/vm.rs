@@ -131,4 +131,9 @@ impl VM {
     pub fn get_variables(&self) -> &IndexMap<String, Value> {
         &self.variables
     }
+
+    /// 快速抛出运行时异常（供 native function 使用）
+    pub fn throw_str(&mut self, msg: impl Into<String>) -> Result<Value, VMRuntimeError> {
+        Err(VMRuntimeError::UncaughtException(msg.into()))
+    }
 }

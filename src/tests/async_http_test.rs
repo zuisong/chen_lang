@@ -69,3 +69,20 @@ fn test_http_get_json_async() {
     assert_eq!(result, "ok");
     mock.assert();
 }
+
+#[test]
+fn test_http_request_async_error_propagates() {
+    let code = r#"
+    let http = import "stdlib/http"
+    try {
+        http.request("BAD METHOD", "http://example.com")
+        return "NO_ERROR"
+    } catch err {
+        return "CAUGHT: " + err
+    }
+    "#;
+
+    let result = run_code(code);
+    assert!(result.contains("CAUGHT:"));
+    assert!(result.contains("HTTP invalid method"));
+}

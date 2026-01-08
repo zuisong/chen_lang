@@ -113,7 +113,7 @@ pub fn create_http_object() -> Value {
 
                     let method = match reqwest::Method::from_str(&method_str) {
                         Ok(m) => m,
-                        Err(e) => return Value::string(format!("Error: Invalid method {}", e)),
+                        Err(e) => return Err(VMRuntimeError::UncaughtException(format!("HTTP invalid method: {}", e))),
                     };
 
                     let mut builder = client.request(method, &url_str);
@@ -122,10 +122,13 @@ pub fn create_http_object() -> Value {
                         builder = builder.body(b);
                     }
 
-                    if let Some(h) = headers_arg
-                        && let Ok(headers) = value_to_header_map(&h)
-                    {
-                        builder = builder.headers(headers);
+                    if let Some(h) = headers_arg {
+                        match value_to_header_map(&h) {
+                            Ok(headers) => builder = builder.headers(headers),
+                            Err(e) => {
+                                return Err(VMRuntimeError::UncaughtException(format!("HTTP header error: {}", e)));
+                            }
+                        }
                     }
 
                     let resp_res = builder.send().await;
@@ -156,12 +159,12 @@ pub fn create_http_object() -> Value {
                                 }))),
                             );
 
-                            Value::Object(Rc::new(RefCell::new(Table {
+                            Ok(Value::Object(Rc::new(RefCell::new(Table {
                                 data: response_data,
                                 metatable: None,
-                            })))
+                            }))))
                         }
-                        Err(e) => Value::string(format!("Error: {}", e)),
+                        Err(e) => Err(VMRuntimeError::UncaughtException(format!("HTTP request error: {}", e))),
                     }
                 },
                 fiber_for_future,

@@ -44,7 +44,7 @@ impl VM {
             if !ready_tasks.is_empty() {
                 did_work = true;
                 // Resume all ready tasks
-                for (fiber, val) in ready_tasks {
+                for (fiber, res) in ready_tasks {
                     // 1. Set current fiber
                     self.current_fiber = Some(fiber.clone());
                     self.load_state_from_fiber(&fiber.borrow());
@@ -55,7 +55,25 @@ impl VM {
                         if f.skip_push_on_resume {
                             f.skip_push_on_resume = false;
                         } else {
-                            self.stack.push(val);
+                            match res {
+                                Ok(val) => {
+                                    self.stack.push(val);
+                                }
+                                Err(err) => {
+                                    let program = self.program.clone().expect("program should be set");
+                                    self.stack.push(Value::string(err.to_string()));
+                                    if let Err(e) = self.execute_instruction(&Instruction::Throw, &program) {
+                                        return Err(RuntimeErrorWithContext {
+                                            error: e,
+                                            line: 0,
+                                            pc: self.pc,
+                                        });
+                                    }
+                                    // Align with main loop semantics: Throw sets PC to target-1,
+                                    // so we need to advance once before re-entering execute_from.
+                                    self.pc = self.pc.saturating_add(1);
+                                }
+                            }
                         }
                     }
 
