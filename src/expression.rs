@@ -1,6 +1,7 @@
 use std::clone::Clone;
 use std::fmt::Debug;
 
+use crate::tokenizer::Location;
 use crate::tokenizer::Operator;
 use crate::value::Value;
 
@@ -13,7 +14,7 @@ pub enum Literal {
 pub struct FunctionCall {
     pub callee: Box<Expression>,
     pub arguments: Vec<Expression>,
-    pub line: u32,
+    pub loc: Location,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -21,7 +22,7 @@ pub struct MethodCall {
     pub object: Box<Expression>,
     pub method: String,
     pub arguments: Vec<Expression>,
-    pub line: u32,
+    pub loc: Location,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -29,7 +30,7 @@ pub struct BinaryOperation {
     pub operator: Operator,
     pub left: Box<Expression>,
     pub right: Box<Expression>,
-    pub line: u32,
+    pub loc: Location,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -37,33 +38,33 @@ pub enum Expression {
     FunctionCall(FunctionCall),
     MethodCall(MethodCall),
     BinaryOperation(BinaryOperation),
-    Literal(Literal, u32),
+    Literal(Literal, Location),
     Unary(Unary),
-    Identifier(String, u32),
-    Block(Vec<Statement>, u32),
+    Identifier(String, Location),
+    Block(Vec<Statement>, Location),
     If(If),
     /// 对象字面量: ${ k: v, ... }
-    ObjectLiteral(Vec<(String, Expression)>, u32),
+    ObjectLiteral(Vec<(String, Expression)>, Location),
     /// 数组字面量
-    ArrayLiteral(Vec<Expression>, u32),
+    ArrayLiteral(Vec<Expression>, Location),
     /// 属性访问: obj.field
     GetField {
         object: Box<Expression>,
         field: String,
-        line: u32,
+        loc: Location,
     },
     /// 索引访问: obj[expr]
     Index {
         object: Box<Expression>,
         index: Box<Expression>,
-        line: u32,
+        loc: Location,
     },
     /// 函数定义表达式 (匿名函数/Lambda)
     Function(FunctionDeclaration),
     /// Import 表达式: import "path"
     Import {
         path: String,
-        line: u32,
+        loc: Location,
     },
 }
 
@@ -72,7 +73,7 @@ pub struct FunctionDeclaration {
     pub name: Option<String>,
     pub parameters: Vec<String>,
     pub body: Vec<Statement>,
-    pub line: u32,
+    pub loc: Location,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -80,20 +81,20 @@ pub struct If {
     pub test: Box<Expression>,
     pub body: Vec<Statement>,
     pub else_body: Vec<Statement>,
-    pub line: u32,
+    pub loc: Location,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Local {
     pub name: String,
     pub expression: Expression,
-    pub line: u32,
+    pub loc: Location,
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Return {
     pub expression: Expression,
-    pub line: u32,
+    pub loc: Location,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -109,23 +110,23 @@ pub enum Statement {
         object: Expression,
         field: String,
         value: Expression,
-        line: u32,
+        loc: Location,
     },
     /// 设置索引: obj[index] = value
     SetIndex {
         object: Expression,
         index: Expression,
         value: Expression,
-        line: u32,
+        loc: Location,
     },
-    Break(u32),
-    Continue(u32),
+    Break(Location),
+    Continue(Location),
     /// Try-Catch-Finally 异常处理
     TryCatch(TryCatch),
     /// Throw 抛出异常
     Throw {
         value: Expression,
-        line: u32,
+        loc: Location,
     },
 }
 
@@ -136,7 +137,7 @@ pub type Ast = Vec<Statement>;
 pub struct Unary {
     pub operator: Operator,
     pub expr: Box<Expression>,
-    pub line: u32,
+    pub loc: Location,
 }
 
 /// 赋值语句
@@ -146,7 +147,7 @@ pub struct Assign {
     pub name: String,
     /// 赋值语句右边的表达式
     pub expr: Box<Expression>,
-    pub line: u32,
+    pub loc: Location,
 }
 
 /// 循环语句
@@ -156,7 +157,7 @@ pub struct Loop {
     pub test: Expression,
     /// 循环语句里面要执行的语句块
     pub body: Vec<Statement>,
-    pub line: u32,
+    pub loc: Location,
 }
 
 /// Try-Catch-Finally 异常处理
@@ -170,5 +171,5 @@ pub struct TryCatch {
     pub catch_body: Vec<Statement>,
     /// finally 块中的语句(可选)
     pub finally_body: Option<Vec<Statement>>,
-    pub line: u32,
+    pub loc: Location,
 }

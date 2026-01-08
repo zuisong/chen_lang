@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::expression::*;
-use crate::tokenizer::Operator;
+use crate::tokenizer::{Location, Operator};
 use crate::vm::{Instruction, Program, Symbol};
 
 // A scope holds the local variables for a block or function.
@@ -34,7 +34,7 @@ impl Scope {
 ///       * 编译器的输出缓冲区。所有 Instruction（如 Push, Add, Jump）都会通过 emit 写入
 ///         `program.instructions`。
 ///       * `program.syms` 是符号表，用于记录函数入口地址和跳转标签的位置。
-///       * `program.lines` 记录指令索引到源码行号的映射，便于运行时报错定位。
+///       * `program.lines` 记录指令索引到源码位置的映射，便于运行时报错定位。
 ///   * `states: Vec<FunctionState>`:
 ///       * 函数编译状态栈。进入函数时 push，退出函数时 pop。
 ///       * 每个 FunctionState 代表一个函数边界，包含块级作用域、局部变量计数、循环栈、闭包 upvalue。
@@ -117,7 +117,7 @@ impl Scope {
 ///    * Block 是表达式：最后一个语句若是表达式，则其结果作为 Block 的值留在栈顶。
 ///    * 最后一个语句若不是表达式，会自动 `Push Null` 作为 Block 值。
 ///    * 空 Block 直接返回 `Null`。
-///    * `end_scope(line, preserve_top=true)` 会关闭 upvalue 并保留栈顶返回值，
+///    * `end_scope(loc, preserve_top=true)` 会关闭 upvalue 并保留栈顶返回值，
 ///      确保 block 结果不被作用域清理掉。
 ///
 ///   总结
@@ -218,7 +218,7 @@ impl<'a> Compiler<'a> {
         self.current_state().scopes.push(Scope::new());
     }
 
-    fn end_scope(&mut self, line: u32, preserve_top: bool) {
+    fn end_scope(&mut self, loc: Location, preserve_top: bool) {
         let (count, first_idx) = {
             let state = self.current_state();
             let scope = state.scopes.pop().expect("No scope to end");
@@ -230,14 +230,14 @@ impl<'a> Compiler<'a> {
 
         if count > 0 {
             if preserve_top {
-                self.emit(Instruction::CloseUpvaluesAbove(first_idx), line);
-                self.emit(Instruction::MovePlusFP(first_idx), line);
+                self.emit(Instruction::CloseUpvaluesAbove(first_idx), loc);
+                self.emit(Instruction::MovePlusFP(first_idx), loc);
                 for _ in 0..count - 1 {
-                    self.emit(Instruction::Pop, line);
+                    self.emit(Instruction::Pop, loc);
                 }
             } else {
                 for _ in 0..count {
-                    self.emit(Instruction::CloseUpvalue, line);
+                    self.emit(Instruction::CloseUpvalue, loc);
                 }
             }
         }
@@ -310,11 +310,15 @@ impl<'a> Compiler<'a> {
         Some(VarLocation::Global(name.to_string()))
     }
 
-    // --- Helper for emitting instructions with line numbers ---
-    fn emit(&mut self, instr: Instruction, line: u32) {
+    // --- Helper for emitting instructions with loc numbers ---
+    fn emit(&mut self, instr: Instruction, loc: Location) {
         let idx = self.program.instructions.len();
         self.program.instructions.push(instr);
-        self.program.lines.insert(idx, line);
+        self.program.lines.insert(idx, loc);
+    }
+
+    fn loc_from_line(line: u32) -> Location {
+        Location { line, col: 1, index: 0 }
     }
 
     // --- Compilation Methods ---
@@ -337,8 +341,8 @@ impl<'a> Compiler<'a> {
 
         if !function_declarations.is_empty() {
             let end_label = "program_end".to_string();
-            // Use 0 as line number for implicit jumps
-            self.emit(Instruction::Jump(end_label.clone()), 0);
+            // Use 0 as loc number for implicit jumps
+            self.emit(Instruction::Jump(end_label.clone()), Self::loc_from_line(0));
 
             for fd in function_declarations {
                 self.compile_function_def(fd);
@@ -362,22 +366,22 @@ impl<'a> Compiler<'a> {
             Statement::Return(r) => self.compile_return(r),
             Statement::Local(loc) => self.compile_local(loc),
             Statement::Expression(e) => {
-                // To access the line number of expression 'e', we need to check its variant.
+                // To access the loc number of expression 'e', we need to check its variant.
                 // But e is moved into compile_expression.
-                // We can't easily extract line without matching.
+                // We can't easily extract loc without matching.
                 // However, compile_expression handles emission.
                 // But we need to Pop the result.
-                // We need the line number for Pop.
-                // We can extract line number via a helper?
-                // Or just use 0/approx line.
+                // We need the loc number for Pop.
+                // We can extract loc number via a helper?
+                // Or just use 0/approx loc.
                 // Let's implement `get_line` for Expression.
-                let line = self.get_expression_line(&e);
+                let loc = self.get_expression_location(&e);
                 self.compile_expression(e);
-                self.emit(Instruction::Pop, line);
+                self.emit(Instruction::Pop, loc);
             }
             Statement::Loop(e) => self.compile_loop(e),
             Statement::Assign(e) => self.compile_assign(e),
-            Statement::Break(line) => {
+            Statement::Break(loc) => {
                 let end_label = self
                     .current_state()
                     .loop_stack
@@ -385,9 +389,9 @@ impl<'a> Compiler<'a> {
                     .expect("break outside of loop")
                     .end
                     .clone();
-                self.emit(Instruction::Jump(end_label), line);
+                self.emit(Instruction::Jump(end_label), loc);
             }
-            Statement::Continue(line) => {
+            Statement::Continue(loc) => {
                 let start_label = self
                     .current_state()
                     .loop_stack
@@ -395,59 +399,59 @@ impl<'a> Compiler<'a> {
                     .expect("continue outside of loop")
                     .start
                     .clone();
-                self.emit(Instruction::Jump(start_label), line);
+                self.emit(Instruction::Jump(start_label), loc);
             }
             Statement::SetField {
                 object,
                 field,
                 value,
-                line,
+                loc,
             } => {
                 self.compile_expression(object);
                 self.compile_expression(value);
-                self.emit(Instruction::SetField(field), line);
+                self.emit(Instruction::SetField(field), loc);
             }
             Statement::SetIndex {
                 object,
                 index,
                 value,
-                line,
+                loc,
             } => {
                 self.compile_expression(object);
                 self.compile_expression(index);
                 self.compile_expression(value);
-                self.emit(Instruction::SetIndex, line);
+                self.emit(Instruction::SetIndex, loc);
             }
             Statement::TryCatch(tc) => self.compile_try_catch(tc),
-            Statement::Throw { value, line } => {
+            Statement::Throw { value, loc } => {
                 self.compile_expression(value);
-                self.emit(Instruction::Throw, line);
+                self.emit(Instruction::Throw, loc);
             }
         }
     }
 
-    fn get_expression_line(&self, expr: &Expression) -> u32 {
+    fn get_expression_location(&self, expr: &Expression) -> Location {
         match expr {
-            Expression::FunctionCall(fc) => fc.line,
-            Expression::BinaryOperation(bin) => bin.line,
-            Expression::Literal(_, line) => *line,
-            Expression::Unary(u) => u.line,
-            Expression::Identifier(_, line) => *line,
-            Expression::Block(_, line) => *line,
-            Expression::If(if_expr) => if_expr.line,
-            Expression::ObjectLiteral(_, line) => *line,
-            Expression::ArrayLiteral(_, line) => *line,
-            Expression::GetField { line, .. } => *line,
-            Expression::Index { line, .. } => *line,
-            Expression::Function(fd) => fd.line,
+            Expression::FunctionCall(fc) => fc.loc,
+            Expression::BinaryOperation(bin) => bin.loc,
+            Expression::Literal(_, loc) => *loc,
+            Expression::Unary(u) => u.loc,
+            Expression::Identifier(_, loc) => *loc,
+            Expression::Block(_, loc) => *loc,
+            Expression::If(if_expr) => if_expr.loc,
+            Expression::ObjectLiteral(_, loc) => *loc,
+            Expression::ArrayLiteral(_, loc) => *loc,
+            Expression::GetField { loc, .. } => *loc,
+            Expression::Index { loc, .. } => *loc,
+            Expression::Function(fd) => fd.loc,
             // Await removed
-            Expression::MethodCall(mc) => mc.line,
-            Expression::Import { line, .. } => *line,
+            Expression::MethodCall(mc) => mc.loc,
+            Expression::Import { loc, .. } => *loc,
         }
     }
 
     fn compile_function_def(&mut self, fd: FunctionDeclaration) {
-        let line = fd.line;
+        let loc = fd.loc;
         let func_name = fd.name.clone().expect("Statement function must have a name");
 
         if false { // Async removed
@@ -457,7 +461,7 @@ impl<'a> Compiler<'a> {
             let unique_id = self.unique_id();
             let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
 
-            self.emit(Instruction::Jump(skip_label.clone()), line);
+            self.emit(Instruction::Jump(skip_label.clone()), loc);
 
             self.compile_declaration(fd);
 
@@ -473,10 +477,10 @@ impl<'a> Compiler<'a> {
         }
 
         let var_location = self.define_variable(func_name.clone());
-        self.emit(Instruction::Closure(format!("func_{}", func_name)), line);
+        self.emit(Instruction::Closure(format!("func_{}", func_name)), loc);
         match var_location {
-            VarLocation::Local(offset) => self.emit(Instruction::MovePlusFP(offset as usize), line),
-            VarLocation::Global(name) => self.emit(Instruction::Store(name), line),
+            VarLocation::Local(offset) => self.emit(Instruction::MovePlusFP(offset as usize), loc),
+            VarLocation::Global(name) => self.emit(Instruction::Store(name), loc),
             _ => panic!("Cannot define variable in Upvalue location"),
         }
     }
@@ -486,60 +490,60 @@ impl<'a> Compiler<'a> {
             Expression::BinaryOperation(bop) => self.compile_binary_operation(bop),
             Expression::FunctionCall(fc) => self.compile_function_call(fc),
             Expression::MethodCall(mc) => self.compile_method_call(mc),
-            Expression::Literal(lit, line) => self.compile_literal(lit, line),
-            Expression::Identifier(ident, line) => {
+            Expression::Literal(lit, loc) => self.compile_literal(lit, loc),
+            Expression::Identifier(ident, loc) => {
                 if let Some(var_location) = self.resolve_variable(&ident) {
                     match var_location {
                         VarLocation::Local(offset) => {
-                            self.emit(Instruction::DupPlusFP(offset), line);
+                            self.emit(Instruction::DupPlusFP(offset), loc);
                         }
                         VarLocation::Upvalue(index) => {
-                            self.emit(Instruction::GetUpvalue(index), line);
+                            self.emit(Instruction::GetUpvalue(index), loc);
                         }
                         VarLocation::Global(name) => {
-                            self.emit(Instruction::Load(name), line);
+                            self.emit(Instruction::Load(name), loc);
                         }
                     }
                 } else {
-                    self.emit(Instruction::Load(ident), line);
+                    self.emit(Instruction::Load(ident), loc);
                 }
             }
             Expression::Unary(unary) => {
-                let line = unary.line;
+                let loc = unary.loc;
                 self.compile_expression(*unary.expr);
                 match unary.operator {
-                    Operator::Not => self.emit(Instruction::Not, line),
+                    Operator::Not => self.emit(Instruction::Not, loc),
                     _ => panic!("Unsupported unary operator"),
                 }
             }
-            Expression::Block(stmts, line) => self.compile_block_expression(stmts, line),
+            Expression::Block(stmts, loc) => self.compile_block_expression(stmts, loc),
             Expression::If(if_expr) => self.compile_if(if_expr),
-            Expression::ObjectLiteral(fields, line) => {
-                self.emit(Instruction::NewObject, line);
+            Expression::ObjectLiteral(fields, loc) => {
+                self.emit(Instruction::NewObject, loc);
                 for (key, val) in fields {
-                    self.emit(Instruction::Dup, line);
+                    self.emit(Instruction::Dup, loc);
                     self.compile_expression(val);
-                    self.emit(Instruction::SetField(key), line);
+                    self.emit(Instruction::SetField(key), loc);
                 }
             }
-            Expression::ArrayLiteral(elements, line) => {
+            Expression::ArrayLiteral(elements, loc) => {
                 let count = elements.len();
                 for elem in elements {
                     self.compile_expression(elem);
                 }
-                self.emit(Instruction::BuildArray(count), line);
+                self.emit(Instruction::BuildArray(count), loc);
             }
-            Expression::GetField { object, field, line } => {
+            Expression::GetField { object, field, loc } => {
                 self.compile_expression(*object);
-                self.emit(Instruction::GetField(field), line);
+                self.emit(Instruction::GetField(field), loc);
             }
-            Expression::Index { object, index, line } => {
+            Expression::Index { object, index, loc } => {
                 self.compile_expression(*object);
                 self.compile_expression(*index);
-                self.emit(Instruction::GetIndex, line);
+                self.emit(Instruction::GetIndex, loc);
             }
             Expression::Function(mut fd) => {
-                let line = fd.line;
+                let loc = fd.loc;
                 let func_name = fd.name.take().unwrap_or_else(|| format!("anon_{}", self.unique_id()));
                 fd.name = Some(func_name.clone());
 
@@ -549,7 +553,7 @@ impl<'a> Compiler<'a> {
                     let unique_id = self.unique_id();
                     let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
 
-                    self.emit(Instruction::Jump(skip_label.clone()), line);
+                    self.emit(Instruction::Jump(skip_label.clone()), loc);
                     self.compile_declaration(fd);
 
                     self.program.syms.insert(
@@ -562,17 +566,17 @@ impl<'a> Compiler<'a> {
                         },
                     );
 
-                    self.emit(Instruction::Closure(format!("func_{}", func_name)), line);
+                    self.emit(Instruction::Closure(format!("func_{}", func_name)), loc);
                 }
             }
             // Await removed
-            Expression::Import { path, line } => {
-                self.emit(Instruction::Import(path), line);
+            Expression::Import { path, loc } => {
+                self.emit(Instruction::Import(path), loc);
             }
         }
     }
 
-    fn compile_block_expression(&mut self, stmts: Vec<Statement>, line: u32) {
+    fn compile_block_expression(&mut self, stmts: Vec<Statement>, loc: Location) {
         self.begin_scope();
         let len = stmts.len();
         for (i, stmt) in stmts.into_iter().enumerate() {
@@ -582,7 +586,7 @@ impl<'a> Compiler<'a> {
                     _ => {
                         self.compile_statement(stmt);
                         // Block must return a value
-                        self.emit(Instruction::Push(crate::value::Value::Null), line);
+                        self.emit(Instruction::Push(crate::value::Value::Null), loc);
                     }
                 }
             } else {
@@ -590,54 +594,54 @@ impl<'a> Compiler<'a> {
             }
         }
         if len == 0 {
-            self.emit(Instruction::Push(crate::value::Value::Null), line);
+            self.emit(Instruction::Push(crate::value::Value::Null), loc);
         }
-        self.end_scope(line, true);
+        self.end_scope(loc, true);
     }
 
-    fn compile_literal(&mut self, lit: Literal, line: u32) {
+    fn compile_literal(&mut self, lit: Literal, loc: Location) {
         match lit {
             Literal::Value(val) => {
-                self.emit(Instruction::Push(val), line);
+                self.emit(Instruction::Push(val), loc);
             }
         }
     }
 
     fn compile_local(&mut self, local: Local) {
-        let line = local.line;
+        let loc = local.loc;
         self.compile_expression(local.expression);
         let var_location = self.define_variable(local.name);
         match var_location {
             VarLocation::Local(offset) => {
-                self.emit(Instruction::MovePlusFP(offset as usize), line);
+                self.emit(Instruction::MovePlusFP(offset as usize), loc);
             }
             VarLocation::Global(name) => {
-                self.emit(Instruction::Store(name), line);
+                self.emit(Instruction::Store(name), loc);
             }
             VarLocation::Upvalue(_) => panic!("Cannot define local variable as Upvalue"),
         }
     }
 
     fn compile_assign(&mut self, assign: Assign) {
-        let line = assign.line;
+        let loc = assign.loc;
         self.compile_expression(*assign.expr);
         let var_location = self.resolve_variable(&assign.name).expect("Undefined variable");
 
         match var_location {
             VarLocation::Local(offset) => {
-                self.emit(Instruction::MovePlusFP(offset as usize), line);
+                self.emit(Instruction::MovePlusFP(offset as usize), loc);
             }
             VarLocation::Global(name) => {
-                self.emit(Instruction::Store(name), line);
+                self.emit(Instruction::Store(name), loc);
             }
             VarLocation::Upvalue(index) => {
-                self.emit(Instruction::SetUpvalue(index), line);
+                self.emit(Instruction::SetUpvalue(index), loc);
             }
         }
     }
 
     fn compile_binary_operation(&mut self, bop: BinaryOperation) {
-        let line = bop.line;
+        let loc = bop.loc;
         self.compile_expression(*bop.left);
         self.compile_expression(*bop.right);
         let instruction = match bop.operator {
@@ -654,15 +658,13 @@ impl<'a> Compiler<'a> {
             Operator::GtE => Instruction::GreaterThanOrEqual,
             Operator::And => Instruction::And,
             Operator::Or => Instruction::Or,
-            Operator::Assign |
-            Operator::Not =>
-                panic!("Unable to compile binary operation: {:?}", bop.operator),
+            Operator::Assign | Operator::Not => panic!("Unable to compile binary operation: {:?}", bop.operator),
         };
-        self.emit(instruction, line);
+        self.emit(instruction, loc);
     }
 
     fn compile_function_call(&mut self, fc: FunctionCall) {
-        let line = fc.line;
+        let loc = fc.loc;
         let len = fc.arguments.len();
         let arguments = fc.arguments;
         let other_callee = *fc.callee;
@@ -686,7 +688,7 @@ impl<'a> Compiler<'a> {
                     for arg in arguments {
                         self.compile_expression(arg);
                     }
-                    self.emit(Instruction::Call(name, len), line);
+                    self.emit(Instruction::Call(name, len), loc);
                 } else {
                     unreachable!();
                 }
@@ -695,32 +697,32 @@ impl<'a> Compiler<'a> {
                 for arg in arguments {
                     self.compile_expression(arg);
                 }
-                self.emit(Instruction::CallStack(len), line);
+                self.emit(Instruction::CallStack(len), loc);
             }
         }
     }
 
     fn compile_method_call(&mut self, mc: MethodCall) {
-        let line = mc.line;
+        let loc = mc.loc;
         self.compile_expression(*mc.object);
-        self.emit(Instruction::GetMethod(mc.method), line);
+        self.emit(Instruction::GetMethod(mc.method), loc);
 
         let len = mc.arguments.len();
         for arg in mc.arguments {
             self.compile_expression(arg);
         }
 
-        self.emit(Instruction::CallStack(len + 1), line);
+        self.emit(Instruction::CallStack(len + 1), loc);
     }
 
     fn compile_return(&mut self, ret: Return) {
-        let line = ret.line;
+        let loc = ret.loc;
         self.compile_expression(ret.expression);
-        self.emit(Instruction::Return, line);
+        self.emit(Instruction::Return, loc);
     }
 
     fn compile_declaration(&mut self, fd: FunctionDeclaration) {
-        let line = fd.line;
+        let loc = fd.loc;
         let function_index = self.program.instructions.len() as i32;
         let narguments = fd.parameters.len();
 
@@ -741,7 +743,7 @@ impl<'a> Compiler<'a> {
                         }
                         _ => {
                             self.compile_statement(stmt);
-                            self.emit(Instruction::Push(crate::value::Value::Null), line);
+                            self.emit(Instruction::Push(crate::value::Value::Null), loc);
                         }
                     }
                 } else {
@@ -749,11 +751,11 @@ impl<'a> Compiler<'a> {
                 }
             }
         } else {
-            self.emit(Instruction::Push(crate::value::Value::Null), line);
+            self.emit(Instruction::Push(crate::value::Value::Null), loc);
         }
 
-        self.emit(Instruction::Return, line);
-        self.emit(Instruction::Return, line); // Safety?
+        self.emit(Instruction::Return, loc);
+        self.emit(Instruction::Return, loc); // Safety?
 
         // Pop state
         let state = self.states.pop().expect("Popped global state");
@@ -772,18 +774,18 @@ impl<'a> Compiler<'a> {
     }
 
     fn compile_if(&mut self, if_stmt: If) {
-        let line = if_stmt.line;
+        let loc = if_stmt.loc;
         self.compile_expression(*if_stmt.test);
 
         let unique_id = self.unique_id();
         let else_label = format!("else_{}", unique_id);
         let end_label = format!("end_{}", unique_id);
 
-        self.emit(Instruction::JumpIfFalse(else_label.clone()), line);
+        self.emit(Instruction::JumpIfFalse(else_label.clone()), loc);
 
-        self.compile_block_expression(if_stmt.body, line);
+        self.compile_block_expression(if_stmt.body, loc);
 
-        self.emit(Instruction::Jump(end_label.clone()), line);
+        self.emit(Instruction::Jump(end_label.clone()), loc);
 
         self.program.syms.insert(
             else_label.clone(),
@@ -796,9 +798,9 @@ impl<'a> Compiler<'a> {
         );
 
         if !if_stmt.else_body.is_empty() {
-            self.compile_block_expression(if_stmt.else_body, line);
+            self.compile_block_expression(if_stmt.else_body, loc);
         } else {
-            self.emit(Instruction::Push(crate::value::Value::Null), line);
+            self.emit(Instruction::Push(crate::value::Value::Null), loc);
         }
 
         self.program.syms.insert(
@@ -813,7 +815,7 @@ impl<'a> Compiler<'a> {
     }
 
     fn compile_loop(&mut self, loop_: Loop) {
-        let line = loop_.line;
+        let loc = loop_.loc;
         let unique_id = self.unique_id();
         let loop_start = format!("loop_start_{}", unique_id);
         let loop_end = format!("loop_end_{}", unique_id);
@@ -834,16 +836,16 @@ impl<'a> Compiler<'a> {
         });
 
         self.compile_expression(loop_.test);
-        self.emit(Instruction::JumpIfFalse(loop_end.clone()), line);
+        self.emit(Instruction::JumpIfFalse(loop_end.clone()), loc);
 
         self.begin_scope();
         for stmt in loop_.body {
             self.compile_statement(stmt);
         }
-        self.end_scope(line, false);
+        self.end_scope(loc, false);
         self.current_state().loop_stack.pop();
 
-        self.emit(Instruction::Jump(loop_start.clone()), line);
+        self.emit(Instruction::Jump(loop_start.clone()), loc);
 
         self.program.syms.insert(
             loop_end.clone(),
@@ -857,30 +859,30 @@ impl<'a> Compiler<'a> {
     }
 
     fn compile_try_catch(&mut self, tc: TryCatch) {
-        let line = tc.line;
+        let loc = tc.loc;
         let unique_id = self.unique_id();
         let catch_label = format!("catch_{}", unique_id);
         let finally_label = format!("finally_{}", unique_id);
         let end_label = format!("end_try_{}", unique_id);
 
         // Set up exception handler
-        self.emit(Instruction::PushExceptionHandler(catch_label.clone()), line);
+        self.emit(Instruction::PushExceptionHandler(catch_label.clone()), loc);
 
         // Compile try block
         self.begin_scope();
         for stmt in tc.try_body {
             self.compile_statement(stmt);
         }
-        self.end_scope(line, false);
+        self.end_scope(loc, false);
 
         // Pop exception handler if no exception occurred
-        self.emit(Instruction::PopExceptionHandler, line);
+        self.emit(Instruction::PopExceptionHandler, loc);
 
         // Jump to finally or end
         if tc.finally_body.is_some() {
-            self.emit(Instruction::Jump(finally_label.clone()), line);
+            self.emit(Instruction::Jump(finally_label.clone()), loc);
         } else {
-            self.emit(Instruction::Jump(end_label.clone()), line);
+            self.emit(Instruction::Jump(end_label.clone()), loc);
         }
 
         // Catch block
@@ -901,16 +903,16 @@ impl<'a> Compiler<'a> {
             let var_location = self.define_variable(error_name);
             match var_location {
                 VarLocation::Local(offset) => {
-                    self.emit(Instruction::MovePlusFP(offset as usize), line);
+                    self.emit(Instruction::MovePlusFP(offset as usize), loc);
                 }
                 VarLocation::Global(name) => {
-                    self.emit(Instruction::Store(name), line);
+                    self.emit(Instruction::Store(name), loc);
                 }
                 VarLocation::Upvalue(_) => panic!("Cannot define error variable as Upvalue"),
             }
         } else {
             // Pop the error value if no variable to store it
-            self.emit(Instruction::Pop, line);
+            self.emit(Instruction::Pop, loc);
         }
 
         // Compile catch block
@@ -918,13 +920,13 @@ impl<'a> Compiler<'a> {
             self.compile_statement(stmt);
         }
 
-        self.end_scope(line, false);
+        self.end_scope(loc, false);
 
         // Jump to finally or end after catch
         if tc.finally_body.is_some() {
-            self.emit(Instruction::Jump(finally_label.clone()), line);
+            self.emit(Instruction::Jump(finally_label.clone()), loc);
         } else {
-            self.emit(Instruction::Jump(end_label.clone()), line);
+            self.emit(Instruction::Jump(end_label.clone()), loc);
         }
 
         // Finally block (if present)
@@ -943,7 +945,7 @@ impl<'a> Compiler<'a> {
             for stmt in finally_body {
                 self.compile_statement(stmt);
             }
-            self.end_scope(line, false);
+            self.end_scope(loc, false);
         }
 
         // End label

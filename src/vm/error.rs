@@ -2,6 +2,7 @@ use std::fmt::{Display, Formatter};
 
 use thiserror::Error;
 
+use crate::tokenizer::Location;
 use crate::value::{Value, ValueError};
 
 /// VM 运行时错误
@@ -25,7 +26,7 @@ pub enum VMRuntimeError {
 #[derive(Debug, Error)]
 pub struct RuntimeErrorWithContext {
     pub error: VMRuntimeError,
-    pub line: u32,
+    pub loc: Location,
     pub pc: usize,
 }
 
@@ -33,8 +34,8 @@ impl Display for RuntimeErrorWithContext {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Runtime error at line {}: {} (PC: {})",
-            self.line, self.error, self.pc
+            "Runtime error at line {}:{}: {} (PC: {})",
+            self.loc.line, self.loc.col, self.error, self.pc
         )
     }
 }

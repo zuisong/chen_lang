@@ -1,5 +1,6 @@
 use indexmap::IndexMap;
 
+use crate::tokenizer::Location;
 use crate::value::Value;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -88,8 +89,8 @@ pub enum Instruction {
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct Program {
     pub instructions: Vec<Instruction>,
-    pub syms: IndexMap<String, Symbol>, // 符号表
-    pub lines: IndexMap<usize, u32>,    // PC -> 行号映射 (Instruction Index -> Line Number)
+    pub syms: IndexMap<String, Symbol>,   // 符号表
+    pub lines: IndexMap<usize, Location>, // PC -> 源码位置映射 (Instruction Index -> Location)
 }
 
 impl Program {

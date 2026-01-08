@@ -115,20 +115,20 @@ where
 fn build_diagnostic(code: &str, file_id: usize, error: &ChenError) -> Diagnostic<usize> {
     match error {
         ChenError::Runtime(err) => {
-            let range = get_line_range(code, err.line);
+            let range = get_line_range(code, err.loc.line);
             Diagnostic::error().with_message(err.to_string()).with_labels(vec![
                 Label::primary(file_id, range).with_message("Runtime error occurred here"),
             ])
         }
         ChenError::Parser(parser::ParserError::Handwritten(err)) => match err {
-            parser::handwritten::ParseError::Message { msg, line } => {
-                let range = get_line_range(code, *line);
+            parser::handwritten::ParseError::Message { msg, loc } => {
+                let range = get_line_range(code, loc.line);
                 Diagnostic::error()
                     .with_message(msg)
                     .with_labels(vec![Label::primary(file_id, range).with_message("Parse error here")])
             }
-            parser::handwritten::ParseError::UnexpectedToken { token, line } => {
-                let range = get_line_range(code, *line);
+            parser::handwritten::ParseError::UnexpectedToken { token, loc } => {
+                let range = get_line_range(code, loc.line);
                 Diagnostic::error()
                     .with_message(format!("Unexpected token: {:?}", token))
                     .with_labels(vec![Label::primary(file_id, range).with_message("Unexpected token")])

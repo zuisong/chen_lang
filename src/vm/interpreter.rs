@@ -11,6 +11,7 @@ use super::native_http::create_http_object;
 use super::native_io::create_io_object;
 use super::native_json::create_json_object;
 use super::native_process::create_process_object;
+use crate::tokenizer::Location;
 use crate::value::{ObjClosure, ObjUpvalue, UpvalueState, Value, ValueError, ValueType};
 use crate::vm::fiber::{CallFrame, ExceptionHandler};
 use crate::vm::{Fiber, FiberState, Instruction, Program, RuntimeErrorWithContext, VM, VMResult, VMRuntimeError};
@@ -65,7 +66,11 @@ impl VM {
                                     if let Err(e) = self.execute_instruction(&Instruction::Throw, &program) {
                                         return Err(RuntimeErrorWithContext {
                                             error: e,
-                                            line: 0,
+                                            loc: Location {
+                                                line: 0,
+                                                col: 0,
+                                                index: 0,
+                                            },
                                             pc: self.pc,
                                         });
                                     }
@@ -225,7 +230,11 @@ impl VM {
             let (instruction_clone, program_clone) = {
                 let program = self.program.as_ref().ok_or_else(|| RuntimeErrorWithContext {
                     error: VMRuntimeError::UndefinedVariable("No program loaded".into()),
-                    line: 0,
+                    loc: Location {
+                        line: 0,
+                        col: 0,
+                        index: 0,
+                    },
                     pc: self.pc,
                 })?;
 
@@ -253,11 +262,18 @@ impl VM {
                         break;
                     }
 
-                    let line = *program_clone.lines.get(&self.pc).unwrap_or(&0);
-                    debug!("Execution error at PC {} (Line {}): {}", self.pc, line, error);
+                    let loc = *program_clone.lines.get(&self.pc).unwrap_or(&Location {
+                        line: 0,
+                        col: 0,
+                        index: 0,
+                    });
+                    debug!(
+                        "Execution error at PC {} (Line {}:{}): {}",
+                        self.pc, loc.line, loc.col, error
+                    );
                     return Err(RuntimeErrorWithContext {
                         error,
-                        line,
+                        loc,
                         pc: self.pc,
                     });
                 }

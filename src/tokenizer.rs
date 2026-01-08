@@ -137,20 +137,69 @@ pub enum Token {
     Space,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Location {
+    pub col: u32,
+    pub line: u32,
+    pub index: usize,
+}
+
+impl std::fmt::Display for Location {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.line, self.col)
+    }
+}
+
+impl Default for Location {
+    fn default() -> Self {
+        Location {
+            col: 1,
+            line: 1,
+            index: 0,
+        }
+    }
+}
+
+impl Location {
+    fn new_line(&self) -> Location {
+        Location {
+            index: self.index + 1,
+            col: 1,
+            line: self.line + 1,
+        }
+    }
+    #[inline]
+    fn incr(&self) -> Location {
+        self.incr_n(1)
+    }
+    #[inline]
+    fn incr2(&self) -> Location {
+        self.incr_n(2)
+    }
+    #[inline]
+    fn incr_n(&self, n: usize) -> Location {
+        Location {
+            index: self.index + n,
+            col: self.col + n as u32,
+            line: self.line,
+        }
+    }
+}
+
 /// 默认使用手写分词器 (handwritten) 因为它目前更稳定且支持行号追踪
 #[cfg(not(feature = "winnow-tokenizer"))]
-pub fn tokenizer(code: String) -> Result<Vec<(Token, u32)>, TokenError> {
+pub fn tokenizer(code: String) -> Result<Vec<(Token, Location)>, TokenError> {
     handwritten::tokenizer(code)
 }
 
 /// 使用 Feature Flag 启用 Winnow 分词器
 #[cfg(feature = "winnow-tokenizer")]
-pub fn tokenizer(code: String) -> Result<Vec<(Token, u32)>, TokenError> {
+pub fn tokenizer(code: String) -> Result<Vec<(Token, Location)>, TokenError> {
     winnow::tokenizer(code)
 }
 
 /// 仅用于测试/教学目的，显式调用手写分词器
-pub fn tokenizer_handwritten(code: String) -> Result<Vec<(Token, u32)>, TokenError> {
+pub fn tokenizer_handwritten(code: String) -> Result<Vec<(Token, Location)>, TokenError> {
     handwritten::tokenizer(code)
 }
 
@@ -167,7 +216,7 @@ pub mod winnow {
         token::{literal, one_of, take_until, take_while},
     };
 
-    use super::{Keyword, Operator, Token, TokenError};
+    use super::{Keyword, Location, Operator, Token, TokenError};
 
     pub fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
         alt((
@@ -243,26 +292,25 @@ pub mod winnow {
     }
 
     /// 代码转成token串
-    pub fn tokenizer(code: String) -> Result<Vec<(Token, u32)>, TokenError> {
+    pub fn tokenizer(code: String) -> Result<Vec<(Token, Location)>, TokenError> {
         let mut input = code.as_str();
-        let mut current_line = 1;
+        let mut loc = Location::default();
         let mut tokens = vec![];
 
         loop {
             debug!(?input);
-            let start_line = current_line;
+            let start_loc = loc;
             let (remain_input, token) = parse_with_winnow(input).map_err(|e| TokenError::ParseErrorWithLocation {
                 msg: e.to_string(),
-                line: current_line,
+                line: loc.line,
             })?;
 
             let consumed_len = input.len() - remain_input.len();
             let consumed_text = &input[..consumed_len];
-            let newlines = consumed_text.matches('\n').count();
-            current_line += newlines as u32;
+            loc = advance_location(loc, consumed_text);
 
             if !matches!(token, Token::Comment | Token::Space) {
-                tokens.push((token, start_line));
+                tokens.push((token, start_loc));
             }
             if remain_input.is_empty() {
                 break;
@@ -271,6 +319,19 @@ pub mod winnow {
         }
 
         Ok(tokens)
+    }
+
+    fn advance_location(mut loc: Location, consumed_text: &str) -> Location {
+        for ch in consumed_text.chars() {
+            loc.index += 1;
+            if ch == '\n' || ch == '\r' {
+                loc.line += 1;
+                loc.col = 1;
+            } else {
+                loc.col += 1;
+            }
+        }
+        loc
     }
 }
 
@@ -282,7 +343,7 @@ mod handwritten {
 
     use rust_decimal::Decimal;
 
-    use super::{Keyword, Operator, Token, TokenError};
+    use super::{Keyword, Location, Operator, Token, TokenError};
 
     #[allow(unused)]
     fn parse_token(input: &str, loc: &Location) -> Result<(Token, Location), TokenError> {
@@ -342,7 +403,7 @@ mod handwritten {
                 if l.index >= chars.len() {
                     return Err(TokenError::ParseErrorWithLocation {
                         msg: "Unterminated string".to_string(),
-                        line: loc.line as u32,
+                        line: loc.line,
                     });
                 }
                 let s: String = chars.as_slice()[(loc.index + 1)..l.index].iter().collect();
@@ -426,7 +487,7 @@ mod handwritten {
     }
 
     /// 手写分词器入口
-    pub fn tokenizer(code: String) -> Result<Vec<(Token, u32)>, TokenError> {
+    pub fn tokenizer(code: String) -> Result<Vec<(Token, Location)>, TokenError> {
         let mut loc = Location::default();
         let mut tokens = vec![];
         let len = code.chars().count(); // Note: this is O(N) for UTF-8
@@ -437,8 +498,8 @@ mod handwritten {
             let (token, new_loc) = parse_token(&code, &loc)?;
 
             if !matches!(token, Token::Comment | Token::Space) {
-                // Use the line number from where the token *started*
-                tokens.push((token, loc.line as u32));
+                // Use the location from where the token *started*
+                tokens.push((token, loc));
             }
 
             loc = new_loc;
@@ -447,46 +508,5 @@ mod handwritten {
         Ok(tokens)
     }
 
-    #[derive(Copy, Clone, Debug)]
-    pub struct Location {
-        pub col: usize,
-        pub line: usize,
-        pub index: usize,
-    }
-
-    impl Default for Location {
-        fn default() -> Self {
-            Location {
-                col: 1,
-                line: 1,
-                index: 0,
-            }
-        }
-    }
-
-    impl Location {
-        fn new_line(&self) -> Location {
-            Location {
-                index: self.index + 1,
-                col: 1,
-                line: self.line + 1,
-            }
-        }
-        #[inline]
-        fn incr(&self) -> Location {
-            self.incr_n(1)
-        }
-        #[inline]
-        fn incr2(&self) -> Location {
-            self.incr_n(2)
-        }
-        #[inline]
-        fn incr_n(&self, n: usize) -> Location {
-            Location {
-                index: self.index + n,
-                col: self.col + n,
-                line: self.line,
-            }
-        }
-    }
+    // Location is defined in the parent module.
 }
