@@ -161,86 +161,73 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
             }
         };
 
-        // Resolve function address
+        // Use closure's symbol directly
+        let sym = &closure.func_symbol;
         let program = closure.program.clone();
-        let func_label = format!("func_{}", closure.name);
 
-        if let Some(sym) = program.syms.get(&func_label) {
-            // Setup stack frame
-            // 1. Push Args to stack
-            for arg in passed_args {
-                fiber.stack.push(arg.clone());
-            }
-
-            // 2. Set fp
-            fiber.fp = 0;
-            let new_size = fiber.fp + sym.nlocals;
-            fiber.stack.resize(new_size, Value::null());
-
-            // 3. Set PC (-1 because loop increments)
-            fiber.pc = (sym.location as usize) - 1;
-
-            // 4. Set program and current_closure for the fiber
-            fiber.program = Some(program);
-            fiber.current_closure = Some(closure);
-        } else {
-            return Err(VMRuntimeError::UndefinedVariable(format!("function: {}", closure.name)));
+        // Setup stack frame
+        for arg in passed_args {
+            fiber.stack.push(arg.clone());
         }
+
+        fiber.fp = 0;
+        let new_size = fiber.fp + sym.nlocals;
+        fiber.stack.resize(new_size, Value::null());
+
+        // Start from function entry
+        fiber.pc = sym.location as usize;
+        fiber.program = Some(program);
+        fiber.current_closure = Some(closure);
     } else {
-        // Resuming yielded fiber
-        // We used to push args here.
-        // But we want the return value of `native_coroutine_resume` to be part of the stack push inside VM loop.
-        // However, `native_coroutine_resume` returns to the CALLER context, not the SUSPENDED FIBER context?
-        // Wait, execute_instruction calls native_fn. native_fn returns Result<Value>.
-        // Then execute_instruction pushes Result to self.stack.
-        // The `self.stack` it pushes to is the one AFTER context switch.
-        // So `resume` returns value into the FIBER.
-        // So we SHOULD return `args[1]` from native_coroutine_resume.
-        // And we should NOT push manually here.
+        // Resuming yielded fiber: push first resume arg as the return value of `yield`.
+        let resume_val = if passed_args.is_empty() {
+            Value::Null
+        } else {
+            passed_args[0].clone()
+        };
+        fiber.stack.push(resume_val);
     }
 
-    // Perform Context Switch
+    // Save caller VM state
+    let mut caller_state = Fiber::new();
+    vm.save_state_to_fiber(&mut caller_state);
+    let caller_rc = Rc::new(RefCell::new(caller_state));
 
-    let caller_state = Rc::new(RefCell::new(Fiber::new()));
-    vm.save_state_to_fiber(&mut caller_state.borrow_mut());
-
-    if let Some(current) = &vm.current_fiber {
-        let mut c = current.borrow_mut();
-        vm.save_state_to_fiber(&mut c);
-        c.state = FiberState::Suspended;
-    } else {
-        caller_state.borrow_mut().state = FiberState::Suspended;
-    }
-
-    let caller_rc = if let Some(current) = &vm.current_fiber {
-        current.clone()
-    } else {
-        caller_state
-    };
-
-    fiber.caller = Some(caller_rc);
+    // Switch to fiber and run until yield/return
     fiber.state = FiberState::Running;
+    fiber.caller = Some(caller_rc.clone());
+    drop(fiber);
 
-    // Load new state
-    vm.load_state_from_fiber(&fiber);
+    let prev_current = vm.current_fiber.clone();
     vm.current_fiber = Some(fiber_rc.clone());
+    vm.load_state_from_fiber(&fiber_rc.borrow());
 
-    if is_new {
-        // For new fiber, we manually pushed args.
-        // Return Null. CallStack will push Null next.
-        // The first few instructions of function are usually Moves for args.
-        // Or if logic relies on stack position, Null at top is fine as long as fp=0 and args are at 0, 1 etc.
-        Ok(Value::Null)
-    } else {
-        // For suspended fiber, we want `let v = yield ...` to get the value passed to resume.
-        // The value returned here is pushed to stack.
-        // So return passed_args[0].
-        if passed_args.is_empty() {
-            Ok(Value::Null)
-        } else {
-            Ok(passed_args[0].clone())
+    let result = vm.execute_from(vm.pc);
+
+    // Save fiber state after execution
+    {
+        let mut f = fiber_rc.borrow_mut();
+        vm.save_state_to_fiber(&mut f);
+        if f.state == FiberState::Running && f.call_stack.is_empty() && f.program.is_some() {
+            // Ran off end without explicit return
+            f.state = FiberState::Dead;
         }
     }
+
+    // Restore caller VM state
+    vm.load_state_from_fiber(&caller_rc.borrow());
+    vm.current_fiber = prev_current;
+
+    let result = result.map_err(|e| e.error)?;
+    {
+        let mut f = fiber_rc.borrow_mut();
+        f.caller = None;
+        if f.state == FiberState::Dead {
+            f.result = Some(result.clone());
+        }
+    }
+
+    Ok(result)
 }
 
 fn native_coroutine_yield(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
@@ -265,36 +252,27 @@ fn native_coroutine_yield(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRunt
 
     let mut current_fiber = current_fiber_rc.borrow_mut();
 
-    let caller_rc = if let Some(c) = &current_fiber.caller {
-        c.clone()
-    } else {
+    if current_fiber.caller.is_none() {
         return Err(ValueError::InvalidOperation {
             operator: "yield without caller".into(),
             left_type: ValueType::Coroutine,
             right_type: ValueType::Null,
         }
         .into());
-    };
+    }
+
+    // Advance PC to resume after yield
+    vm.pc += 1;
 
     // Save current state
     vm.save_state_to_fiber(&mut current_fiber);
     current_fiber.state = FiberState::Suspended;
-
     drop(current_fiber); // Release borrow
 
-    // Load caller
-    let caller = caller_rc.borrow();
-    vm.load_state_from_fiber(&caller);
-
-    vm.current_fiber = Some(caller_rc.clone());
-
-    // We want `resume(...)` to return the value passed to `yield`.
-    // The value returned here is pushed to Caller stack.
-    if args.is_empty() {
-        Ok(Value::Null)
-    } else {
-        Ok(args[0].clone())
-    }
+    // Return value to resume caller (first arg or null)
+    let yield_val = if args.is_empty() { Value::Null } else { args[0].clone() };
+    vm.stack.push(yield_val);
+    Err(VMRuntimeError::Yield)
 }
 
 fn native_coroutine_status(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {

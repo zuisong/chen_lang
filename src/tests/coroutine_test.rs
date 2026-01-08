@@ -65,6 +65,32 @@ fn test_coroutine_primitives_with_yield_values() {
 }
 
 #[test]
+fn test_resume_yield_lua_semantics_roundtrip() {
+    let code = r#"
+    def f() {
+        let v = coroutine.yield("Y1")
+        return "R:" + v
+    }
+
+    let co = coroutine.create(f)
+    let a = coroutine.resume(co)         # => "Y1"
+    let b = coroutine.resume(co, "X")    # => "R:X"
+
+    return a + "|" + b
+    "#;
+
+    let ast = parse_from_source(&code).unwrap();
+    let program = compile(&code.chars().collect::<Vec<_>>(), ast);
+
+    let mut vm = VM::new();
+    let res = vm.execute(&program);
+    match res {
+        Ok(v) => assert_eq!(v.to_string(), "Y1|R:X"),
+        Err(e) => panic!("VM Error: {}", e),
+    }
+}
+
+#[test]
 fn test_scheduler_simulation() {
     let code = r#"
     # Scheduler simulation removed to focus on primitives

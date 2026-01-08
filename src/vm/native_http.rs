@@ -123,9 +123,10 @@ pub fn create_http_object() -> Value {
                     }
 
                     if let Some(h) = headers_arg
-                        && let Ok(headers) = value_to_header_map(&h) {
-                            builder = builder.headers(headers);
-                        }
+                        && let Ok(headers) = value_to_header_map(&h)
+                    {
+                        builder = builder.headers(headers);
+                    }
 
                     let resp_res = builder.send().await;
 

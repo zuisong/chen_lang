@@ -19,8 +19,8 @@ pub enum Instruction {
     Dup,         // 复制栈顶元素
 
     // 变量操作
-    Load(String),  // 加载变量
-    Store(String), // 存储到变量
+    Load(String),  // 加载变量（全局变量或函数符号回退）
+    Store(String), // 存储到变量（全局变量）
 
     // 运算操作（统一接口）
     Add,      // 加法
@@ -43,45 +43,45 @@ pub enum Instruction {
     Not, // 逻辑非
 
     // 控制流
-    Jump(String),        // 无条件跳转
-    JumpIfFalse(String), // 条件跳转（栈顶为假时）
-    JumpIfTrue(String),  // 条件跳转（栈顶为真时）
+    Jump(String),        // 无条件跳转到标签
+    JumpIfFalse(String), // 条件跳转：栈顶为假时跳转到标签
+    JumpIfTrue(String),  // 条件跳转：栈顶为真时跳转到标签
 
     // 函数调用
     Call(String, usize), // 调用函数（函数名，参数个数）
-    Return,              // 返回
+    Return,              // 返回：恢复调用帧并把返回值压栈
 
     // 标签（用于跳转目标）
-    Label(String), // 标签定义
+    Label(String), // 标签定义（当前实现主要用 syms 映射，非必需）
 
     // New Scope-related Instructions
-    DupPlusFP(i32),
-    MovePlusFP(usize),
-    GetUpvalue(usize),
-    SetUpvalue(usize),
-    Closure(String),           // Create closure from symbol name
-    CloseUpvalue,              // Close upvalues up to stack top (used before return/pop scope)
-    CloseUpvaluesAbove(usize), // Close all upvalues at or above fp + offset.
+    DupPlusFP(i32),            // 复制 FP + offset 的值到栈顶（局部变量读取）
+    MovePlusFP(usize),         // 将栈顶值写入 FP + offset（局部变量写入）
+    GetUpvalue(usize),         // 读取闭包捕获的 upvalue
+    SetUpvalue(usize),         // 写入闭包捕获的 upvalue
+    Closure(String),           // 根据函数符号名创建闭包并压栈
+    CloseUpvalue,              // 关闭栈顶相关的 upvalue（离开作用域）
+    CloseUpvaluesAbove(usize), // 关闭所有位于 FP+offset 之上的 upvalue
 
     // Object operations
     NewObject,         // 创建空对象
-    SetField(String),  // 设置对象字段: obj[field] = value (弹出 value, obj)
-    GetField(String),  // 获取对象字段: obj[field] (弹出 obj, 压入 value)
-    GetMethod(String), // 获取方法: obj.method (弹出 obj, 压入 func, obj) - 用于方法调用优化
-    SetIndex,          // 设置对象索引: obj[index] = value (弹出 value, index, obj)
-    GetIndex,          // 获取对象索引: obj[index] (弹出 index, obj, 压入 value)
+    SetField(String),  // 设置对象字段：obj.field = value（弹出 value, obj）
+    GetField(String),  // 获取对象字段：obj.field（弹出 obj，压入 value）
+    GetMethod(String), // 获取方法：obj.method（弹出 obj，压入 func, obj）- 用于方法调用优化
+    SetIndex,          // 设置对象索引：obj[index] = value（弹出 value, index, obj）
+    GetIndex,          // 获取对象索引：obj[index]（弹出 index, obj，压入 value）
 
     // Call function from stack
-    CallStack(usize), // Call function at stack[top-n-1], with n args
+    CallStack(usize), // 从栈顶调用函数（函数对象在 args 之下）
 
     // Array creation (Syntactic sugar for object with numeric keys)
-    BuildArray(usize),
+    BuildArray(usize), // 从栈顶 n 个元素构建数组对象
 
     // Exception handling
-    Throw,                        // Throw an exception
-    Import(String),               // Import a module
-    PushExceptionHandler(String), // Push exception handler (catch label)
-    PopExceptionHandler,          // Pop exception handler
+    Throw,                        // 抛出异常（从栈顶取值）
+    Import(String),               // 导入模块（stdlib 或文件）
+    PushExceptionHandler(String), // 压入异常处理器（catch label）
+    PopExceptionHandler,          // 弹出异常处理器
 }
 
 /// 程序表示

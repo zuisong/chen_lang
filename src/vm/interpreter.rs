@@ -773,7 +773,7 @@ impl VM {
                         drop(caller);
                         self.current_fiber = Some(caller_rc);
                         self.stack.push(return_value);
-                        Ok(true)
+                        Ok(false)
                     } else {
                         self.stack.push(return_value);
                         Ok(false)
