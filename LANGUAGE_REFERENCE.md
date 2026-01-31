@@ -1,8 +1,6 @@
-# Chen Lang 语言参考
+**版本**: 0.2.0
 
-**版本**: 0.1.0
-
-**更新日期**: 2025-12-30
+**更新日期**: 2026-02-01
 
 ---
 
@@ -308,13 +306,64 @@ let status = if age >= 18 { "adult" } else { "minor" }
 
 ### For 循环
 
-Chen Lang 的 for 循环是条件循环:
+Chen Lang 的 `for` 循环非常灵活, 支持条件循环、无限循环以及集合迭代。
+
+#### 1. 条件循环 (Go 风格)
 
 ```python
 let i = 0
 for i < 10 {
     println(i)
     i = i + 1
+}
+```
+
+#### 2. 无限循环
+
+```python
+for {
+    if some_condition() {
+        break
+    }
+}
+```
+
+#### 3. 集合迭代 (For-In)
+
+可以使用 `for...in` 语法遍历数组、对象、字符串以及协程。它会自动调用集合的
+`:iter()` 方法。
+
+```python
+# 遍历数组值
+let arr = ["A", "B", "C"]
+for x in arr {
+    println(x)
+}
+
+# 遍历对象值
+let obj = ${ a: 1, b: 2 }
+for v in obj {
+    println(v)
+}
+
+# 遍历字符串字符
+for char in "Hello" {
+    println(char)
+}
+```
+
+#### 4. 键值对迭代 (Entries)
+
+如果需要同时获取索引/键和值，可以使用 `:entries()` 方法。它会返回一个包含 `key`
+和 `value` 属性的对象。
+
+```python
+for e in arr:entries() {
+    println("Index: " + e.key + ", Value: " + e.value)
+}
+
+for e in obj:entries() {
+    println("Key: " + e.key + ", Value: " + e.value)
 }
 ```
 
@@ -664,10 +713,10 @@ let io = import "stdlib/io"
 
 ### 常用标准库模块
 
-| 模块路径         | 返回对象包含的成员                         | 说明              |
-| :--------------- | :----------------------------------------- | :---------------- |
-| `stdlib/io`      | `print`, `println`, `readline`             | 标准输入输出      |
-| `stdlib/json`    | `stringify`, `parse`                       | JSON 序列化与解析 |
+| 模块路径         | 返回对象包含的成员                | 说明              |
+| :--------------- | :-------------------------------- | :---------------- |
+| `stdlib/io`      | `print`, `println`, `readline`    | 标准输入输出      |
+| `stdlib/json`    | `stringify`, `parse`              | JSON 序列化与解析 |
 | `stdlib/date`    | `new`, `now`, `parse`             | 日期时间处理      |
 | `stdlib/fs`      | `read_to_string`, `write_file` 等 | 文件系统操作      |
 | `stdlib/http`    | `get`, `post` 等                  | HTTP 客户端       |
@@ -805,6 +854,13 @@ let obj = ${
 
 # 获取所有键
 let keys = obj:keys()  # ["name", "age", "city"]
+
+# 获取迭代器 (仅返回值)
+let it = obj:iter()
+
+# 获取键值对迭代器
+let entries = obj:entries()
+# 返回的对象结构为: ${ key: "name", value: "Alice" }
 ```
 
 ### 元表函数
@@ -1029,12 +1085,28 @@ A: 使用 `println()` 输出调试信息,查看错误消息中的行号定位问
 
 ### Q: 如何遍历数组?
 
-A: 使用 for 循环配合 `len()` 方法:
+A: 推荐使用 `for...in` 语法直接遍历:
 
 ```python
 let arr = [1, 2, 3]
+for x in arr {
+    println(x)
+}
+```
+
+如果需要索引，请使用 `:entries()`:
+
+```python
+for e in arr:entries() {
+    println(e.key + ": " + e.value)
+}
+```
+
+传统的索引遍历依然有效:
+
+```python
 let i = 0
-for i < arr.len() {
+for i < arr:len() {
     println(arr[i])
     i = i + 1
 }
@@ -1082,20 +1154,41 @@ for i < arr.len() {
 
 ### 数组方法
 
-| 方法              | 说明                      |
-| ----------------- | ------------------------- |
-| `arr.len()`       | 返回数组长度              |
-| `arr.push(value)` | 添加元素到末尾,返回新长度 |
-| `arr.pop()`       | 移除并返回最后一个元素    |
+| 方法              | 说明                                     |
+| ----------------- | ---------------------------------------- |
+| `arr:len()`       | 返回数组长度                             |
+| `arr:push(value)` | 添加元素到末尾, 返回新长度               |
+| `arr:pop()`       | 移除并返回最后一个元素                   |
+| `arr:iter()`      | 返回一个仅产生值的迭代器 (用于 `for-in`) |
+| `arr:entries()`   | 返回一个产生 `{key, value}` 对象的迭代器 |
 
 ### 字符串方法
 
-| 方法          | 说明           |
-| ------------- | -------------- |
-| `str.len()`   | 返回字符串长度 |
-| `str.upper()` | 转换为大写     |
-| `str.lower()` | 转换为小写     |
-| `str.trim()`  | 去除首尾空白   |
+| 方法          | 说明                                         |
+| ------------- | -------------------------------------------- |
+| `str:len()`   | 返回字符串长度                               |
+| `str:upper()` | 转换为大写                                   |
+| `str:lower()` | 转换为小写                                   |
+| `str:trim()`  | 去除首尾空白                                 |
+| `str:iter()`  | 返回一个产生每个字符的迭代器 (用于 `for-in`) |
+
+### 对象方法
+
+| 方法            | 说明                                     |
+| --------------- | ---------------------------------------- |
+| `obj:keys()`    | 返回对象所有键名组成的数组               |
+| `obj:iter()`    | 返回一个仅产生值的迭代器 (用于 `for-in`) |
+| `obj:entries()` | 返回一个产生 `{key, value}` 对象的迭代器 |
+
+### 协程 (Coroutine)
+
+协程是 Chen Lang 处理异步和迭代的核心。
+
+| 方法          | 说明                                          |
+| ------------- | --------------------------------------------- |
+| `co:resume()` | 恢复运行协程                                  |
+| `co:status()` | 返回协程状态 ("suspended", "running", "dead") |
+| `co:iter()`   | 返回协程自身, 以便直接在 `for-in` 中使用      |
 
 ---
 
