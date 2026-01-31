@@ -22,11 +22,12 @@ CATCH = @{ "catch" ~ !(ASCII_ALPHANUMERIC | "_") }
 FINALLY = @{ "finally" ~ !(ASCII_ALPHANUMERIC | "_") }
 THROW = @{ "throw" ~ !(ASCII_ALPHANUMERIC | "_") }
 IMPORT = @{ "import" ~ !(ASCII_ALPHANUMERIC | "_") }
+IN = @{ "in" ~ !(ASCII_ALPHANUMERIC | "_") }
 // NULL removed
 
 // 标识符 (不能是关键字)
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
-keyword = { LET | FOR | DEF | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | THROW | IMPORT }
+keyword = { LET | FOR | DEF | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | THROW | IMPORT | IN }
 
 // 字面量
 integer = @{ "-"? ~ ASCII_DIGIT+ }
@@ -103,7 +104,6 @@ statement = {
     continue_stmt |
     try_catch |
     throw_stmt |
-    throw_stmt |
     assignment |
     expression
 }
@@ -112,7 +112,8 @@ declaration = { LET ~ identifier ~ assign ~ NEWLINE* ~ expression }
 assignment_target = { identifier ~ postfix* }
 assignment = { assignment_target ~ assign ~ NEWLINE* ~ expression }
 
-for_loop = { FOR ~ NEWLINE* ~ expression ~ block }
+for_loop = { FOR ~ NEWLINE* (for_in_header | expression)? ~ block }
+for_in_header = { identifier ~ IN ~ expression }
 function_def = { DEF ~ identifier? ~ "(" ~ NEWLINE* ~ parameters? ~ NEWLINE* ~ ")" ~ block }
 return_stmt = { RETURN ~ NEWLINE* ~ expression }
 break_stmt = { BREAK }

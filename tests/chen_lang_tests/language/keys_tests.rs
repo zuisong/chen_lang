@@ -93,3 +93,17 @@ fn test_keys_on_non_object() {
     // VM should error "Attempt to call non-function value".
     assert!(result.is_err());
 }
+
+#[test]
+fn test_object_static_keys() {
+    let code = r#"
+        let obj = ${ first: 1, second: 2 }
+        let keys = Object.keys(obj)
+        println(keys[0])
+        println(keys[1])
+    "#;
+
+    let output = run_captured(code.to_string()).unwrap();
+    assert!(output.contains("first"));
+    assert!(output.contains("second"));
+}

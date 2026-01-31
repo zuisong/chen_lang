@@ -145,19 +145,39 @@ fn parse_assignment_target(pair: Pair<Rule>) -> Expression {
 
 fn parse_for_loop(pair: Pair<Rule>, loc: Location) -> Statement {
     let inner = pair.into_inner();
-    let mut test = Expression::Literal(Literal::Value(Value::Bool(false)), loc);
+    let mut test = None;
+    let mut for_in = None;
     let mut body = Vec::new();
 
     for p in inner {
         match p.as_rule() {
-            Rule::expression => test = parse_expression(p),
+            Rule::expression => test = Some(parse_expression(p)),
+            Rule::for_in_header => {
+                let mut header_inner = p.into_inner();
+                let var = header_inner.next().unwrap().as_str().to_string();
+                let iterable = parse_expression(header_inner.next().unwrap());
+                for_in = Some((var, iterable));
+            }
             Rule::block => body = parse_block(p),
-            Rule::FOR => {}
+            Rule::FOR | Rule::IN => {}
             _ => unreachable!("Unexpected rule in for_loop: {:?}", p.as_rule()),
         }
     }
 
-    Statement::Loop(Loop { test, body, loc })
+    if let Some((var, iterable)) = for_in {
+        Statement::ForIn(ForInLoop {
+            var,
+            iterable,
+            body,
+            loc,
+        })
+    } else {
+        Statement::Loop(Loop {
+            test: test.unwrap_or(Expression::Literal(Literal::Value(Value::Bool(true)), loc)),
+            body,
+            loc,
+        })
+    }
 }
 
 fn build_function_declaration(pair: Pair<Rule>) -> FunctionDeclaration {

@@ -45,9 +45,10 @@ pub enum Keyword {
     FINALLY,
     /// throw
     THROW,
-    /// async
     /// import
     IMPORT,
+    /// in
+    IN,
 }
 
 /// 操作符
@@ -281,6 +282,7 @@ pub mod winnow {
                         "finally" => Token::Keyword(Keyword::FINALLY),
                         "throw" => Token::Keyword(Keyword::THROW),
                         "import" => Token::Keyword(Keyword::IMPORT),
+                        "in" => Token::Keyword(Keyword::IN),
                         "true" => Token::Bool(true),
                         "false" => Token::Bool(false),
                         _ => Token::Identifier(s.to_string()),
@@ -473,6 +475,7 @@ mod handwritten {
                     "finally" => Token::Keyword(Keyword::FINALLY),
                     "throw" => Token::Keyword(Keyword::THROW),
                     "import" => Token::Keyword(Keyword::IMPORT),
+                    "in" => Token::Keyword(Keyword::IN),
                     "true" => Token::Bool(true),
                     "false" => Token::Bool(false),
                     _ => Token::Identifier(s),

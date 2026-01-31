@@ -7,8 +7,8 @@
 use thiserror::Error;
 
 use crate::expression::{
-    Assign, Ast, BinaryOperation, Expression, FunctionCall, FunctionDeclaration, If, Literal, Local, Loop, MethodCall,
-    Return, Statement, TryCatch, Unary,
+    Assign, Ast, BinaryOperation, Expression, ForInLoop, FunctionCall, FunctionDeclaration, If, Literal, Local, Loop,
+    MethodCall, Return, Statement, TryCatch, Unary,
 };
 use crate::tokenizer::Keyword;
 use crate::tokenizer::Location;
@@ -284,18 +284,66 @@ impl Parser {
 
     fn parse_for(&mut self) -> Result<Statement, ParseError> {
         let start_loc = self.peek_location();
-        let condition = self.parse_expression_logic()?;
 
-        self.skip_newlines();
-        self.consume(&Token::LBig, "Expected '{' after for condition")?;
-        let body = self.parse_block()?;
-        self.consume(&Token::RBig, "Expected '}' after for block")?;
+        // 1. Check for infinite loop: for { ... }
+        if self.check(&Token::LBig) {
+            self.advance(); // consume '{'
+            let body = self.parse_block()?;
+            self.consume(&Token::RBig, "Expected '}' after for block")?;
+            return Ok(Statement::Loop(Loop {
+                test: Expression::Literal(Literal::Value(Value::Bool(true)), start_loc),
+                body,
+                loc: start_loc,
+            }));
+        }
 
-        Ok(Statement::Loop(Loop {
-            test: condition,
-            body,
-            loc: start_loc,
-        }))
+        // 2. Check for for-in or while-style:
+        // We look ahead to see if it's an Identifier followed by IN
+        let is_for_in = if let Some(Token::Identifier(_)) = self.peek() {
+            self.tokens
+                .get(self.current + 1)
+                .map(|(t, _)| t == &Token::Keyword(Keyword::IN))
+                .unwrap_or(false)
+        } else {
+            false
+        };
+
+        if is_for_in {
+            let var_name = if let Some(Token::Identifier(name)) = self.advance() {
+                name.clone()
+            } else {
+                unreachable!()
+            };
+
+            self.consume(&Token::Keyword(Keyword::IN), "Expected 'in' after variable name")?;
+            let iterable = self.parse_expression_logic()?;
+
+            self.skip_newlines();
+            self.consume(&Token::LBig, "Expected '{' after for-in iterable")?;
+            let body = self.parse_block()?;
+            self.consume(&Token::RBig, "Expected '}' after for-in block")?;
+
+            Ok(Statement::ForIn(ForInLoop {
+                var: var_name,
+                iterable,
+                body,
+                loc: start_loc,
+            }))
+        } else {
+            // While style: for condition { ... }
+            let condition = self.parse_expression_logic()?;
+
+            self.skip_newlines();
+            self.consume(&Token::LBig, "Expected '{' after for condition")?;
+            let body = self.parse_block()?;
+            self.consume(&Token::RBig, "Expected '}' after for block")?;
+
+            Ok(Statement::Loop(Loop {
+                test: condition,
+                body,
+                loc: start_loc,
+            }))
+        }
     }
 
     fn parse_function_definition(&mut self) -> Result<FunctionDeclaration, ParseError> {

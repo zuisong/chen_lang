@@ -380,6 +380,7 @@ impl<'a> Compiler<'a> {
                 self.emit(Instruction::Pop, loc);
             }
             Statement::Loop(e) => self.compile_loop(e),
+            Statement::ForIn(e) => self.compile_for_in(e),
             Statement::Assign(e) => self.compile_assign(e),
             Statement::Break(loc) => {
                 let end_label = self
@@ -856,6 +857,130 @@ impl<'a> Compiler<'a> {
                 upvalues: Vec::new(),
             },
         );
+    }
+
+    fn compile_for_in(&mut self, for_in: ForInLoop) {
+        let loc = for_in.loc;
+        let unique_id = self.unique_id();
+        let loop_start = format!("for_in_start_{}", unique_id);
+        let loop_end = format!("for_in_end_{}", unique_id);
+        let iter_var = format!("@iter_{}", unique_id);
+
+        self.begin_scope();
+
+        // 1. Compile iterable, call :iter() on it, and store it in a hidden local variable
+        self.compile_expression(for_in.iterable);
+        self.emit(Instruction::GetMethod("iter".to_string()), loc); // [iterable, iter_fn, iterable]
+        self.emit(Instruction::CallStack(1), loc); // [coroutine]
+        let iter_loc = self.define_variable(iter_var);
+        match iter_loc {
+            VarLocation::Local(offset) => {
+                self.emit(Instruction::MovePlusFP(offset as usize), loc);
+            }
+            _ => unreachable!("Hidden iterator variable must be local"),
+        }
+
+        // loop_start label
+        self.program.syms.insert(
+            loop_start.clone(),
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+                upvalues: Vec::new(),
+            },
+        );
+
+        // 2. Check status: coroutine.status(iterable)
+        self.emit(Instruction::Load("coroutine".to_string()), loc); // [coroutine]
+        self.emit(Instruction::GetField("status".to_string()), loc); // [status_fn]
+        match iter_loc {
+            VarLocation::Local(offset) => {
+                self.emit(Instruction::DupPlusFP(offset), loc); // [status_fn, iterable]
+            }
+            _ => unreachable!(),
+        }
+        self.emit(Instruction::CallStack(1), loc); // [status_val]
+        self.emit(Instruction::Push(crate::value::Value::string("dead".to_string())), loc);
+        self.emit(Instruction::Equal, loc);
+        self.emit(Instruction::JumpIfTrue(loop_end.clone()), loc);
+
+        self.emit(Instruction::Load("coroutine".to_string()), loc); // [resume_fn, iterable, coroutine]
+        self.emit(Instruction::GetField("resume".to_string()), loc); // [resume_fn, iterable, resume_fn]
+        match iter_loc {
+            VarLocation::Local(offset) => {
+                self.emit(Instruction::DupPlusFP(offset), loc); // [resume_fn, iterable, resume_fn, iterable]
+            }
+            _ => unreachable!(),
+        }
+        self.emit(Instruction::CallStack(1), loc); // [resume_fn, iterable, yielded_val]
+
+        // 3.5 Check status again after resume - if it just died, the returned value is the final result, not an iteration item.
+        self.emit(Instruction::Load("coroutine".to_string()), loc); // [resume_fn, iterable, yielded_val, coroutine]
+        self.emit(Instruction::GetField("status".to_string()), loc); // [resume_fn, iterable, yielded_val, status_fn]
+        match iter_loc {
+            VarLocation::Local(offset) => {
+                self.emit(Instruction::DupPlusFP(offset), loc); // [..., status_fn, iterable]
+            }
+            _ => unreachable!(),
+        }
+        self.emit(Instruction::CallStack(1), loc); // [resume_fn, iterable, yielded_val, status_val]
+        self.emit(Instruction::Push(crate::value::Value::string("dead".to_string())), loc);
+        self.emit(Instruction::Equal, loc);
+        let continue_label = format!("for_in_continue_{}", unique_id);
+        self.emit(Instruction::JumpIfFalse(continue_label.clone()), loc);
+        self.emit(Instruction::Pop, loc); // Pop yielded_val since coroutine is dead
+        self.emit(Instruction::Jump(loop_end.clone()), loc);
+
+        self.program.syms.insert(
+            continue_label.clone(),
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+                upvalues: Vec::new(),
+            },
+        );
+
+        // 4. Define loop variable and assign yielded value
+        self.begin_scope();
+        let var_loc = self.define_variable(for_in.var);
+        match var_loc {
+            VarLocation::Local(offset) => {
+                self.emit(Instruction::MovePlusFP(offset as usize), loc);
+            }
+            VarLocation::Global(name) => {
+                self.emit(Instruction::Store(name), loc);
+            }
+            VarLocation::Upvalue(_) => unreachable!(),
+        }
+
+        self.current_state().loop_stack.push(LoopLabels {
+            start: loop_start.clone(),
+            end: loop_end.clone(),
+        });
+
+        // 5. Body
+        for stmt in for_in.body {
+            self.compile_statement(stmt);
+        }
+
+        self.end_scope(loc, false);
+        self.current_state().loop_stack.pop();
+
+        self.emit(Instruction::Jump(loop_start.clone()), loc);
+
+        // loop_end label
+        self.program.syms.insert(
+            loop_end.clone(),
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+                upvalues: Vec::new(),
+            },
+        );
+        self.end_scope(loc, false);
     }
 
     fn compile_try_catch(&mut self, tc: TryCatch) {

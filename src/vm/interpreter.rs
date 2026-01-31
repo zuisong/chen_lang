@@ -929,40 +929,8 @@ impl VM {
 
                 if let Value::Null = value
                     && let Value::Object(_) = obj
-                    && field == "keys"
                 {
-                    let array_proto = self.array_prototype.clone();
-                    value = Value::NativeFunction(Rc::new(Box::new(move |_vm, args| {
-                        if args.is_empty() {
-                            return Err(ValueError::TypeMismatch {
-                                expected: ValueType::Object,
-                                found: ValueType::Null,
-                                operation: "keys".into(),
-                            }
-                            .into());
-                        }
-                        let obj = &args[0];
-                        if let Value::Object(table_rc) = obj {
-                            let table = table_rc.borrow();
-                            let mut data = IndexMap::new();
-                            for (i, k) in table.data.keys().enumerate() {
-                                data.insert(i.to_string(), Value::string(k.clone()));
-                            }
-
-                            let mut res_table = crate::value::Table { data, metatable: None };
-                            if let Value::Object(proto_rc) = &array_proto {
-                                res_table.metatable = Some(proto_rc.clone());
-                            }
-
-                            return Ok(Value::Object(Rc::new(RefCell::new(res_table))));
-                        }
-                        Err(ValueError::TypeMismatch {
-                            expected: ValueType::Object,
-                            found: obj.get_type(),
-                            operation: "keys".into(),
-                        }
-                        .into())
-                    })));
+                    value = self.object_prototype.get_field_with_meta(field);
                 }
 
                 self.stack.push(value);
@@ -978,46 +946,20 @@ impl VM {
                 let obj = self.stack.pop().unwrap_or(Value::null());
                 let mut value = if let Value::String(_) = obj {
                     self.string_prototype.get_field_with_meta(field)
+                } else if let Value::Coroutine(_) = obj {
+                    if let Some(co_obj) = self.variables.get("coroutine") {
+                        co_obj.get_field_with_meta(field)
+                    } else {
+                        Value::Null
+                    }
                 } else {
                     obj.get_field_with_meta(field)
                 };
 
                 if let Value::Null = value
                     && let Value::Object(_) = obj
-                    && field == "keys"
                 {
-                    let array_proto = self.array_prototype.clone();
-                    value = Value::NativeFunction(Rc::new(Box::new(move |_vm, args| {
-                        if args.is_empty() {
-                            return Err(ValueError::TypeMismatch {
-                                expected: ValueType::Object,
-                                found: ValueType::Null,
-                                operation: "keys".into(),
-                            }
-                            .into());
-                        }
-                        let obj = &args[0];
-                        if let Value::Object(table_rc) = obj {
-                            let table = table_rc.borrow();
-                            let mut data = IndexMap::new();
-                            for (i, k) in table.data.keys().enumerate() {
-                                data.insert(i.to_string(), Value::string(k.clone()));
-                            }
-
-                            let mut res_table = crate::value::Table { data, metatable: None };
-                            if let Value::Object(proto_rc) = &array_proto {
-                                res_table.metatable = Some(proto_rc.clone());
-                            }
-
-                            return Ok(Value::Object(Rc::new(RefCell::new(res_table))));
-                        }
-                        Err(ValueError::TypeMismatch {
-                            expected: ValueType::Object,
-                            found: obj.get_type(),
-                            operation: "keys".into(),
-                        }
-                        .into())
-                    })));
+                    value = self.object_prototype.get_field_with_meta(field);
                 }
 
                 self.stack.push(value);

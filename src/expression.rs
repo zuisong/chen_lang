@@ -105,6 +105,8 @@ pub enum Statement {
     Return(Return),
     Local(Local),
     Assign(Assign),
+    /// For-In 循环: for var in iterable { body }
+    ForIn(ForInLoop),
     /// 设置属性: obj.field = value
     SetField {
         object: Expression,
@@ -156,6 +158,18 @@ pub struct Loop {
     /// 循环终止判断条件
     pub test: Expression,
     /// 循环语句里面要执行的语句块
+    pub body: Vec<Statement>,
+    pub loc: Location,
+}
+
+/// For-In 循环语句
+#[derive(Debug, PartialEq, Clone)]
+pub struct ForInLoop {
+    /// 循环变量名
+    pub var: String,
+    /// 可迭代对象表达式 (例如一个协程或数组)
+    pub iterable: Expression,
+    /// 循环体
     pub body: Vec<Statement>,
     pub loc: Location,
 }
