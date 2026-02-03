@@ -26,7 +26,7 @@
 
 #### 1. Hello World & String Operations
 ```python
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 let name = "Chen Lang"
 io.println("Hello, " + name + "!")
 # Output: Hello, Chen Lang!

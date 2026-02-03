@@ -39,7 +39,7 @@ Chen Lang 是一个简洁、动态类型的编程语言,具有以下特点:
 cargo run --bin chen_lang -- run demo_codes/fibonacci.ch
 
 # 从标准输入运行程序
-echo 'let io = import "stdlib/io"; io.println("Hello from stdin")' | cargo run --bin chen_lang -- run -
+echo 'let io = import("stdlib/io"); io.println("Hello from stdin")' | cargo run --bin chen_lang -- run -
 
 # 直接运行代码
 echo 'let x = 5; let y = 3; print(x + y)' | cargo run --bin chen_lang -- run -
@@ -696,14 +696,14 @@ Chen Lang 采用显式导入机制。除了极少数核心功能（如 `null`,
 ### 导入语法
 
 ```python
-let <变量名> = import "<模块路径>"
+let <变量名> = import("<模块路径>")
 ```
 
 示例:
 
 ```python
-let JSON = import "stdlib/json"
-let io = import "stdlib/io"
+let JSON = import("stdlib/json")
+let io = import("stdlib/io")
 ```
 
 ### 核心设计原则
@@ -740,10 +740,10 @@ ${
 在主程序中导入:
 
 ```python
-let math_utils = import "math_utils.ch"
+let math_utils = import("math_utils.ch")
 
 let result = math_utils.add(10, 20)
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 io.println(result)  # 30
 ```
 
@@ -752,8 +752,8 @@ io.println(result)  # 30
 ### 示例程序
 
 ```python
-let io = import "stdlib/io"
-let JSON = import "stdlib/json"
+let io = import("stdlib/io")
+let JSON = import("stdlib/json")
 
 let score = 85
 let level = if score >= 90 { "A" } else if score >= 60 { "P" } else { "F" }

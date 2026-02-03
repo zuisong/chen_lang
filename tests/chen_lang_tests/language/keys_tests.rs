@@ -1,7 +1,7 @@
 use chen_lang::run_captured as run_captured_orig;
 
 fn run_captured(code: String) -> Result<String, chen_lang::ChenError> {
-    let prelude = r#"let io = import "stdlib/io"
+    let prelude = r#"let io = import("stdlib/io")
 let println = io.println
 "#;
     run_captured_orig(format!("{}{}", prelude, code))

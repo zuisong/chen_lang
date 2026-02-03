@@ -121,7 +121,7 @@ continue_stmt = { CONTINUE }
 try_catch = { TRY ~ block ~ CATCH ~ identifier? ~ block ~ (FINALLY ~ block)? }
 throw_stmt = { THROW ~ NEWLINE* ~ expression }
 // await_expr removed
-import_expr = { IMPORT ~ NEWLINE* ~ string }
+import_expr = { IMPORT ~ NEWLINE* ~ "(" ~ NEWLINE* ~ string ~ NEWLINE* ~ ")" }
 
 // 复合结构
 block = { "{" ~ NEWLINE* ~ (statement ~ stmt_sep)* ~ statement? ~ NEWLINE* ~ "}" }

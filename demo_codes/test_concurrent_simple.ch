@@ -1,5 +1,5 @@
 # 简单的并发测试 - 不使用 HTTP
-let println = import "stdlib/io".println
+let println = import("stdlib/io").println
 
 println("测试并发协程...")
 

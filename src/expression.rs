@@ -61,7 +61,7 @@ pub enum Expression {
     },
     /// 函数定义表达式 (匿名函数/Lambda)
     Function(FunctionDeclaration),
-    /// Import 表达式: import "path"
+    /// Import 表达式: import("path")
     Import {
         path: String,
         loc: Location,

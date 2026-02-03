@@ -65,7 +65,7 @@ pub enum ChenError {
 
 #[test]
 fn test_run_captured() {
-    let code = r#"let io = import "stdlib/io"
+    let code = r#"let io = import("stdlib/io")
     io.print("Hello World")"#;
     let output = run_captured(code.to_string()).unwrap();
     assert_eq!(output, "Hello World");

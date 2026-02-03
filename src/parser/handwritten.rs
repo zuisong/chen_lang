@@ -669,16 +669,21 @@ impl Parser {
             }
             // ASYNC check removed
             Token::Keyword(Keyword::IMPORT) => {
-                // import "path"
+                // import("path")
+                self.skip_newlines();
+                self.consume(&Token::LParen, "Expected '(' after 'import'")?;
                 self.skip_newlines();
                 if let Some(Token::String(s)) = self.advance() {
+                    let path = s.clone();
+                    self.skip_newlines();
+                    self.consume(&Token::RParen, "Expected ')' after import path")?;
                     Ok(Expression::Import {
-                        path: s.clone(),
+                        path,
                         loc: start_loc,
                     })
                 } else {
                     Err(ParseError::Message {
-                        msg: "Expected string path after 'import'".to_string(),
+                        msg: "Expected string path inside import(...)".to_string(),
                         loc: self.peek_location(),
                     })
                 }

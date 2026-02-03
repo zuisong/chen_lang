@@ -1,4 +1,4 @@
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 
 # 1. Test condition-based loop (Go-style while)
 let i = 0

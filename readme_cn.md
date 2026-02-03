@@ -23,7 +23,7 @@
 
 #### 1. Hello World 与字符串操作
 ```python
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 let name = "Chen Lang"
 io.println("Hello, " + name + "!")
 # 输出: Hello, Chen Lang!

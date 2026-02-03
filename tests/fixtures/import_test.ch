@@ -1,5 +1,5 @@
-let io = import "stdlib/io"
-let JSON = import "stdlib/json"
+let io = import("stdlib/io")
+let JSON = import("stdlib/json")
 
 let data = ${ name: "Chen", version: 0.1 }
 let json_str = JSON.stringify(data)

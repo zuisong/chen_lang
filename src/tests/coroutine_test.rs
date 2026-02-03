@@ -101,7 +101,7 @@ fn test_scheduler_simulation() {
     # 验证能获取 status
     
     def task_a() {
-        let io = import "stdlib/io"
+        let io = import("stdlib/io")
         let i = 0
         for i < 3 {
              io.print("Task A: " + i)

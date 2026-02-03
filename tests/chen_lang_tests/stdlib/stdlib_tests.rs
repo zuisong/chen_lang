@@ -3,8 +3,8 @@ use crate::common::run_chen_lang_code;
 #[test]
 fn test_date() {
     let code = r#"
-    let Date = import "stdlib/date"
-    let io = import "stdlib/io"
+    let Date = import("stdlib/date")
+    let io = import("stdlib/io")
     let d = Date:new()
     io.println(d.__type)
     io.println(d:format('%Y'))
@@ -17,8 +17,8 @@ fn test_date() {
 #[test]
 fn test_json() {
     let code = r#"
-    let JSON = import "stdlib/json"
-    let io = import "stdlib/io"
+    let JSON = import("stdlib/json")
+    let io = import("stdlib/io")
     let obj = JSON.parse('{"a": 1}')
     io.println(obj.a)
     let s = JSON.stringify(obj)
@@ -32,8 +32,8 @@ fn test_json() {
 #[test]
 fn test_json_float_precision() {
     let code = r#"
-    let JSON = import "stdlib/json"
-    let io = import "stdlib/io"
+    let JSON = import("stdlib/json")
+    let io = import("stdlib/io")
     let data = ${
         simple_add: 0.1 + 2,
         decimal_add: 0.1 + 0.2,
@@ -66,8 +66,8 @@ fn test_json_float_precision() {
 #[test]
 fn test_json_roundtrip_precision() {
     let code = r#"
-    let JSON = import "stdlib/json"
-    let io = import "stdlib/io"
+    let JSON = import("stdlib/json")
+    let io = import("stdlib/io")
     let original = ${ value: 0.1 + 2 }
     let json_str = JSON.stringify(original)
     let parsed = JSON.parse(json_str)
@@ -86,8 +86,8 @@ fn test_json_roundtrip_precision() {
 #[test]
 fn test_json_nested_floats() {
     let code = r#"
-    let JSON = import "stdlib/json"
-    let io = import "stdlib/io"
+    let JSON = import("stdlib/json")
+    let io = import("stdlib/io")
     let data = ${
         nested: ${
             a: 0.1,
@@ -110,8 +110,8 @@ fn test_json_nested_floats() {
 #[test]
 fn test_json_large_precision() {
     let code = r#"
-    let JSON = import "stdlib/json"
-    let io = import "stdlib/io"
+    let JSON = import("stdlib/json")
+    let io = import("stdlib/io")
     let data = ${
         pi: 3.141592653589793,
         e: 2.718281828459045,
@@ -136,7 +136,7 @@ fn test_json_large_precision() {
 #[test]
 fn test_simple_stdlib_import() {
     let source = r#"
-        let io = import "stdlib/io"
+        let io = import("stdlib/io")
         io.println("test")
     "#;
     let output = run_chen_lang_code(source).unwrap();
