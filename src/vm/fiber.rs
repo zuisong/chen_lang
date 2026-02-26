@@ -26,6 +26,8 @@ pub struct CallFrame {
     pub fp: usize,
     pub program: Option<Rc<Program>>,
     pub closure: Option<Rc<ObjClosure>>,
+    pub discard_return: bool,
+    pub push_values_after_return: Vec<Value>,
 }
 
 #[derive(Clone)]

@@ -138,7 +138,7 @@ println(person[key])  # Output: Alice
 *   [x] **Object System**: Object literals, property access, indexing, metatables (can be used as arrays)
 *   [x] **Standard Library**: File I/O, Math functions
 *   [x] **Error Handling**: Try/Catch or Result type
-*   [ ] **Closures**: Capture variables from outer scopes
+*   [x] **Closures**: Capture variables from outer scopes
 
 
 ---

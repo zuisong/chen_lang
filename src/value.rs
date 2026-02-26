@@ -324,8 +324,7 @@ pub enum OpResult {
 #[derive(Debug, Clone)]
 pub struct MetamethodCallInfo {
     pub metamethod: Value,
-    pub left: Value,
-    pub right: Value,
+    pub args: Vec<Value>,
 }
 
 impl OpResult {
@@ -373,8 +372,7 @@ impl Value {
                 if let Some(metamethod_func) = metamethod {
                     Ok(OpResult::MetamethodCall(MetamethodCallInfo {
                         metamethod: metamethod_func,
-                        left: left_val.clone(),
-                        right: right_val.clone(),
+                        args: vec![left_val.clone(), right_val.clone()],
                     }))
                 } else {
                     Err(ValueError::InvalidOperation {
@@ -402,8 +400,7 @@ impl Value {
                 if let Some(metamethod_func) = metamethod {
                     Ok(OpResult::MetamethodCall(MetamethodCallInfo {
                         metamethod: metamethod_func,
-                        left: left_val.clone(),
-                        right: right_val.clone(),
+                        args: vec![left_val.clone(), right_val.clone()],
                     }))
                 } else {
                     Err(ValueError::InvalidOperation {
@@ -431,8 +428,7 @@ impl Value {
                 if let Some(metamethod_func) = metamethod {
                     Ok(OpResult::MetamethodCall(MetamethodCallInfo {
                         metamethod: metamethod_func,
-                        left: left_val.clone(),
-                        right: right_val.clone(),
+                        args: vec![left_val.clone(), right_val.clone()],
                     }))
                 } else {
                     Err(ValueError::InvalidOperation {
@@ -640,14 +636,14 @@ impl Value {
         }
     }
     /// Get field with metatable support (__index metamethod)
-    pub fn get_field_with_meta(&self, key: &str) -> Value {
+    pub fn get_field_with_meta(&self, key: &str) -> Result<OpResult, ValueError> {
         let val = match self {
             Value::Object(table_ref) => {
                 let table = table_ref.borrow();
 
                 // 1. Try direct lookup first
                 if let Some(value) = table.data.get(key) {
-                    return value.clone();
+                    return Ok(OpResult::Value(value.clone()));
                 }
 
                 // 2. Check for metatable
@@ -661,8 +657,11 @@ impl Value {
                             Value::Object(index_table_ref) => {
                                 return Value::Object(index_table_ref.clone()).get_field_with_meta(key);
                             }
-                            Value::Fn(_) => {
-                                // TODO: If __index is a function, call it (future feature)
+                            Value::Fn(_) | Value::NativeFunction(_) => {
+                                return Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                                    metamethod: index_method.clone(),
+                                    args: vec![self.clone(), Value::string(key.to_string())],
+                                }));
                             }
                             _ => {}
                         }
@@ -673,7 +672,7 @@ impl Value {
             }
             Value::Fn(closure) => {
                 if key == "__name" {
-                    return Value::string(closure.name.clone());
+                    return Ok(OpResult::Value(Value::string(closure.name.clone())));
                 }
                 Value::null()
             }
@@ -681,7 +680,7 @@ impl Value {
         };
 
         if matches!(val, Value::Null) && key == "__type" {
-            return Value::string(
+            return Ok(OpResult::Value(Value::string(
                 match self {
                     Value::Int(_) => "int",
                     Value::Float(_) => "float",
@@ -693,14 +692,14 @@ impl Value {
                     Value::Null => "null",
                 }
                 .to_string(),
-            );
+            )));
         }
 
-        val
+        Ok(OpResult::Value(val))
     }
 
     /// Set field with metatable support (__newindex metamethod placeholder)
-    pub fn set_field_with_meta(&self, key: String, value: Value) -> Result<(), ValueError> {
+    pub fn set_field_with_meta(&self, key: String, value: Value) -> Result<OpResult, ValueError> {
         match self {
             Value::Object(table_ref) => {
                 let mut table = table_ref.borrow_mut();
@@ -708,21 +707,28 @@ impl Value {
                 // If key already exists, always update directly
                 if table.data.contains_key(&key) {
                     table.data.insert(key, value);
-                    return Ok(());
+                    return Ok(OpResult::Value(Value::null()));
                 }
 
-                // Check for __newindex metamethod (placeholder for future)
+                // Check for __newindex metamethod
                 if let Some(metatable_ref) = &table.metatable {
                     let metatable = metatable_ref.borrow();
-                    if metatable.data.contains_key("__newindex") {
-                        // TODO: Call __newindex if it's a function (future feature)
-                        // For now, just insert directly
+                    if let Some(newindex_method) = metatable.data.get("__newindex") {
+                        match newindex_method {
+                            Value::Fn(_) | Value::NativeFunction(_) => {
+                                return Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                                    metamethod: newindex_method.clone(),
+                                    args: vec![self.clone(), Value::string(key.clone()), value],
+                                }));
+                            }
+                            _ => {}
+                        }
                     }
                 }
 
                 // No __newindex or it's not callable, insert directly
                 table.data.insert(key, value);
-                Ok(())
+                Ok(OpResult::Value(Value::null()))
             }
             _ => Err(ValueError::InvalidOperation {
                 operator: "set_field".to_string(),

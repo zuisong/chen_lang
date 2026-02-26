@@ -560,7 +560,35 @@ println(p3:to_string())  # "Point(15, 30)"
 - `__add` - 加法 (+)
 - `__sub` - 减法 (-)
 - `__mul` - 乘法 (*)
-- `__index` - 属性查找
+- `__index` - 属性查找拦截。当访问不存在的属性时触发。它可以是一个对象（在该对象中继续查找），也可以是一个函数 `def(obj, key)`，用于动态返回默认值。
+- `__newindex` - 属性赋值拦截。当给不存在的属性赋值时触发。它必须是一个函数 `def(obj, key, value)`，用于动态拦截和处理赋值行为。
+
+#### 动态元方法示例
+
+```python
+let io = import("stdlib/io")
+
+let proto = ${
+    # 当查找不存在的属性时触发
+    __index: def(obj, key) {
+        return "fallback_" + key
+    },
+    # 当给不存在的属性赋值时触发
+    __newindex: def(obj, key, value) {
+        io.println("拦截到赋值: " + key + " = " + value)
+        # 注意: 如果这里直接给 obj[key] 赋值会触发死循环
+    }
+}
+
+let person = ${ name: "Alice" }
+set_meta(person, proto)
+
+# 触发 __index
+println(person.age)  # 输出: fallback_age
+
+# 触发 __newindex
+person.city = "Beijing"  # 输出: 拦截到赋值: city = Beijing
+```
 
 ---
 

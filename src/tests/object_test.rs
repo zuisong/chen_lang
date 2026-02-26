@@ -478,6 +478,68 @@ io.println(person.city)"#;
         let output = result.unwrap();
         assert!(output.contains("(10,20)"));
     }
+    /// 测试 __index 是一个函数的情况
+    #[test]
+    fn test_metatable_index_function() {
+        let code = r#"let io = import("stdlib/io")
+        def index_handler(obj, key) {
+            return "fallback_" + key
+        }
+
+        let proto = ${
+            __index: index_handler
+        }
+        let obj = ${ name: "Alice" }
+        set_meta(obj, proto)
+
+        io.println(obj.name)
+        io.println(obj.age)
+        io.println(obj["city"])
+        "#;
+
+        let result = crate::run_captured(code.to_string());
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
+
+        let output = result.unwrap();
+        let lines: Vec<&str> = output.trim().lines().collect();
+        assert_eq!(lines[0], "Alice");
+        assert_eq!(lines[1], "fallback_age");
+        assert_eq!(lines[2], "fallback_city");
+    }
+
+    /// 测试 __newindex 是一个函数的情况
+    #[test]
+    fn test_metatable_newindex_function() {
+        let code = r#"let io = import("stdlib/io")
+        let store = ${}
+        
+        def newindex_handler(obj, key, value) {
+            store[key] = "intercepted_" + value 
+        }
+
+        let proto = ${
+            __newindex: newindex_handler
+        }
+        let obj = ${}
+        set_meta(obj, proto)
+
+        obj.name = "Alice"
+        obj["age"] = 25
+
+        io.println(obj.name)
+        io.println(store.name)
+        io.println(store.age)
+        "#;
+
+        let result = crate::run_captured(code.to_string());
+        assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
+
+        let output = result.unwrap();
+        let lines: Vec<&str> = output.trim().lines().collect();
+        assert_eq!(lines[0], "null");
+        assert_eq!(lines[1], "intercepted_Alice");
+        assert_eq!(lines[2], "intercepted_25");
+    }
 }
 
 /// 测试嵌套函数定义 (Nested Functions)
