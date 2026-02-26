@@ -677,10 +677,7 @@ impl Parser {
                     let path = s.clone();
                     self.skip_newlines();
                     self.consume(&Token::RParen, "Expected ')' after import path")?;
-                    Ok(Expression::Import {
-                        path,
-                        loc: start_loc,
-                    })
+                    Ok(Expression::Import { path, loc: start_loc })
                 } else {
                     Err(ParseError::Message {
                         msg: "Expected string path inside import(...)".to_string(),

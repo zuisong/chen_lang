@@ -26,7 +26,7 @@
 
 #### 1. Hello World & String Operations
 ```python
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 let name = "Chen Lang"
 io.println("Hello, " + name + "!")
 # Output: Hello, Chen Lang!
@@ -138,7 +138,7 @@ println(person[key])  # Output: Alice
 *   [x] **Object System**: Object literals, property access, indexing, metatables (can be used as arrays)
 *   [x] **Standard Library**: File I/O, Math functions
 *   [x] **Error Handling**: Try/Catch or Result type
-*   [ ] **Closures**: Capture variables from outer scopes
+*   [x] **Closures**: Capture variables from outer scopes
 
 
 ---

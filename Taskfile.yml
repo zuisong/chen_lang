@@ -13,3 +13,14 @@ tasks:
   test-cov:
     cmds:
       - cargo tarpaulin --config tarpaulin.toml
+
+  wasm-build:
+    desc: Build the WASM package
+    cmds:
+      - wasm-pack build --target web --out-dir docs/pkg
+
+
+  wasm-test:
+    desc: Run WASM tests
+    cmds:
+      - wasm-pack test --headless --firefox
