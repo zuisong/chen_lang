@@ -38,6 +38,9 @@ enum SubCommand {
     Run {
         ///要执行的源代码文件
         code_file: String,
+        /// Enable strict type checking.
+        #[arg(long)]
+        strict: bool,
     },
     /// Start REPL
     Repl,
@@ -61,7 +64,7 @@ fn main() -> anyhow::Result<()> {
         None => Args::command().print_help()?,
         Some(command) => match command {
             SubCommand::Completions { shell } => print_completions(shell, &mut Args::command()),
-            SubCommand::Run { code_file } => run_file(code_file)?,
+            SubCommand::Run { code_file, strict } => run_file(code_file, strict)?,
             SubCommand::Repl => repl()?,
         },
     }
@@ -154,7 +157,7 @@ fn repl() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn run_file(code_file: String) -> Result<(), chen_lang::ChenError> {
+fn run_file(code_file: String, strict: bool) -> Result<(), chen_lang::ChenError> {
     let mut code = String::new();
     if code_file == "-" {
         io::stdin().read_to_string(&mut code)?;
@@ -166,7 +169,7 @@ fn run_file(code_file: String) -> Result<(), chen_lang::ChenError> {
     }
     debug!(?code);
 
-    if let Err(e) = chen_lang::run(code.clone()) {
+    if let Err(e) = chen_lang::run_with_options(code.clone(), chen_lang::RunOptions { strict }) {
         let s = chen_lang::report_error(&code, &code_file, &e);
         eprintln!("{s}");
         std::process::exit(1);

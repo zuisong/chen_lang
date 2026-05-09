@@ -67,6 +67,11 @@ pub enum ChenError {
     Utf8(#[from] std::string::FromUtf8Error),
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RunOptions {
+    pub strict: bool,
+}
+
 #[test]
 fn test_run_captured() {
     let code = r#"let io = import("stdlib/io")
@@ -78,8 +83,16 @@ fn test_run_captured() {
 /// 运行代码
 #[unsafe(no_mangle)]
 pub fn run(code: String) -> Result<(), ChenError> {
+    run_with_options(code, RunOptions::default())
+}
+
+pub fn run_with_options(code: String, options: RunOptions) -> Result<(), ChenError> {
     let ast = parser::parse_from_source(&code)?;
-    type_system::check(&ast)?;
+    if options.strict {
+        type_system::check_strict(&ast)?;
+    } else {
+        type_system::check(&ast)?;
+    }
 
     let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
 
@@ -94,13 +107,32 @@ pub fn run_captured(code: String) -> Result<String, ChenError> {
     run_captured_with_vm_setup(code, |_| {})
 }
 
+pub fn run_captured_with_options(code: String, options: RunOptions) -> Result<String, ChenError> {
+    run_captured_with_options_and_vm_setup(code, options, |_| {})
+}
+
 /// 运行代码并捕获输出，允许配置 VM
 pub fn run_captured_with_vm_setup<F>(code: String, setup: F) -> Result<String, ChenError>
 where
     F: FnOnce(&mut vm::VM),
 {
+    run_captured_with_options_and_vm_setup(code, RunOptions::default(), setup)
+}
+
+pub fn run_captured_with_options_and_vm_setup<F>(
+    code: String,
+    options: RunOptions,
+    setup: F,
+) -> Result<String, ChenError>
+where
+    F: FnOnce(&mut vm::VM),
+{
     let ast = parser::parse_from_source(&code)?;
-    type_system::check(&ast)?;
+    if options.strict {
+        type_system::check_strict(&ast)?;
+    } else {
+        type_system::check(&ast)?;
+    }
 
     let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
 

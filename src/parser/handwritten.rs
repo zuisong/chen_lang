@@ -7,8 +7,9 @@
 use thiserror::Error;
 
 use crate::expression::{
-    Assign, Ast, BinaryOperation, Expression, ForInLoop, FunctionCall, FunctionDeclaration, If, Literal, Local, Loop,
-    MethodCall, Parameter, Return, Statement, TryCatch, TypeAnnotation, Unary,
+    Assign, Ast, BinaryOperation, EnumDeclaration, EnumVariantDeclaration, Expression, ForInLoop, FunctionCall,
+    FunctionDeclaration, If, ImplDeclaration, Literal, Local, Loop, MatchArm, MatchExpression, MethodCall, Parameter,
+    Pattern, Return, Statement, StructDeclaration, StructExpression, TryCatch, TypeAnnotation, Unary,
 };
 use crate::tokenizer::Keyword;
 use crate::tokenizer::Location;
@@ -105,7 +106,9 @@ impl Parser {
             (Token::RSquare, Token::RSquare) => true,
             (Token::Colon, Token::Colon) => true,
             (Token::Arrow, Token::Arrow) => true,
+            (Token::FatArrow, Token::FatArrow) => true,
             (Token::Pipe, Token::Pipe) => true,
+            (Token::Ampersand, Token::Ampersand) => true,
             (Token::Dot, Token::Dot) => true,
             (Token::DollarLBig, Token::DollarLBig) => true,
             (Token::NewLine, Token::NewLine) => true,
@@ -169,6 +172,15 @@ impl Parser {
         }
         if self.match_token(&Token::Keyword(Keyword::TYPE)) {
             return self.parse_type_alias();
+        }
+        if self.match_token(&Token::Keyword(Keyword::STRUCT)) {
+            return self.parse_struct_declaration();
+        }
+        if self.match_token(&Token::Keyword(Keyword::ENUM)) {
+            return self.parse_enum_declaration();
+        }
+        if self.match_token(&Token::Keyword(Keyword::IMPL)) {
+            return self.parse_impl_declaration();
         }
         // Async check removed
         if self.match_token(&Token::Keyword(Keyword::RETURN)) {
@@ -375,7 +387,9 @@ impl Parser {
         if !self.check(&Token::RParen) {
             loop {
                 let param_loc = self.peek_location();
-                let name = if let Some(Token::Identifier(param)) = self.advance() {
+                let name = if self.match_token(&Token::Ampersand) {
+                    self.consume_identifier("Expected parameter name after '&'")?
+                } else if let Some(Token::Identifier(param)) = self.advance() {
                     param.clone()
                 } else {
                     return Err(ParseError::Message {
@@ -438,6 +452,106 @@ impl Parser {
         Ok(Statement::TypeAliasDeclaration(
             crate::expression::TypeAliasDeclaration { name, target, loc },
         ))
+    }
+
+    fn parse_struct_declaration(&mut self) -> Result<Statement, ParseError> {
+        let loc = self.peek_location();
+        let name = self.consume_identifier("Expected struct name after 'struct'")?;
+        self.skip_newlines();
+        self.consume(&Token::LBig, "Expected '{' after struct name")?;
+        let mut fields = Vec::new();
+        self.skip_newlines();
+        if !self.check(&Token::RBig) {
+            loop {
+                self.skip_newlines();
+                let field_name = self.consume_identifier("Expected struct field name")?;
+                self.consume(&Token::Colon, "Expected ':' after struct field name")?;
+                fields.push((field_name, self.parse_type_annotation()?));
+                self.skip_newlines();
+                if !self.match_token(&Token::COMMA) {
+                    break;
+                }
+            }
+        }
+        self.skip_newlines();
+        self.consume(&Token::RBig, "Expected '}' after struct fields")?;
+        Ok(Statement::StructDeclaration(StructDeclaration { name, fields, loc }))
+    }
+
+    fn parse_enum_declaration(&mut self) -> Result<Statement, ParseError> {
+        let loc = self.peek_location();
+        let name = self.consume_identifier("Expected enum name after 'enum'")?;
+        let mut type_parameters = Vec::new();
+        if self.match_token(&Token::Operator(Operator::Lt)) {
+            loop {
+                type_parameters.push(self.consume_identifier("Expected enum type parameter")?);
+                if !self.match_token(&Token::COMMA) {
+                    break;
+                }
+            }
+            self.consume(
+                &Token::Operator(Operator::Gt),
+                "Expected '>' after enum type parameters",
+            )?;
+        }
+        self.skip_newlines();
+        self.consume(&Token::LBig, "Expected '{' after enum name")?;
+        let mut variants = Vec::new();
+        self.skip_newlines();
+        if !self.check(&Token::RBig) {
+            loop {
+                self.skip_newlines();
+                let variant_loc = self.peek_location();
+                let variant_name = self.consume_identifier("Expected enum variant name")?;
+                let payload = if self.match_token(&Token::LParen) {
+                    let payload = self.parse_type_annotation()?;
+                    self.consume(&Token::RParen, "Expected ')' after enum variant payload")?;
+                    Some(payload)
+                } else {
+                    None
+                };
+                variants.push(EnumVariantDeclaration {
+                    name: variant_name,
+                    payload,
+                    loc: variant_loc,
+                });
+                self.skip_newlines();
+                if !self.match_token(&Token::COMMA) {
+                    break;
+                }
+            }
+        }
+        self.skip_newlines();
+        self.consume(&Token::RBig, "Expected '}' after enum variants")?;
+        Ok(Statement::EnumDeclaration(EnumDeclaration {
+            name,
+            type_parameters,
+            variants,
+            loc,
+        }))
+    }
+
+    fn parse_impl_declaration(&mut self) -> Result<Statement, ParseError> {
+        let loc = self.peek_location();
+        let target = self.consume_identifier("Expected type name after 'impl'")?;
+        self.skip_newlines();
+        self.consume(&Token::LBig, "Expected '{' after impl target")?;
+        let mut methods = Vec::new();
+        self.skip_newlines();
+        while !self.check(&Token::RBig) {
+            self.skip_newlines();
+            if self.match_token(&Token::Keyword(Keyword::FN)) || self.match_token(&Token::Keyword(Keyword::DEF)) {
+                methods.push(self.parse_function_definition()?);
+            } else {
+                return Err(ParseError::Message {
+                    msg: "Expected method declaration inside impl".to_string(),
+                    loc: self.peek_location(),
+                });
+            }
+            self.skip_newlines();
+        }
+        self.consume(&Token::RBig, "Expected '}' after impl block")?;
+        Ok(Statement::ImplDeclaration(ImplDeclaration { target, methods, loc }))
     }
 
     fn parse_type_annotation(&mut self) -> Result<TypeAnnotation, ParseError> {
@@ -516,6 +630,9 @@ impl Parser {
             let stmts = self.parse_block()?;
             self.consume(&Token::RBig, "Expected '}' after block")?;
             return Ok(Expression::Block(stmts, start_loc));
+        }
+        if self.match_token(&Token::Keyword(Keyword::MATCH)) {
+            return self.parse_match_expression(start_loc);
         }
 
         self.parse_logical_or()
@@ -767,7 +884,13 @@ impl Parser {
             Token::Bool(b) => Ok(Expression::Literal(Literal::Value(Value::Bool(b)), start_loc)),
             Token::String(s) => Ok(Expression::Literal(Literal::Value(Value::string(s)), start_loc)),
             Token::Keyword(Keyword::NULL) => Ok(Expression::Literal(Literal::Value(Value::Null), start_loc)),
-            Token::Identifier(name) => Ok(Expression::Identifier(name, start_loc)),
+            Token::Identifier(name) => {
+                if self.check(&Token::LBig) && name.chars().next().is_some_and(char::is_uppercase) {
+                    self.parse_struct_literal(name, start_loc)
+                } else {
+                    Ok(Expression::Identifier(name, start_loc))
+                }
+            }
             Token::DollarLBig => self.parse_object_literal(),
             Token::LSquare => self.parse_array_literal(),
             Token::Keyword(Keyword::IF) => self.parse_if(),
@@ -866,6 +989,143 @@ impl Parser {
         Ok(Expression::ArrayLiteral(elements, start_loc))
     }
 
+    fn parse_struct_literal(&mut self, name: String, start_loc: Location) -> Result<Expression, ParseError> {
+        self.consume(&Token::LBig, "Expected '{' after struct name")?;
+        let mut fields = Vec::new();
+        self.skip_newlines();
+        if !self.check(&Token::RBig) {
+            loop {
+                self.skip_newlines();
+                let key = self.consume_identifier("Expected struct field name")?;
+                self.consume(&Token::Colon, "Expected ':' after struct field name")?;
+                fields.push((key, self.parse_expression_logic()?));
+                self.skip_newlines();
+                if !self.match_token(&Token::COMMA) {
+                    break;
+                }
+            }
+        }
+        self.skip_newlines();
+        self.consume(&Token::RBig, "Expected '}' after struct fields")?;
+        Ok(Expression::StructLiteral(StructExpression {
+            name,
+            fields,
+            loc: start_loc,
+        }))
+    }
+
+    fn parse_match_expression(&mut self, start_loc: Location) -> Result<Expression, ParseError> {
+        let value = self.parse_expression_logic()?;
+        self.skip_newlines();
+        self.consume(&Token::LBig, "Expected '{' after match value")?;
+        let mut arms = Vec::new();
+        self.skip_newlines();
+        while !self.check(&Token::RBig) {
+            let arm_loc = self.peek_location();
+            let pattern = self.parse_pattern()?;
+            self.skip_newlines();
+            self.consume(&Token::FatArrow, "Expected '=>' after match pattern")?;
+            let expression = self.parse_expression_logic()?;
+            arms.push(MatchArm {
+                pattern,
+                expression,
+                loc: arm_loc,
+            });
+            self.skip_newlines();
+            let _ = self.match_token(&Token::COMMA);
+            self.skip_newlines();
+        }
+        self.consume(&Token::RBig, "Expected '}' after match arms")?;
+        Ok(Expression::Match(MatchExpression {
+            value: Box::new(value),
+            arms,
+            loc: start_loc,
+        }))
+    }
+
+    fn parse_pattern(&mut self) -> Result<Pattern, ParseError> {
+        let loc = self.peek_location();
+        let token = self.advance().ok_or(ParseError::UnexpectedEndOfInput)?.clone();
+        match token {
+            Token::Int(i) => Ok(Pattern::Literal(Literal::Value(Value::Int(i)), loc)),
+            Token::Float(f) => Ok(Pattern::Literal(Literal::Value(Value::Float(f)), loc)),
+            Token::Bool(b) => Ok(Pattern::Literal(Literal::Value(Value::Bool(b)), loc)),
+            Token::String(s) => Ok(Pattern::Literal(Literal::Value(Value::string(s)), loc)),
+            Token::Keyword(Keyword::NULL) => Ok(Pattern::Literal(Literal::Value(Value::Null), loc)),
+            Token::Identifier(name) if name == "_" => Ok(Pattern::Wildcard(loc)),
+            Token::Identifier(name) => {
+                if self.match_token(&Token::Dot) {
+                    let variant = self.consume_identifier("Expected enum variant after '.'")?;
+                    let inner = if self.match_token(&Token::LParen) {
+                        let pattern = self.parse_pattern()?;
+                        self.consume(&Token::RParen, "Expected ')' after enum variant pattern")?;
+                        Some(Box::new(pattern))
+                    } else {
+                        None
+                    };
+                    Ok(Pattern::EnumVariant {
+                        enum_name: Some(name),
+                        variant,
+                        inner,
+                        loc,
+                    })
+                } else if self.check(&Token::LBig) {
+                    self.advance();
+                    let fields = self.parse_pattern_fields()?;
+                    Ok(Pattern::Struct { name, fields, loc })
+                } else if self.check(&Token::LParen) {
+                    self.advance();
+                    let inner = if self.check(&Token::RParen) {
+                        None
+                    } else {
+                        Some(Box::new(self.parse_pattern()?))
+                    };
+                    self.consume(&Token::RParen, "Expected ')' after enum variant pattern")?;
+                    Ok(Pattern::EnumVariant {
+                        enum_name: None,
+                        variant: name,
+                        inner,
+                        loc,
+                    })
+                } else if name.chars().next().is_some_and(char::is_uppercase) {
+                    Ok(Pattern::EnumVariant {
+                        enum_name: None,
+                        variant: name,
+                        inner: None,
+                        loc,
+                    })
+                } else {
+                    Ok(Pattern::Binding(name, loc))
+                }
+            }
+            token => Err(ParseError::UnexpectedToken { token, loc }),
+        }
+    }
+
+    fn parse_pattern_fields(&mut self) -> Result<Vec<(String, Pattern)>, ParseError> {
+        let mut fields = Vec::new();
+        self.skip_newlines();
+        if !self.check(&Token::RBig) {
+            loop {
+                self.skip_newlines();
+                let name = self.consume_identifier("Expected field name in pattern")?;
+                let pattern = if self.match_token(&Token::Colon) {
+                    self.parse_pattern()?
+                } else {
+                    Pattern::Binding(name.clone(), self.peek_location())
+                };
+                fields.push((name, pattern));
+                self.skip_newlines();
+                if !self.match_token(&Token::COMMA) {
+                    break;
+                }
+            }
+        }
+        self.skip_newlines();
+        self.consume(&Token::RBig, "Expected '}' after pattern fields")?;
+        Ok(fields)
+    }
+
     fn parse_try_catch(&mut self) -> Result<Statement, ParseError> {
         let start_loc = self.peek_location();
 
@@ -920,6 +1180,17 @@ impl Parser {
         let value = self.parse_expression_logic()?;
 
         Ok(Statement::Throw { value, loc: start_loc })
+    }
+
+    fn consume_identifier(&mut self, message: &str) -> Result<String, ParseError> {
+        if let Some(Token::Identifier(name)) = self.advance() {
+            Ok(name.clone())
+        } else {
+            Err(ParseError::Message {
+                msg: message.to_string(),
+                loc: self.peek_location(),
+            })
+        }
     }
 }
 

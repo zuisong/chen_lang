@@ -12,6 +12,7 @@ use super::native_io::create_io_object;
 use super::native_json::create_json_object;
 use super::native_process::create_process_object;
 use crate::compiler::compile;
+use crate::expression::{Literal, Pattern};
 use crate::parser::parse_from_source;
 use crate::tokenizer::Location;
 use crate::value::{ObjClosure, ObjUpvalue, OpResult, UpvalueState, Value, ValueError, ValueType};
@@ -441,6 +442,33 @@ impl VM {
                 }
 
                 self.stack.push(Value::Object(Rc::new(RefCell::new(table_ref))));
+            }
+
+            Instruction::MatchPattern(pattern) => {
+                let value = self.stack.last().cloned().unwrap_or(Value::null());
+                let mut bindings = IndexMap::new();
+                if pattern_matches(&value, pattern, &mut bindings) {
+                    let captures = crate::value::Table {
+                        data: bindings,
+                        metatable: None,
+                    };
+                    self.stack.push(Value::Object(Rc::new(RefCell::new(captures))));
+                    self.stack.push(Value::Bool(true));
+                } else {
+                    self.stack.push(Value::Bool(false));
+                }
+            }
+
+            Instruction::BindPatternLocals(names) => {
+                let captures = self.stack.pop().unwrap_or(Value::null());
+                for name in names {
+                    let value = if let Value::Object(table_ref) = &captures {
+                        table_ref.borrow().data.get(name).cloned().unwrap_or(Value::Null)
+                    } else {
+                        Value::Null
+                    };
+                    self.stack.push(value);
+                }
             }
 
             Instruction::Pop => {
@@ -1209,5 +1237,61 @@ impl VM {
         }
 
         Ok(true)
+    }
+}
+
+fn pattern_matches(value: &Value, pattern: &Pattern, bindings: &mut IndexMap<String, Value>) -> bool {
+    match pattern {
+        Pattern::Wildcard(_) => true,
+        Pattern::Binding(name, _) => {
+            bindings.insert(name.clone(), value.clone());
+            true
+        }
+        Pattern::Literal(Literal::Value(expected), _) => value == expected,
+        Pattern::Struct { name, fields, .. } => {
+            let Value::Object(table_ref) = value else {
+                return false;
+            };
+            let table = table_ref.borrow();
+            if !matches!(table.data.get("__struct"), Some(Value::String(actual)) if actual.as_str() == name) {
+                return false;
+            }
+            for (field, field_pattern) in fields {
+                let Some(field_value) = table.data.get(field) else {
+                    return false;
+                };
+                if !pattern_matches(field_value, field_pattern, bindings) {
+                    return false;
+                }
+            }
+            true
+        }
+        Pattern::EnumVariant {
+            enum_name,
+            variant,
+            inner,
+            ..
+        } => {
+            let Value::Object(table_ref) = value else {
+                return false;
+            };
+            let table = table_ref.borrow();
+            if let Some(expected_enum) = enum_name
+                && !matches!(table.data.get("__enum"), Some(Value::String(actual)) if actual.as_str() == expected_enum)
+            {
+                return false;
+            }
+            if !matches!(table.data.get("__variant"), Some(Value::String(actual)) if actual.as_str() == variant) {
+                return false;
+            }
+            if let Some(inner_pattern) = inner {
+                let Some(payload) = table.data.get("value") else {
+                    return false;
+                };
+                pattern_matches(payload, inner_pattern, bindings)
+            } else {
+                true
+            }
+        }
     }
 }

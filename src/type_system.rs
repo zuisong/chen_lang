@@ -4,7 +4,8 @@ use codespan_reporting::diagnostic::{Diagnostic, Label};
 use thiserror::Error;
 
 use crate::expression::{
-    Ast, BinaryOperation, Expression, FunctionDeclaration, Literal, Local, Return, Statement, TypeAnnotation, Unary,
+    Ast, BinaryOperation, EnumDeclaration, Expression, FunctionDeclaration, Literal, Local, MatchExpression, Pattern,
+    Return, Statement, StructDeclaration, TypeAnnotation, Unary,
 };
 use crate::tokenizer::{Location, Operator};
 use crate::value::Value;
@@ -140,12 +141,23 @@ pub enum TypeError {
         found: Type,
         loc: Location,
     },
+    #[error("Strict mode requires explicit type annotation for variable {name}")]
+    MissingVariableAnnotation { name: String, loc: Location },
+    #[error("Strict mode requires explicit type annotation for parameter {name}")]
+    MissingParameterAnnotation { name: String, loc: Location },
+    #[error("Strict mode requires explicit return type for function {name}")]
+    MissingReturnAnnotation { name: String, loc: Location },
+    #[error("Non-exhaustive match expression")]
+    NonExhaustiveMatch { loc: Location },
 }
 
 pub struct TypeChecker {
     scopes: Vec<HashMap<String, Type>>,
     type_aliases: HashMap<String, Type>,
+    structs: HashMap<String, StructDeclaration>,
+    enums: HashMap<String, EnumDeclaration>,
     current_return_type: Option<Type>,
+    strict: bool,
 }
 
 impl TypeChecker {
@@ -153,7 +165,17 @@ impl TypeChecker {
         Self {
             scopes: vec![HashMap::new()],
             type_aliases: HashMap::new(),
+            structs: HashMap::new(),
+            enums: HashMap::new(),
             current_return_type: None,
+            strict: false,
+        }
+    }
+
+    pub fn strict() -> Self {
+        Self {
+            strict: true,
+            ..Self::new()
         }
     }
 
@@ -162,6 +184,10 @@ impl TypeChecker {
             if let Statement::TypeAliasDeclaration(alias) = statement {
                 let target = self.resolve_aliases(&Type::from_annotation(&alias.target));
                 self.type_aliases.insert(alias.name.clone(), target);
+            } else if let Statement::StructDeclaration(decl) = statement {
+                self.structs.insert(decl.name.clone(), decl.clone());
+            } else if let Statement::EnumDeclaration(decl) = statement {
+                self.enums.insert(decl.name.clone(), decl.clone());
             }
         }
 
@@ -201,6 +227,13 @@ impl TypeChecker {
             }
             Statement::FunctionDeclaration(function) => self.check_function(function),
             Statement::TypeAliasDeclaration(_) => Ok(()),
+            Statement::StructDeclaration(_) | Statement::EnumDeclaration(_) => Ok(()),
+            Statement::ImplDeclaration(impl_decl) => {
+                for method in &impl_decl.methods {
+                    self.check_function(method)?;
+                }
+                Ok(())
+            }
             Statement::Return(ret) => self.check_return(ret),
             Statement::Expression(expr) => {
                 self.check_expression(expr)?;
@@ -253,6 +286,12 @@ impl TypeChecker {
 
     fn check_local(&mut self, local: &Local) -> Result<(), TypeError> {
         let found = self.check_expression(&local.expression)?;
+        if self.strict && local.type_annotation.is_none() {
+            return Err(TypeError::MissingVariableAnnotation {
+                name: local.name.clone(),
+                loc: local.loc,
+            });
+        }
         let declared = local
             .type_annotation
             .as_ref()
@@ -275,8 +314,20 @@ impl TypeChecker {
     }
 
     fn check_function(&mut self, function: &FunctionDeclaration) -> Result<(), TypeError> {
+        if self.strict && function.return_type.is_none() {
+            return Err(TypeError::MissingReturnAnnotation {
+                name: function.name.clone().unwrap_or_else(|| "<anonymous>".to_string()),
+                loc: function.loc,
+            });
+        }
         self.with_scope(|checker| {
             for parameter in &function.parameters {
+                if checker.strict && parameter.type_annotation.is_none() {
+                    return Err(TypeError::MissingParameterAnnotation {
+                        name: parameter.name.clone(),
+                        loc: parameter.loc,
+                    });
+                }
                 let parameter_type = parameter
                     .type_annotation
                     .as_ref()
@@ -388,6 +439,13 @@ impl TypeChecker {
                     arguments: vec![element_type],
                 })
             }
+            Expression::StructLiteral(struct_expr) => {
+                for (_, value) in &struct_expr.fields {
+                    self.check_expression(value)?;
+                }
+                Ok(Type::TypeAlias(struct_expr.name.clone()))
+            }
+            Expression::Match(match_expr) => self.check_match_expression(match_expr),
             Expression::GetField { object, .. } => {
                 self.check_expression(object)?;
                 Ok(Type::Unknown)
@@ -403,6 +461,42 @@ impl TypeChecker {
             }
             Expression::Import { .. } => Ok(Type::Unknown),
         }
+    }
+
+    fn check_match_expression(&mut self, match_expr: &MatchExpression) -> Result<Type, TypeError> {
+        self.check_expression(&match_expr.value)?;
+        if !self.match_is_exhaustive(&match_expr.arms.iter().map(|arm| &arm.pattern).collect::<Vec<_>>()) {
+            return Err(TypeError::NonExhaustiveMatch { loc: match_expr.loc });
+        }
+
+        let mut result = Type::Unknown;
+        for arm in &match_expr.arms {
+            let current = self.with_scope(|checker| {
+                checker.define_pattern_bindings(&arm.pattern);
+                checker.check_expression(&arm.expression)
+            })?;
+            result = self.merge_types(&result, &current);
+        }
+        Ok(result)
+    }
+
+    fn define_pattern_bindings(&mut self, pattern: &Pattern) {
+        match pattern {
+            Pattern::Binding(name, _) => self.define(name.clone(), Type::Unknown),
+            Pattern::Struct { fields, .. } => {
+                for (_, pattern) in fields {
+                    self.define_pattern_bindings(pattern);
+                }
+            }
+            Pattern::EnumVariant { inner: Some(inner), .. } => self.define_pattern_bindings(inner),
+            _ => {}
+        }
+    }
+
+    fn match_is_exhaustive(&self, patterns: &[&Pattern]) -> bool {
+        patterns
+            .iter()
+            .any(|pattern| matches!(pattern, Pattern::Wildcard(_) | Pattern::Binding(_, _)))
     }
 
     fn check_binary_operation(&mut self, operation: &BinaryOperation) -> Result<Type, TypeError> {
@@ -653,11 +747,19 @@ pub fn check(ast: &Ast) -> Result<(), TypeError> {
     TypeChecker::new().check(ast)
 }
 
+pub fn check_strict(ast: &Ast) -> Result<(), TypeError> {
+    TypeChecker::strict().check(ast)
+}
+
 pub fn diagnostic(code: &str, file_id: usize, error: &TypeError) -> Diagnostic<usize> {
     let loc = match error {
         TypeError::TypeMismatch { loc, .. }
         | TypeError::ReturnTypeMismatch { loc, .. }
-        | TypeError::ArgumentTypeMismatch { loc, .. } => *loc,
+        | TypeError::ArgumentTypeMismatch { loc, .. }
+        | TypeError::MissingVariableAnnotation { loc, .. }
+        | TypeError::MissingParameterAnnotation { loc, .. }
+        | TypeError::MissingReturnAnnotation { loc, .. }
+        | TypeError::NonExhaustiveMatch { loc } => *loc,
     };
     let range = get_line_range(code, loc.line);
     Diagnostic::error()

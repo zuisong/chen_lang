@@ -76,7 +76,9 @@ pub enum Instruction {
     CallStack(usize), // 从栈顶调用函数（函数对象在 args 之下）
 
     // Array creation (Syntactic sugar for object with numeric keys)
-    BuildArray(usize), // 从栈顶 n 个元素构建数组对象
+    BuildArray(usize),                        // 从栈顶 n 个元素构建数组对象
+    MatchPattern(crate::expression::Pattern), // 匹配栈顶值，成功时压入捕获对象，失败时压入 false
+    BindPatternLocals(Vec<String>),           // 从捕获对象取字段并压栈，供编译器写入局部变量
 
     // Exception handling
     Throw,                        // 抛出异常（从栈顶取值）

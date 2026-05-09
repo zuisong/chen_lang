@@ -34,6 +34,45 @@ pub struct BinaryOperation {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct StructExpression {
+    pub name: String,
+    pub fields: Vec<(String, Expression)>,
+    pub loc: Location,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct MatchArm {
+    pub pattern: Pattern,
+    pub expression: Expression,
+    pub loc: Location,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct MatchExpression {
+    pub value: Box<Expression>,
+    pub arms: Vec<MatchArm>,
+    pub loc: Location,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum Pattern {
+    Wildcard(Location),
+    Binding(String, Location),
+    Literal(Literal, Location),
+    Struct {
+        name: String,
+        fields: Vec<(String, Pattern)>,
+        loc: Location,
+    },
+    EnumVariant {
+        enum_name: Option<String>,
+        variant: String,
+        inner: Option<Box<Pattern>>,
+        loc: Location,
+    },
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum Expression {
     FunctionCall(FunctionCall),
     MethodCall(MethodCall),
@@ -47,6 +86,10 @@ pub enum Expression {
     ObjectLiteral(Vec<(String, Expression)>, Location),
     /// 数组字面量
     ArrayLiteral(Vec<Expression>, Location),
+    /// 结构体构造: Point { x: 1, y: 2 }
+    StructLiteral(StructExpression),
+    /// match 表达式
+    Match(MatchExpression),
     /// 属性访问: obj.field
     GetField {
         object: Box<Expression>,
@@ -125,6 +168,35 @@ pub struct TypeAliasDeclaration {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub struct StructDeclaration {
+    pub name: String,
+    pub fields: Vec<(String, TypeAnnotation)>,
+    pub loc: Location,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct EnumVariantDeclaration {
+    pub name: String,
+    pub payload: Option<TypeAnnotation>,
+    pub loc: Location,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct EnumDeclaration {
+    pub name: String,
+    pub type_parameters: Vec<String>,
+    pub variants: Vec<EnumVariantDeclaration>,
+    pub loc: Location,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct ImplDeclaration {
+    pub target: String,
+    pub methods: Vec<FunctionDeclaration>,
+    pub loc: Location,
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub struct Return {
     pub expression: Expression,
     pub loc: Location,
@@ -136,6 +208,9 @@ pub enum Statement {
     Loop(Loop),
     FunctionDeclaration(FunctionDeclaration),
     TypeAliasDeclaration(TypeAliasDeclaration),
+    StructDeclaration(StructDeclaration),
+    EnumDeclaration(EnumDeclaration),
+    ImplDeclaration(ImplDeclaration),
     Return(Return),
     Local(Local),
     Assign(Assign),

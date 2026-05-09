@@ -150,6 +150,25 @@ struct FunctionState {
     upvalues: Vec<Upvalue>,
 }
 
+fn pattern_bindings(pattern: &Pattern) -> Vec<String> {
+    let mut names = Vec::new();
+    collect_pattern_bindings(pattern, &mut names);
+    names
+}
+
+fn collect_pattern_bindings(pattern: &Pattern, names: &mut Vec<String>) {
+    match pattern {
+        Pattern::Binding(name, _) => names.push(name.clone()),
+        Pattern::Struct { fields, .. } => {
+            for (_, pattern) in fields {
+                collect_pattern_bindings(pattern, names);
+            }
+        }
+        Pattern::EnumVariant { inner: Some(inner), .. } => collect_pattern_bindings(inner, names),
+        _ => {}
+    }
+}
+
 impl FunctionState {
     fn new() -> Self {
         Self {
@@ -332,6 +351,8 @@ impl<'a> Compiler<'a> {
                 function_declarations.push(fd);
             } else if matches!(stmt, Statement::TypeAliasDeclaration(_)) {
                 continue;
+            } else if matches!(stmt, Statement::StructDeclaration(_) | Statement::EnumDeclaration(_)) {
+                main_statements.push(stmt);
             } else {
                 main_statements.push(stmt);
             }
@@ -366,6 +387,9 @@ impl<'a> Compiler<'a> {
         match stmt {
             Statement::FunctionDeclaration(fd) => self.compile_function_def(fd),
             Statement::TypeAliasDeclaration(_) => {}
+            Statement::StructDeclaration(sd) => self.compile_struct_decl(sd),
+            Statement::EnumDeclaration(ed) => self.compile_enum_decl(ed),
+            Statement::ImplDeclaration(id) => self.compile_impl_decl(id),
             Statement::Return(r) => self.compile_return(r),
             Statement::Local(loc) => self.compile_local(loc),
             Statement::Expression(e) => {
@@ -445,6 +469,8 @@ impl<'a> Compiler<'a> {
             Expression::If(if_expr) => if_expr.loc,
             Expression::ObjectLiteral(_, loc) => *loc,
             Expression::ArrayLiteral(_, loc) => *loc,
+            Expression::StructLiteral(sl) => sl.loc,
+            Expression::Match(m) => m.loc,
             Expression::GetField { loc, .. } => *loc,
             Expression::Index { loc, .. } => *loc,
             Expression::Function(fd) => fd.loc,
@@ -537,6 +563,8 @@ impl<'a> Compiler<'a> {
                 }
                 self.emit(Instruction::BuildArray(count), loc);
             }
+            Expression::StructLiteral(struct_expr) => self.compile_struct_literal(struct_expr),
+            Expression::Match(match_expr) => self.compile_match_expression(match_expr),
             Expression::GetField { object, field, loc } => {
                 self.compile_expression(*object);
                 self.emit(Instruction::GetField(field), loc);
@@ -578,6 +606,131 @@ impl<'a> Compiler<'a> {
                 self.emit(Instruction::Import(path), loc);
             }
         }
+    }
+
+    fn compile_struct_decl(&mut self, decl: StructDeclaration) {
+        let loc = decl.loc;
+        self.emit(Instruction::NewObject, loc);
+        self.emit(Instruction::Dup, loc);
+        self.emit(Instruction::Push(crate::value::Value::string(decl.name.clone())), loc);
+        self.emit(Instruction::SetField("__struct".to_string()), loc);
+        self.emit(Instruction::Dup, loc);
+        self.emit(Instruction::NewObject, loc);
+        self.emit(Instruction::SetField("__index".to_string()), loc);
+        self.emit(Instruction::Store(format!("{}$meta", decl.name)), loc);
+    }
+
+    fn compile_enum_decl(&mut self, decl: EnumDeclaration) {
+        let loc = decl.loc;
+        self.emit(Instruction::NewObject, loc);
+        for variant in decl.variants {
+            self.emit(Instruction::Dup, loc);
+            self.emit(Instruction::NewObject, loc);
+            self.emit(Instruction::Dup, loc);
+            self.emit(Instruction::Push(crate::value::Value::string(decl.name.clone())), loc);
+            self.emit(Instruction::SetField("__enum".to_string()), loc);
+            self.emit(Instruction::Dup, loc);
+            self.emit(
+                Instruction::Push(crate::value::Value::string(variant.name.clone())),
+                loc,
+            );
+            self.emit(Instruction::SetField("__variant".to_string()), loc);
+            self.emit(Instruction::SetField(variant.name), loc);
+        }
+        self.emit(Instruction::Store(decl.name), loc);
+    }
+
+    fn compile_impl_decl(&mut self, decl: ImplDeclaration) {
+        let loc = decl.loc;
+        for mut method in decl.methods {
+            let Some(method_name) = method.name.clone() else {
+                continue;
+            };
+            method.name = Some(format!("{}${}", decl.target, method_name));
+            self.compile_function_def(method);
+            self.emit(Instruction::Load(format!("{}$meta", decl.target)), loc);
+            self.emit(Instruction::GetField("__index".to_string()), loc);
+            self.emit(
+                Instruction::Closure(format!("func_{}${}", decl.target, method_name)),
+                loc,
+            );
+            self.emit(Instruction::SetField(method_name), loc);
+        }
+    }
+
+    fn compile_struct_literal(&mut self, struct_expr: StructExpression) {
+        let loc = struct_expr.loc;
+        self.emit(Instruction::NewObject, loc);
+        self.emit(Instruction::Dup, loc);
+        self.emit(
+            Instruction::Push(crate::value::Value::string(struct_expr.name.clone())),
+            loc,
+        );
+        self.emit(Instruction::SetField("__struct".to_string()), loc);
+        for (key, val) in struct_expr.fields {
+            self.emit(Instruction::Dup, loc);
+            self.compile_expression(val);
+            self.emit(Instruction::SetField(key), loc);
+        }
+        self.emit(Instruction::Dup, loc);
+        self.emit(Instruction::Load(format!("{}$meta", struct_expr.name)), loc);
+        self.emit(Instruction::Call("set_meta".to_string(), 2), loc);
+        self.emit(Instruction::Pop, loc);
+    }
+
+    fn compile_match_expression(&mut self, match_expr: MatchExpression) {
+        let loc = match_expr.loc;
+        let match_id = self.unique_id();
+        let match_value_name = format!("@match_value_{}", match_id);
+        let end_label = format!("match_end_{}", match_id);
+        self.begin_scope();
+        self.compile_expression(*match_expr.value);
+        let match_value_loc = self.define_variable(match_value_name);
+        let VarLocation::Local(match_value_offset) = match_value_loc else {
+            unreachable!("match temp must be local")
+        };
+        self.emit(Instruction::MovePlusFP(match_value_offset as usize), loc);
+
+        for (index, arm) in match_expr.arms.into_iter().enumerate() {
+            let next_label = format!("match_next_{}_{}", match_id, index);
+            let bindings = pattern_bindings(&arm.pattern);
+            self.emit(Instruction::DupPlusFP(match_value_offset), arm.loc);
+            self.emit(Instruction::MatchPattern(arm.pattern), arm.loc);
+            self.emit(Instruction::JumpIfFalse(next_label.clone()), arm.loc);
+            self.begin_scope();
+            self.emit(Instruction::BindPatternLocals(bindings.clone()), arm.loc);
+            for name in bindings {
+                let var_location = self.define_variable(name);
+                let VarLocation::Local(offset) = var_location else {
+                    unreachable!("pattern binding must be local")
+                };
+                self.emit(Instruction::MovePlusFP(offset as usize), arm.loc);
+            }
+            self.compile_expression(arm.expression);
+            self.end_scope(arm.loc, true);
+            self.emit(Instruction::Jump(end_label.clone()), arm.loc);
+            self.program.syms.insert(
+                next_label,
+                Symbol {
+                    location: self.program.instructions.len() as i32,
+                    narguments: 0,
+                    nlocals: 0,
+                    upvalues: Vec::new(),
+                },
+            );
+        }
+
+        self.emit(Instruction::Push(crate::value::Value::Null), loc);
+        self.program.syms.insert(
+            end_label,
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+                upvalues: Vec::new(),
+            },
+        );
+        self.end_scope(loc, true);
     }
 
     fn compile_block_expression(&mut self, stmts: Vec<Statement>, loc: Location) {

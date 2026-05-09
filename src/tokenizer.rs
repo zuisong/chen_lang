@@ -49,6 +49,16 @@ pub enum Keyword {
     IMPORT,
     /// type
     TYPE,
+    /// struct
+    STRUCT,
+    /// enum
+    ENUM,
+    /// match
+    MATCH,
+    /// impl
+    IMPL,
+    /// fn
+    FN,
     /// in
     IN,
     /// int
@@ -140,6 +150,10 @@ pub enum Token {
     Colon,
     /// ->
     Arrow,
+    /// =>
+    FatArrow,
+    /// &
+    Ampersand,
     /// |
     Pipe,
     /// 逗号
@@ -255,23 +269,27 @@ pub mod winnow {
                 literal(",").value(Token::COMMA),
             )),
             alt((
-                literal("->").value(Token::Arrow),
-                literal("+").value(Token::Operator(Operator::Add)),
-                literal("*").value(Token::Operator(Operator::Multiply)),
-                literal("/").value(Token::Operator(Operator::Divide)),
-                literal("%").value(Token::Operator(Operator::Mod)),
-                literal("==").value(Token::Operator(Operator::Equals)),
-                literal("=").value(Token::Operator(Operator::Assign)),
-                literal("&&").value(Token::Operator(Operator::And)),
-                literal("||").value(Token::Operator(Operator::Or)),
-                literal("|").value(Token::Pipe),
-                literal("!=").value(Token::Operator(Operator::NotEquals)),
-                literal("!").value(Token::Operator(Operator::Not)),
-                literal("<=").value(Token::Operator(Operator::LtE)),
-                literal("<").value(Token::Operator(Operator::Lt)),
-                literal(">=").value(Token::Operator(Operator::GtE)),
-                literal(">").value(Token::Operator(Operator::Gt)),
-                literal("-").value(Token::Operator(Operator::Subtract)),
+                alt((
+                    literal("=>").value(Token::FatArrow),
+                    literal("->").value(Token::Arrow),
+                    literal("+").value(Token::Operator(Operator::Add)),
+                    literal("*").value(Token::Operator(Operator::Multiply)),
+                    literal("/").value(Token::Operator(Operator::Divide)),
+                    literal("%").value(Token::Operator(Operator::Mod)),
+                    literal("==").value(Token::Operator(Operator::Equals)),
+                    literal("=").value(Token::Operator(Operator::Assign)),
+                    literal("&&").value(Token::Operator(Operator::And)),
+                    literal("&").value(Token::Ampersand),
+                    literal("||").value(Token::Operator(Operator::Or)),
+                    literal("|").value(Token::Pipe),
+                    literal("!=").value(Token::Operator(Operator::NotEquals)),
+                    literal("!").value(Token::Operator(Operator::Not)),
+                    literal("<=").value(Token::Operator(Operator::LtE)),
+                    literal("<").value(Token::Operator(Operator::Lt)),
+                    literal(">=").value(Token::Operator(Operator::GtE)),
+                    literal(">").value(Token::Operator(Operator::Gt)),
+                    literal("-").value(Token::Operator(Operator::Subtract)),
+                )),
                 alt((
                     delimited(literal("\""), take_until(0.., "\""), literal("\"")),
                     delimited(literal("'"), take_until(0.., "'"), literal("'")),
@@ -303,6 +321,11 @@ pub mod winnow {
                         "throw" => Token::Keyword(Keyword::THROW),
                         "import" => Token::Keyword(Keyword::IMPORT),
                         "type" => Token::Keyword(Keyword::TYPE),
+                        "struct" => Token::Keyword(Keyword::STRUCT),
+                        "enum" => Token::Keyword(Keyword::ENUM),
+                        "match" => Token::Keyword(Keyword::MATCH),
+                        "impl" => Token::Keyword(Keyword::IMPL),
+                        "fn" => Token::Keyword(Keyword::FN),
                         "in" => Token::Keyword(Keyword::IN),
                         "int" => Token::Keyword(Keyword::INT),
                         "float" => Token::Keyword(Keyword::FLOAT),
@@ -407,6 +430,8 @@ mod handwritten {
             '.' => (Token::Dot, loc.incr()),
             ',' => (Token::COMMA, loc.incr()),
             '-' if next == '>' => (Token::Arrow, loc.incr2()),
+            '=' if next == '>' => (Token::FatArrow, loc.incr2()),
+            '&' if next != '&' => (Token::Ampersand, loc.incr()),
             '|' if next != '|' => (Token::Pipe, loc.incr()),
             '+' => (Token::Operator(Operator::Add), loc.incr()),
             '*' => (Token::Operator(Operator::Multiply), loc.incr()),
@@ -505,6 +530,11 @@ mod handwritten {
                     "throw" => Token::Keyword(Keyword::THROW),
                     "import" => Token::Keyword(Keyword::IMPORT),
                     "type" => Token::Keyword(Keyword::TYPE),
+                    "struct" => Token::Keyword(Keyword::STRUCT),
+                    "enum" => Token::Keyword(Keyword::ENUM),
+                    "match" => Token::Keyword(Keyword::MATCH),
+                    "impl" => Token::Keyword(Keyword::IMPL),
+                    "fn" => Token::Keyword(Keyword::FN),
                     "in" => Token::Keyword(Keyword::IN),
                     "int" => Token::Keyword(Keyword::INT),
                     "float" => Token::Keyword(Keyword::FLOAT),
