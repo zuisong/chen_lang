@@ -330,6 +330,8 @@ impl<'a> Compiler<'a> {
         for stmt in ast {
             if let Statement::FunctionDeclaration(fd) = stmt {
                 function_declarations.push(fd);
+            } else if matches!(stmt, Statement::TypeAliasDeclaration(_)) {
+                continue;
             } else {
                 main_statements.push(stmt);
             }
@@ -363,6 +365,7 @@ impl<'a> Compiler<'a> {
     fn compile_statement(&mut self, stmt: Statement) {
         match stmt {
             Statement::FunctionDeclaration(fd) => self.compile_function_def(fd),
+            Statement::TypeAliasDeclaration(_) => {}
             Statement::Return(r) => self.compile_return(r),
             Statement::Local(loc) => self.compile_local(loc),
             Statement::Expression(e) => {
@@ -731,7 +734,7 @@ impl<'a> Compiler<'a> {
         self.states.push(FunctionState::new());
 
         for param in fd.parameters {
-            self.define_variable(param);
+            self.define_variable(param.name);
         }
 
         let len = fd.body.len();

@@ -47,8 +47,22 @@ pub enum Keyword {
     THROW,
     /// import
     IMPORT,
+    /// type
+    TYPE,
     /// in
     IN,
+    /// int
+    INT,
+    /// float
+    FLOAT,
+    /// bool
+    BOOL,
+    /// string
+    STRING,
+    /// object
+    OBJECT,
+    /// null
+    NULL,
 }
 
 /// 操作符
@@ -124,6 +138,10 @@ pub enum Token {
     RSquare,
     /// 冒号
     Colon,
+    /// ->
+    Arrow,
+    /// |
+    Pipe,
     /// 逗号
     COMMA,
     /// (
@@ -237,6 +255,8 @@ pub mod winnow {
                 literal(",").value(Token::COMMA),
             )),
             alt((
+                literal("->").value(Token::Arrow),
+                literal("|").value(Token::Pipe),
                 literal("+").value(Token::Operator(Operator::Add)),
                 literal("*").value(Token::Operator(Operator::Multiply)),
                 literal("/").value(Token::Operator(Operator::Divide)),
@@ -282,7 +302,14 @@ pub mod winnow {
                         "finally" => Token::Keyword(Keyword::FINALLY),
                         "throw" => Token::Keyword(Keyword::THROW),
                         "import" => Token::Keyword(Keyword::IMPORT),
+                        "type" => Token::Keyword(Keyword::TYPE),
                         "in" => Token::Keyword(Keyword::IN),
+                        "int" => Token::Keyword(Keyword::INT),
+                        "float" => Token::Keyword(Keyword::FLOAT),
+                        "bool" => Token::Keyword(Keyword::BOOL),
+                        "string" => Token::Keyword(Keyword::STRING),
+                        "object" => Token::Keyword(Keyword::OBJECT),
+                        "null" => Token::Keyword(Keyword::NULL),
                         "true" => Token::Bool(true),
                         "false" => Token::Bool(false),
                         _ => Token::Identifier(s.to_string()),
@@ -379,6 +406,8 @@ mod handwritten {
             ':' => (Token::Colon, loc.incr()),
             '.' => (Token::Dot, loc.incr()),
             ',' => (Token::COMMA, loc.incr()),
+            '-' if next == '>' => (Token::Arrow, loc.incr2()),
+            '|' if next != '|' => (Token::Pipe, loc.incr()),
             '+' => (Token::Operator(Operator::Add), loc.incr()),
             '*' => (Token::Operator(Operator::Multiply), loc.incr()),
             '/' => (Token::Operator(Operator::Divide), loc.incr()),
@@ -475,7 +504,14 @@ mod handwritten {
                     "finally" => Token::Keyword(Keyword::FINALLY),
                     "throw" => Token::Keyword(Keyword::THROW),
                     "import" => Token::Keyword(Keyword::IMPORT),
+                    "type" => Token::Keyword(Keyword::TYPE),
                     "in" => Token::Keyword(Keyword::IN),
+                    "int" => Token::Keyword(Keyword::INT),
+                    "float" => Token::Keyword(Keyword::FLOAT),
+                    "bool" => Token::Keyword(Keyword::BOOL),
+                    "string" => Token::Keyword(Keyword::STRING),
+                    "object" => Token::Keyword(Keyword::OBJECT),
+                    "null" => Token::Keyword(Keyword::NULL),
                     "true" => Token::Bool(true),
                     "false" => Token::Bool(false),
                     _ => Token::Identifier(s),

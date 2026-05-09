@@ -40,6 +40,8 @@ pub mod expression;
 pub mod parser;
 /// 词法分析模块
 pub mod tokenizer;
+/// 静态类型系统模块
+pub mod type_system;
 /// 值系统模块
 pub mod value;
 /// 虚拟机模块
@@ -55,6 +57,8 @@ pub enum ChenError {
     Token(#[from] tokenizer::TokenError),
     #[error(transparent)]
     Parser(#[from] parser::ParserError),
+    #[error(transparent)]
+    Type(#[from] type_system::TypeError),
     #[error("Runtime error")]
     Runtime(#[from] RuntimeErrorWithContext), // Changed to VMRuntimeError
     #[error(transparent)]
@@ -75,6 +79,7 @@ fn test_run_captured() {
 #[unsafe(no_mangle)]
 pub fn run(code: String) -> Result<(), ChenError> {
     let ast = parser::parse_from_source(&code)?;
+    type_system::check(&ast)?;
 
     let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
 
@@ -95,6 +100,7 @@ where
     F: FnOnce(&mut vm::VM),
 {
     let ast = parser::parse_from_source(&code)?;
+    type_system::check(&ast)?;
 
     let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
 
@@ -147,6 +153,7 @@ fn build_diagnostic(code: &str, file_id: usize, error: &ChenError) -> Diagnostic
                 .with_message(msg)
                 .with_labels(vec![Label::primary(file_id, range).with_message("Token error")])
         }
+        ChenError::Type(err) => type_system::diagnostic(code, file_id, err),
         _ => Diagnostic::error().with_message(error.to_string()),
     }
 }

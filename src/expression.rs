@@ -68,10 +68,35 @@ pub enum Expression {
     },
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum TypeAnnotation {
+    Int,
+    Float,
+    Bool,
+    String,
+    Object,
+    Null,
+    Named(String),
+    Generic {
+        name: String,
+        arguments: Vec<TypeAnnotation>,
+    },
+    Union(Vec<TypeAnnotation>),
+    TypeAlias(String),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Parameter {
+    pub name: String,
+    pub type_annotation: Option<TypeAnnotation>,
+    pub loc: Location,
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionDeclaration {
     pub name: Option<String>,
-    pub parameters: Vec<String>,
+    pub parameters: Vec<Parameter>,
+    pub return_type: Option<TypeAnnotation>,
     pub body: Vec<Statement>,
     pub loc: Location,
 }
@@ -87,7 +112,15 @@ pub struct If {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Local {
     pub name: String,
+    pub type_annotation: Option<TypeAnnotation>,
     pub expression: Expression,
+    pub loc: Location,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct TypeAliasDeclaration {
+    pub name: String,
+    pub target: TypeAnnotation,
     pub loc: Location,
 }
 
@@ -102,6 +135,7 @@ pub enum Statement {
     Expression(Expression),
     Loop(Loop),
     FunctionDeclaration(FunctionDeclaration),
+    TypeAliasDeclaration(TypeAliasDeclaration),
     Return(Return),
     Local(Local),
     Assign(Assign),

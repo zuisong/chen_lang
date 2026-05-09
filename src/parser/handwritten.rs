@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use crate::expression::{
     Assign, Ast, BinaryOperation, Expression, ForInLoop, FunctionCall, FunctionDeclaration, If, Literal, Local, Loop,
-    MethodCall, Return, Statement, TryCatch, Unary,
+    MethodCall, Parameter, Return, Statement, TryCatch, TypeAnnotation, Unary,
 };
 use crate::tokenizer::Keyword;
 use crate::tokenizer::Location;
@@ -104,6 +104,8 @@ impl Parser {
             (Token::LSquare, Token::LSquare) => true,
             (Token::RSquare, Token::RSquare) => true,
             (Token::Colon, Token::Colon) => true,
+            (Token::Arrow, Token::Arrow) => true,
+            (Token::Pipe, Token::Pipe) => true,
             (Token::Dot, Token::Dot) => true,
             (Token::DollarLBig, Token::DollarLBig) => true,
             (Token::NewLine, Token::NewLine) => true,
@@ -164,6 +166,9 @@ impl Parser {
 
         if self.match_token(&Token::Keyword(Keyword::DEF)) {
             return self.parse_function();
+        }
+        if self.match_token(&Token::Keyword(Keyword::TYPE)) {
+            return self.parse_type_alias();
         }
         // Async check removed
         if self.match_token(&Token::Keyword(Keyword::RETURN)) {
@@ -230,12 +235,19 @@ impl Parser {
             });
         };
 
+        let type_annotation = if self.match_token(&Token::Colon) {
+            Some(self.parse_type_annotation()?)
+        } else {
+            None
+        };
+
         self.consume(&Token::Operator(Operator::Assign), "Expected '=' after variable name")?;
 
         let expr = self.parse_expression_logic()?;
 
         Ok(Statement::Local(Local {
             name,
+            type_annotation,
             expression: expr,
             loc: name_loc,
         }))
@@ -362,14 +374,27 @@ impl Parser {
         let mut parameters = Vec::new();
         if !self.check(&Token::RParen) {
             loop {
-                if let Some(Token::Identifier(param)) = self.advance() {
-                    parameters.push(param.clone());
+                let param_loc = self.peek_location();
+                let name = if let Some(Token::Identifier(param)) = self.advance() {
+                    param.clone()
                 } else {
                     return Err(ParseError::Message {
                         msg: "Expected parameter name".to_string(),
                         loc: self.peek_location(),
                     });
-                }
+                };
+
+                let type_annotation = if self.match_token(&Token::Colon) {
+                    Some(self.parse_type_annotation()?)
+                } else {
+                    None
+                };
+
+                parameters.push(Parameter {
+                    name,
+                    type_annotation,
+                    loc: param_loc,
+                });
 
                 if !self.match_token(&Token::COMMA) {
                     break;
@@ -377,6 +402,12 @@ impl Parser {
             }
         }
         self.consume(&Token::RParen, "Expected ')' after parameters")?;
+
+        let return_type = if self.match_token(&Token::Arrow) {
+            Some(self.parse_type_annotation()?)
+        } else {
+            None
+        };
 
         self.skip_newlines();
         self.consume(&Token::LBig, "Expected '{' before function body")?;
@@ -386,9 +417,84 @@ impl Parser {
         Ok(FunctionDeclaration {
             name,
             parameters,
+            return_type,
             body,
             loc: name_loc.unwrap_or(start_loc),
         })
+    }
+
+    fn parse_type_alias(&mut self) -> Result<Statement, ParseError> {
+        let loc = self.peek_location();
+        let name = if let Some(Token::Identifier(name)) = self.advance() {
+            name.clone()
+        } else {
+            return Err(ParseError::Message {
+                msg: "Expected type alias name after 'type'".to_string(),
+                loc,
+            });
+        };
+        self.consume(&Token::Operator(Operator::Assign), "Expected '=' after type alias name")?;
+        let target = self.parse_type_annotation()?;
+        Ok(Statement::TypeAliasDeclaration(crate::expression::TypeAliasDeclaration {
+            name,
+            target,
+            loc,
+        }))
+    }
+
+    fn parse_type_annotation(&mut self) -> Result<TypeAnnotation, ParseError> {
+        let mut variants = vec![self.parse_type_primary()?];
+        while self.match_token(&Token::Pipe) {
+            variants.push(self.parse_type_primary()?);
+        }
+
+        if variants.len() == 1 {
+            Ok(variants.remove(0))
+        } else {
+            Ok(TypeAnnotation::Union(variants))
+        }
+    }
+
+    fn parse_type_primary(&mut self) -> Result<TypeAnnotation, ParseError> {
+        let loc = self.peek_location();
+        let base = match self.advance() {
+            Some(Token::Keyword(Keyword::INT)) => Ok(TypeAnnotation::Int),
+            Some(Token::Keyword(Keyword::FLOAT)) => Ok(TypeAnnotation::Float),
+            Some(Token::Keyword(Keyword::BOOL)) => Ok(TypeAnnotation::Bool),
+            Some(Token::Keyword(Keyword::STRING)) => Ok(TypeAnnotation::String),
+            Some(Token::Keyword(Keyword::OBJECT)) => Ok(TypeAnnotation::Object),
+            Some(Token::Keyword(Keyword::NULL)) => Ok(TypeAnnotation::Null),
+            Some(Token::Identifier(name)) => Ok(TypeAnnotation::Named(name.clone())),
+            Some(token) => Err(ParseError::Message {
+                msg: format!("Expected type annotation, got {token:?}"),
+                loc,
+            }),
+            None => Err(ParseError::UnexpectedEndOfInput),
+        }?;
+
+        if self.match_token(&Token::Operator(Operator::Lt)) {
+            let name = match base {
+                TypeAnnotation::Named(name) => name,
+                _ => {
+                    return Err(ParseError::Message {
+                        msg: "Generic type name must be an identifier".to_string(),
+                        loc,
+                    });
+                }
+            };
+
+            let mut arguments = Vec::new();
+            loop {
+                arguments.push(self.parse_type_annotation()?);
+                if !self.match_token(&Token::COMMA) {
+                    break;
+                }
+            }
+            self.consume(&Token::Operator(Operator::Gt), "Expected '>' after generic type arguments")?;
+            Ok(TypeAnnotation::Generic { name, arguments })
+        } else {
+            Ok(base)
+        }
     }
 
     fn parse_function(&mut self) -> Result<Statement, ParseError> {
@@ -659,6 +765,7 @@ impl Parser {
             Token::Float(f) => Ok(Expression::Literal(Literal::Value(Value::Float(f)), start_loc)),
             Token::Bool(b) => Ok(Expression::Literal(Literal::Value(Value::Bool(b)), start_loc)),
             Token::String(s) => Ok(Expression::Literal(Literal::Value(Value::string(s)), start_loc)),
+            Token::Keyword(Keyword::NULL) => Ok(Expression::Literal(Literal::Value(Value::Null), start_loc)),
             Token::Identifier(name) => Ok(Expression::Identifier(name, start_loc)),
             Token::DollarLBig => self.parse_object_literal(),
             Token::LSquare => self.parse_array_literal(),

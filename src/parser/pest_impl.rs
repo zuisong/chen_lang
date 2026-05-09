@@ -85,6 +85,7 @@ fn parse_declaration(pair: Pair<Rule>, loc: Location) -> Statement {
 
     Statement::Local(Local {
         name,
+        type_annotation: None,
         expression: expr,
         loc: name_loc.unwrap_or(loc),
     })
@@ -196,7 +197,11 @@ fn build_function_declaration(pair: Pair<Rule>) -> FunctionDeclaration {
             }
             Rule::parameters => {
                 for param in p.into_inner() {
-                    parameters.push(param.as_str().to_string());
+                    parameters.push(Parameter {
+                        name: param.as_str().to_string(),
+                        type_annotation: None,
+                        loc: loc_from_pair(&param),
+                    });
                 }
             }
             Rule::block => body = parse_block(p),
@@ -208,6 +213,7 @@ fn build_function_declaration(pair: Pair<Rule>) -> FunctionDeclaration {
     FunctionDeclaration {
         name,
         parameters,
+        return_type: None,
         body,
         loc: name_loc.unwrap_or(loc),
     }
