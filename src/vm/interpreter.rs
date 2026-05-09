@@ -445,7 +445,7 @@ impl VM {
             }
 
             Instruction::MatchPattern(pattern) => {
-                let value = self.stack.last().cloned().unwrap_or(Value::null());
+                let value = self.stack.pop().unwrap_or(Value::null());
                 let mut bindings = IndexMap::new();
                 if pattern_matches(&value, pattern, &mut bindings) {
                     let captures = crate::value::Table {
@@ -459,15 +459,19 @@ impl VM {
                 }
             }
 
-            Instruction::BindPatternLocals(names) => {
+            Instruction::BindPatternLocals(bindings) => {
                 let captures = self.stack.pop().unwrap_or(Value::null());
-                for name in names {
+                for (name, offset) in bindings {
                     let value = if let Value::Object(table_ref) = &captures {
                         table_ref.borrow().data.get(name).cloned().unwrap_or(Value::Null)
                     } else {
                         Value::Null
                     };
-                    self.stack.push(value);
+                    let index = self.fp + offset;
+                    if index >= self.stack.len() {
+                        self.stack.resize(index + 1, Value::Null);
+                    }
+                    self.stack[index] = value;
                 }
             }
 

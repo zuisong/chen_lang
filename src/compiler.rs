@@ -698,14 +698,15 @@ impl<'a> Compiler<'a> {
             self.emit(Instruction::MatchPattern(arm.pattern), arm.loc);
             self.emit(Instruction::JumpIfFalse(next_label.clone()), arm.loc);
             self.begin_scope();
-            self.emit(Instruction::BindPatternLocals(bindings.clone()), arm.loc);
-            for name in bindings {
-                let var_location = self.define_variable(name);
+            let mut binding_slots = Vec::new();
+            for name in &bindings {
+                let var_location = self.define_variable(name.clone());
                 let VarLocation::Local(offset) = var_location else {
                     unreachable!("pattern binding must be local")
                 };
-                self.emit(Instruction::MovePlusFP(offset as usize), arm.loc);
+                binding_slots.push((name.clone(), offset as usize));
             }
+            self.emit(Instruction::BindPatternLocals(binding_slots), arm.loc);
             self.compile_expression(arm.expression);
             self.end_scope(arm.loc, true);
             self.emit(Instruction::Jump(end_label.clone()), arm.loc);
