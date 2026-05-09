@@ -150,6 +150,25 @@ struct FunctionState {
     upvalues: Vec<Upvalue>,
 }
 
+fn pattern_bindings(pattern: &Pattern) -> Vec<String> {
+    let mut names = Vec::new();
+    collect_pattern_bindings(pattern, &mut names);
+    names
+}
+
+fn collect_pattern_bindings(pattern: &Pattern, names: &mut Vec<String>) {
+    match pattern {
+        Pattern::Binding(name, _) => names.push(name.clone()),
+        Pattern::Struct { fields, .. } => {
+            for (_, pattern) in fields {
+                collect_pattern_bindings(pattern, names);
+            }
+        }
+        Pattern::EnumVariant { inner: Some(inner), .. } => collect_pattern_bindings(inner, names),
+        _ => {}
+    }
+}
+
 impl FunctionState {
     fn new() -> Self {
         Self {
@@ -330,6 +349,10 @@ impl<'a> Compiler<'a> {
         for stmt in ast {
             if let Statement::FunctionDeclaration(fd) = stmt {
                 function_declarations.push(fd);
+            } else if matches!(stmt, Statement::TypeAliasDeclaration(_)) {
+                continue;
+            } else if matches!(stmt, Statement::StructDeclaration(_) | Statement::EnumDeclaration(_)) {
+                main_statements.push(stmt);
             } else {
                 main_statements.push(stmt);
             }
@@ -363,6 +386,10 @@ impl<'a> Compiler<'a> {
     fn compile_statement(&mut self, stmt: Statement) {
         match stmt {
             Statement::FunctionDeclaration(fd) => self.compile_function_def(fd),
+            Statement::TypeAliasDeclaration(_) => {}
+            Statement::StructDeclaration(sd) => self.compile_struct_decl(sd),
+            Statement::EnumDeclaration(ed) => self.compile_enum_decl(ed),
+            Statement::ImplDeclaration(id) => self.compile_impl_decl(id),
             Statement::Return(r) => self.compile_return(r),
             Statement::Local(loc) => self.compile_local(loc),
             Statement::Expression(e) => {
@@ -380,6 +407,7 @@ impl<'a> Compiler<'a> {
                 self.emit(Instruction::Pop, loc);
             }
             Statement::Loop(e) => self.compile_loop(e),
+            Statement::ForIn(e) => self.compile_for_in(e),
             Statement::Assign(e) => self.compile_assign(e),
             Statement::Break(loc) => {
                 let end_label = self
@@ -441,6 +469,8 @@ impl<'a> Compiler<'a> {
             Expression::If(if_expr) => if_expr.loc,
             Expression::ObjectLiteral(_, loc) => *loc,
             Expression::ArrayLiteral(_, loc) => *loc,
+            Expression::StructLiteral(sl) => sl.loc,
+            Expression::Match(m) => m.loc,
             Expression::GetField { loc, .. } => *loc,
             Expression::Index { loc, .. } => *loc,
             Expression::Function(fd) => fd.loc,
@@ -533,6 +563,8 @@ impl<'a> Compiler<'a> {
                 }
                 self.emit(Instruction::BuildArray(count), loc);
             }
+            Expression::StructLiteral(struct_expr) => self.compile_struct_literal(struct_expr),
+            Expression::Match(match_expr) => self.compile_match_expression(match_expr),
             Expression::GetField { object, field, loc } => {
                 self.compile_expression(*object);
                 self.emit(Instruction::GetField(field), loc);
@@ -574,6 +606,132 @@ impl<'a> Compiler<'a> {
                 self.emit(Instruction::Import(path), loc);
             }
         }
+    }
+
+    fn compile_struct_decl(&mut self, decl: StructDeclaration) {
+        let loc = decl.loc;
+        self.emit(Instruction::NewObject, loc);
+        self.emit(Instruction::Dup, loc);
+        self.emit(Instruction::Push(crate::value::Value::string(decl.name.clone())), loc);
+        self.emit(Instruction::SetField("__struct".to_string()), loc);
+        self.emit(Instruction::Dup, loc);
+        self.emit(Instruction::NewObject, loc);
+        self.emit(Instruction::SetField("__index".to_string()), loc);
+        self.emit(Instruction::Store(format!("{}$meta", decl.name)), loc);
+    }
+
+    fn compile_enum_decl(&mut self, decl: EnumDeclaration) {
+        let loc = decl.loc;
+        self.emit(Instruction::NewObject, loc);
+        for variant in decl.variants {
+            self.emit(Instruction::Dup, loc);
+            self.emit(Instruction::NewObject, loc);
+            self.emit(Instruction::Dup, loc);
+            self.emit(Instruction::Push(crate::value::Value::string(decl.name.clone())), loc);
+            self.emit(Instruction::SetField("__enum".to_string()), loc);
+            self.emit(Instruction::Dup, loc);
+            self.emit(
+                Instruction::Push(crate::value::Value::string(variant.name.clone())),
+                loc,
+            );
+            self.emit(Instruction::SetField("__variant".to_string()), loc);
+            self.emit(Instruction::SetField(variant.name), loc);
+        }
+        self.emit(Instruction::Store(decl.name), loc);
+    }
+
+    fn compile_impl_decl(&mut self, decl: ImplDeclaration) {
+        let loc = decl.loc;
+        for mut method in decl.methods {
+            let Some(method_name) = method.name.clone() else {
+                continue;
+            };
+            method.name = Some(format!("{}${}", decl.target, method_name));
+            self.compile_function_def(method);
+            self.emit(Instruction::Load(format!("{}$meta", decl.target)), loc);
+            self.emit(Instruction::GetField("__index".to_string()), loc);
+            self.emit(
+                Instruction::Closure(format!("func_{}${}", decl.target, method_name)),
+                loc,
+            );
+            self.emit(Instruction::SetField(method_name), loc);
+        }
+    }
+
+    fn compile_struct_literal(&mut self, struct_expr: StructExpression) {
+        let loc = struct_expr.loc;
+        self.emit(Instruction::NewObject, loc);
+        self.emit(Instruction::Dup, loc);
+        self.emit(
+            Instruction::Push(crate::value::Value::string(struct_expr.name.clone())),
+            loc,
+        );
+        self.emit(Instruction::SetField("__struct".to_string()), loc);
+        for (key, val) in struct_expr.fields {
+            self.emit(Instruction::Dup, loc);
+            self.compile_expression(val);
+            self.emit(Instruction::SetField(key), loc);
+        }
+        self.emit(Instruction::Dup, loc);
+        self.emit(Instruction::Load(format!("{}$meta", struct_expr.name)), loc);
+        self.emit(Instruction::Call("set_meta".to_string(), 2), loc);
+        self.emit(Instruction::Pop, loc);
+    }
+
+    fn compile_match_expression(&mut self, match_expr: MatchExpression) {
+        let loc = match_expr.loc;
+        let match_id = self.unique_id();
+        let match_value_name = format!("@match_value_{}", match_id);
+        let end_label = format!("match_end_{}", match_id);
+        self.begin_scope();
+        self.compile_expression(*match_expr.value);
+        let match_value_loc = self.define_variable(match_value_name);
+        let VarLocation::Local(match_value_offset) = match_value_loc else {
+            unreachable!("match temp must be local")
+        };
+        self.emit(Instruction::MovePlusFP(match_value_offset as usize), loc);
+
+        for (index, arm) in match_expr.arms.into_iter().enumerate() {
+            let next_label = format!("match_next_{}_{}", match_id, index);
+            let bindings = pattern_bindings(&arm.pattern);
+            self.emit(Instruction::DupPlusFP(match_value_offset), arm.loc);
+            self.emit(Instruction::MatchPattern(arm.pattern), arm.loc);
+            self.emit(Instruction::JumpIfFalse(next_label.clone()), arm.loc);
+            self.begin_scope();
+            let mut binding_slots = Vec::new();
+            for name in &bindings {
+                let var_location = self.define_variable(name.clone());
+                let VarLocation::Local(offset) = var_location else {
+                    unreachable!("pattern binding must be local")
+                };
+                binding_slots.push((name.clone(), offset as usize));
+            }
+            self.emit(Instruction::BindPatternLocals(binding_slots), arm.loc);
+            self.compile_expression(arm.expression);
+            self.end_scope(arm.loc, true);
+            self.emit(Instruction::Jump(end_label.clone()), arm.loc);
+            self.program.syms.insert(
+                next_label,
+                Symbol {
+                    location: self.program.instructions.len() as i32,
+                    narguments: 0,
+                    nlocals: 0,
+                    upvalues: Vec::new(),
+                },
+            );
+        }
+
+        self.emit(Instruction::Push(crate::value::Value::Null), loc);
+        self.program.syms.insert(
+            end_label,
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+                upvalues: Vec::new(),
+            },
+        );
+        self.end_scope(loc, true);
     }
 
     fn compile_block_expression(&mut self, stmts: Vec<Statement>, loc: Location) {
@@ -730,7 +888,7 @@ impl<'a> Compiler<'a> {
         self.states.push(FunctionState::new());
 
         for param in fd.parameters {
-            self.define_variable(param);
+            self.define_variable(param.name);
         }
 
         let len = fd.body.len();
@@ -856,6 +1014,130 @@ impl<'a> Compiler<'a> {
                 upvalues: Vec::new(),
             },
         );
+    }
+
+    fn compile_for_in(&mut self, for_in: ForInLoop) {
+        let loc = for_in.loc;
+        let unique_id = self.unique_id();
+        let loop_start = format!("for_in_start_{}", unique_id);
+        let loop_end = format!("for_in_end_{}", unique_id);
+        let iter_var = format!("@iter_{}", unique_id);
+
+        self.begin_scope();
+
+        // 1. Compile iterable, call :iter() on it, and store it in a hidden local variable
+        self.compile_expression(for_in.iterable);
+        self.emit(Instruction::GetMethod("iter".to_string()), loc); // [iterable, iter_fn, iterable]
+        self.emit(Instruction::CallStack(1), loc); // [coroutine]
+        let iter_loc = self.define_variable(iter_var);
+        match iter_loc {
+            VarLocation::Local(offset) => {
+                self.emit(Instruction::MovePlusFP(offset as usize), loc);
+            }
+            _ => unreachable!("Hidden iterator variable must be local"),
+        }
+
+        // loop_start label
+        self.program.syms.insert(
+            loop_start.clone(),
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+                upvalues: Vec::new(),
+            },
+        );
+
+        // 2. Check status: coroutine.status(iterable)
+        self.emit(Instruction::Load("coroutine".to_string()), loc); // [coroutine]
+        self.emit(Instruction::GetField("status".to_string()), loc); // [status_fn]
+        match iter_loc {
+            VarLocation::Local(offset) => {
+                self.emit(Instruction::DupPlusFP(offset), loc); // [status_fn, iterable]
+            }
+            _ => unreachable!(),
+        }
+        self.emit(Instruction::CallStack(1), loc); // [status_val]
+        self.emit(Instruction::Push(crate::value::Value::string("dead".to_string())), loc);
+        self.emit(Instruction::Equal, loc);
+        self.emit(Instruction::JumpIfTrue(loop_end.clone()), loc);
+
+        self.emit(Instruction::Load("coroutine".to_string()), loc); // [resume_fn, iterable, coroutine]
+        self.emit(Instruction::GetField("resume".to_string()), loc); // [resume_fn, iterable, resume_fn]
+        match iter_loc {
+            VarLocation::Local(offset) => {
+                self.emit(Instruction::DupPlusFP(offset), loc); // [resume_fn, iterable, resume_fn, iterable]
+            }
+            _ => unreachable!(),
+        }
+        self.emit(Instruction::CallStack(1), loc); // [resume_fn, iterable, yielded_val]
+
+        // 3.5 Check status again after resume - if it just died, the returned value is the final result, not an iteration item.
+        self.emit(Instruction::Load("coroutine".to_string()), loc); // [resume_fn, iterable, yielded_val, coroutine]
+        self.emit(Instruction::GetField("status".to_string()), loc); // [resume_fn, iterable, yielded_val, status_fn]
+        match iter_loc {
+            VarLocation::Local(offset) => {
+                self.emit(Instruction::DupPlusFP(offset), loc); // [..., status_fn, iterable]
+            }
+            _ => unreachable!(),
+        }
+        self.emit(Instruction::CallStack(1), loc); // [resume_fn, iterable, yielded_val, status_val]
+        self.emit(Instruction::Push(crate::value::Value::string("dead".to_string())), loc);
+        self.emit(Instruction::Equal, loc);
+        let continue_label = format!("for_in_continue_{}", unique_id);
+        self.emit(Instruction::JumpIfFalse(continue_label.clone()), loc);
+        self.emit(Instruction::Pop, loc); // Pop yielded_val since coroutine is dead
+        self.emit(Instruction::Jump(loop_end.clone()), loc);
+
+        self.program.syms.insert(
+            continue_label.clone(),
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+                upvalues: Vec::new(),
+            },
+        );
+
+        // 4. Define loop variable and assign yielded value
+        self.begin_scope();
+        let var_loc = self.define_variable(for_in.var);
+        match var_loc {
+            VarLocation::Local(offset) => {
+                self.emit(Instruction::MovePlusFP(offset as usize), loc);
+            }
+            VarLocation::Global(name) => {
+                self.emit(Instruction::Store(name), loc);
+            }
+            VarLocation::Upvalue(_) => unreachable!(),
+        }
+
+        self.current_state().loop_stack.push(LoopLabels {
+            start: loop_start.clone(),
+            end: loop_end.clone(),
+        });
+
+        // 5. Body
+        for stmt in for_in.body {
+            self.compile_statement(stmt);
+        }
+
+        self.end_scope(loc, false);
+        self.current_state().loop_stack.pop();
+
+        self.emit(Instruction::Jump(loop_start.clone()), loc);
+
+        // loop_end label
+        self.program.syms.insert(
+            loop_end.clone(),
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+                upvalues: Vec::new(),
+            },
+        );
+        self.end_scope(loc, false);
     }
 
     fn compile_try_catch(&mut self, tc: TryCatch) {

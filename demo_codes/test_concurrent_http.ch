@@ -1,7 +1,7 @@
 # 并发 HTTP 请求示例
-let http = import "stdlib/http"
-let json = import "stdlib/json"
-let println = import "stdlib/io".println
+let http = import("stdlib/http")
+let json = import("stdlib/json")
+let println = import("stdlib/io").println
 
 println("测试并发 HTTP 请求...")
 

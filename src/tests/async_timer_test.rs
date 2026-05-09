@@ -19,13 +19,13 @@ fn test_timer_sleep() {
 
     // NOTE: stdlib.date.now() returns milliseconds.
     // importing stdlib/date implicitly? No, `stdlib.date` is not standard.
-    // We need `import "stdlib/date"`.
+    // We need `import("stdlib/date")`.
     // But `import` returns the module.
     // `native_date` has `now`.
 
     let code_fixed = r#"
-    let timer = import "stdlib/timer"
-    let date = import "stdlib/date"
+    let timer = import("stdlib/timer")
+    let date = import("stdlib/date")
     let start = date.now()
     timer.sleep(100)
     let end = date.now()
@@ -49,7 +49,7 @@ fn test_async_interleaving() {
     // But we can check if `sleep` works in a loop (sequential).
 
     let code = r#"
-    let timer = import "stdlib/timer"
+    let timer = import("stdlib/timer")
     timer.sleep(10)
     timer.sleep(10)
     return "Done"
@@ -60,7 +60,7 @@ fn test_async_interleaving() {
 #[test]
 fn test_spawn_closure_with_sleep() {
     let code = r#"
-    let timer = import "stdlib/timer"
+    let timer = import("stdlib/timer")
     let co = coroutine.create(def() {
         # 匿名函数直接调用 native async，这会触发 Yield
         timer.sleep(50)
@@ -79,7 +79,7 @@ fn test_spawn_closure_with_sleep() {
 #[test]
 fn test_spawn_closure_captures_and_sleep() {
     let code = r#"
-    let timer = import "stdlib/timer"
+    let timer = import("stdlib/timer")
     let msg = "Capturing"
     
     let co = coroutine.create(def() {

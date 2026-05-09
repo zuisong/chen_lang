@@ -1,7 +1,7 @@
 use chen_lang::run_captured as run_captured_orig;
 
 fn run_captured(code: String) -> Result<String, chen_lang::ChenError> {
-    let prelude = r#"let io = import "stdlib/io"
+    let prelude = r#"let io = import("stdlib/io")
 let println = io.println
 "#;
     run_captured_orig(format!("{}{}", prelude, code))
@@ -92,4 +92,18 @@ fn test_keys_on_non_object() {
     // then `let k = s.keys()` tries to call Null.
     // VM should error "Attempt to call non-function value".
     assert!(result.is_err());
+}
+
+#[test]
+fn test_object_static_keys() {
+    let code = r#"
+        let obj = ${ first: 1, second: 2 }
+        let keys = Object.keys(obj)
+        println(keys[0])
+        println(keys[1])
+    "#;
+
+    let output = run_captured(code.to_string()).unwrap();
+    assert!(output.contains("first"));
+    assert!(output.contains("second"));
 }

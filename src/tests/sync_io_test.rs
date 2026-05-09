@@ -3,8 +3,8 @@ use crate::*;
 #[test]
 fn test_fs_read_write() {
     let code = r#"
-        let fs = import "stdlib/fs"
-        let io = import "stdlib/io"
+        let fs = import("stdlib/fs")
+        let io = import("stdlib/io")
         let path = "test_file.txt"
         fs.write_file(path, "Hello Chen Lang")
         let content = fs.read_file(path)
@@ -20,9 +20,9 @@ fn test_fs_read_write() {
 #[test]
 fn test_fs_read_dir() {
     let code = r#"
-        let fs = import "stdlib/fs"
-        let process = import "stdlib/process"
-        let io = import "stdlib/io"
+        let fs = import("stdlib/fs")
+        let process = import("stdlib/process")
+        let io = import("stdlib/io")
         let dir = "test_dir"
         process.exec("mkdir " + dir)
         fs.write_file(dir + "/f1.txt", "1")
@@ -39,8 +39,8 @@ fn test_fs_read_dir() {
 #[test]
 fn test_fs_exists() {
     let code = r#"
-        let fs = import "stdlib/fs"
-        let io = import "stdlib/io"
+        let fs = import("stdlib/fs")
+        let io = import("stdlib/io")
         let path = "test_exists.txt"
         io.println(fs.exists(path))
         fs.write_file(path, "exists")
@@ -63,8 +63,8 @@ fn test_fs_exists() {
 #[cfg(feature = "http")]
 fn test_http_get() {
     let code = r#"
-        let http = import "stdlib/http"
-        let io = import "stdlib/io"
+        let http = import("stdlib/http")
+        let io = import("stdlib/io")
         let resp = http.request("GET", "https://httpbin.org/get")
         io.print("Success")
     "#;
@@ -76,8 +76,8 @@ fn test_http_get() {
 #[test]
 fn test_process_exec() {
     let code = r#"
-        let process = import "stdlib/process"
-        let io = import "stdlib/io"
+        let process = import("stdlib/process")
+        let io = import("stdlib/io")
         let res = process.exec("echo hello")
         io.print(res.stdout:trim())
     "#;

@@ -28,7 +28,7 @@ fn test_http_get_async() {
     let url = server.url();
     let code = format!(
         r#"
-    let http = import "stdlib/http"
+    let http = import("stdlib/http")
     let url = "{}/hello"
     let resp = http.request("GET", url)
     return resp.body
@@ -55,8 +55,8 @@ fn test_http_get_json_async() {
     let url = server.url();
     let code = format!(
         r#"
-    let http = import "stdlib/http"
-    let json = import "stdlib/json"
+    let http = import("stdlib/http")
+    let json = import("stdlib/json")
     let url = "{}/data"
     let resp = http.request("GET", url)
     let data = json.parse(resp.body)
@@ -73,7 +73,7 @@ fn test_http_get_json_async() {
 #[test]
 fn test_http_request_async_error_propagates() {
     let code = r#"
-    let http = import "stdlib/http"
+    let http = import("stdlib/http")
     try {
         http.request("BAD METHOD", "http://example.com")
         return "NO_ERROR"

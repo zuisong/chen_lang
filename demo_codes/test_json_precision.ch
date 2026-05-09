@@ -1,7 +1,7 @@
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 let print = io.print
 let println = io.println
-let JSON = import "stdlib/json"
+let JSON = import("stdlib/json")
 
 # StdLib: JSON Processing
 let data = ${

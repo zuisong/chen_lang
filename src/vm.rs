@@ -20,6 +20,7 @@ mod native_fs;
 mod native_http;
 mod native_io;
 mod native_json;
+mod native_object_prototype;
 mod native_process;
 mod native_string_prototype;
 mod native_timer;
@@ -34,6 +35,7 @@ pub use error::{RuntimeErrorWithContext, VMResult, VMRuntimeError};
 pub use fiber::{ExceptionHandler, Fiber, FiberState};
 use native_array_prototype::create_array_prototype;
 use native_coroutine::create_coroutine_object;
+use native_object_prototype::create_object_prototype;
 use native_string_prototype::create_string_prototype;
 pub use program::{Instruction, Program, Symbol};
 
@@ -51,6 +53,7 @@ pub struct VM {
     pub stdout: Box<dyn Write>,                // 标准输出
     pub array_prototype: Value,                // 数组原型对象
     pub string_prototype: Value,               // 字符串原型对象
+    pub object_prototype: Value,               // 对象原型对象
     pub exception_handlers: Vec<ExceptionHandler>,
     pub open_upvalues: Vec<Rc<RefCell<crate::value::UpvalueState>>>,
 
@@ -77,6 +80,8 @@ impl VM {
         let mut variables = IndexMap::new();
         variables.insert("null".to_string(), Value::null());
         variables.insert("coroutine".to_string(), create_coroutine_object());
+        let object_prototype = create_object_prototype();
+        variables.insert("Object".to_string(), object_prototype.clone());
 
         VM {
             stack: Vec::with_capacity(1024),
@@ -87,6 +92,7 @@ impl VM {
             stdout: writer,
             array_prototype: create_array_prototype(),
             string_prototype: create_string_prototype(),
+            object_prototype,
             exception_handlers: Vec::new(),
             open_upvalues: Vec::new(),
             current_fiber: None,

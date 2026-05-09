@@ -2,7 +2,7 @@ import init, { run_wasm } from './pkg/chen_lang.js';
 
 const examples = {
     hello: `# Basic: Hello World
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 let print = io.print
 let println = io.println
 
@@ -14,7 +14,7 @@ if a > 5 {
 }
 `,
     if_else_if: `# Feature: Else If Chain
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 let println = io.println
 
 let score = 85
@@ -34,7 +34,7 @@ let grade = if score >= 90 { "A" } else if score >= 60 { "P" } else { "F" }
 println("Grade result: " + grade)
 `,
     multiplication_table: `# Feature: for loop (9x9 Table)
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 let print = io.print
 let println = io.println
 
@@ -50,7 +50,7 @@ for i <= 9 {
 }
 `,
     fib: `# Algorithm: Fibonacci
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 let println = io.println
 
 def fib(n) {
@@ -64,7 +64,7 @@ println("Fibonacci of 10 is:")
 println(fib(10))
 `,
     objects: `# Pattern: Objects & Methods (Lua-style)
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 let println = io.println
 
 def Person(name) {
@@ -84,8 +84,36 @@ def Person(name) {
 let chen = Person("Chen")
 chen:greet()
 `,
+    metamethod_funcs: `# Advanced: Metamethod Functions
+let io = import("stdlib/io")
+let println = io.println
+
+# Implement a "Strict Object" that throws on unknown access
+def create_strict_model(data) {
+    let meta = \${
+        # Intercept missing property lookup
+        __index: def(obj, key) {
+            println("Warning: Accessing undefined property '" + key + "'")
+            return null
+        },
+        # Intercept new property assignment
+        __newindex: def(obj, key, value) {
+            println("Blocked: Settng new property '" + key + "' to " + value)
+        }
+    }
+    set_meta(data, meta)
+    return data
+}
+
+let user = create_strict_model(\${ name: "Chen" })
+
+println("Name: " + user.name)
+println("Age: " + user.age)  # Triggers __index
+
+user.score = 100            # Triggers __newindex
+`,
     inheritance: `# Pattern: Prototype Inheritance
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 let println = io.println
 
 # Base "Class"
@@ -127,7 +155,7 @@ dog:speak() # Inherited from Animal
 dog:bark()  # Defined in Dog
 `,
     point_objects: `# Pattern: Custom Objects (Point with methods and operators)
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 let println = io.println
 
 
@@ -199,9 +227,9 @@ println("p5_mul (overloaded *):")
 println(p5_mul:to_string())
 `,
     date: `# StdLib: Date & Time
-let io = import "stdlib/io"
-let Date = import "stdlib/date"
-let JSON = import "stdlib/json"
+let io = import("stdlib/io")
+let Date = import("stdlib/date")
+let JSON = import("stdlib/json")
 let println = io.println
 
 let now = Date:new()
@@ -211,8 +239,8 @@ println("Current time (ISO): " + now:format("%Y-%m-%d %H:%M:%S"))
 println("As JSON: " + JSON.stringify(now))
 `,
     json: `# StdLib: JSON Processing
-let io = import "stdlib/io"
-let JSON = import "stdlib/json"
+let io = import("stdlib/io")
+let JSON = import("stdlib/json")
 let println = io.println
 
 let data = \${ 
@@ -229,8 +257,8 @@ let parsed = JSON.parse(jsonStr)
 println("Parsed JSON Name: " + parsed.name)
 `,
     arrays: `# StdLib: Arrays
-let io = import "stdlib/io"
-let JSON = import "stdlib/json"
+let io = import("stdlib/io")
+let JSON = import("stdlib/json")
 let println = io.println
 
 # Arrays are dynamic list-like objects
@@ -247,7 +275,7 @@ arr:push("Mixed")
 println(JSON.stringify(arr))
 `,
     closures: `# Feature: Closures
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 let println = io.println
 
 def make_counter(start) {
@@ -278,7 +306,7 @@ println("Counter 2: " + c2()) # 12
 println("Counter 1 again: " + c1()) # 4
 `,
     async_task: `# Feature: Async/Await (Coroutines)
-let io = import "stdlib/io"
+let io = import("stdlib/io")
 let println = io.println
 
 # Coroutines using 'coroutine.create' and 'coroutine.yield'.
@@ -316,9 +344,9 @@ println("Main result: " + result)
 println("Generator status: " + coroutine.status(gen))
 `,
     async_http: `# Feature: Async HTTP Request
-let http = import "stdlib/http"
-let json = import "stdlib/json"
-let println = import "stdlib/io".println
+let http = import("stdlib/http")
+let json = import("stdlib/json")
+let println = import("stdlib/io").println
 
 println("Sending request to httpbin.org...")
 let url = "https://httpbin.org/anything"
@@ -329,9 +357,9 @@ let data = json.parse(resp.body)
 println("Response JSON origin: " + data.origin)
 `,
     concurrent_http: `# Feature: Concurrent HTTP Requests
-let http = import "stdlib/http"
-let json = import "stdlib/json"
-let println = import "stdlib/io".println
+let http = import("stdlib/http")
+let json = import("stdlib/json")
+let println = import("stdlib/io").println
 
 println("Starting concurrent HTTP requests...")
 
@@ -366,7 +394,7 @@ println("Request 2 status: " + results[1])
 println("Request 3 UUID: " + results[2])
 `,
     christmas_tree: `# Merry Christmas!
-let println = import "stdlib/io".println
+let println = import("stdlib/io").println
 
 # Simple string repeat function
 def repeat(str, count) {

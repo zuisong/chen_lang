@@ -25,6 +25,10 @@ pub fn create_string_prototype() -> Value {
         "lower".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_string_lower) as Box<NativeFnType>)),
     );
+    table.data.insert(
+        "iter".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(native_string_iter) as Box<NativeFnType>)),
+    );
 
     let table_rc = Rc::new(std::cell::RefCell::new(table));
     let proto_val = Value::Object(table_rc.clone());
@@ -87,4 +91,32 @@ pub fn native_string_lower(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRu
         })?,
         None => Err(VMRuntimeError::StackUnderflow("string.lower".into())),
     }
+}
+
+fn native_string_iter(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+    if args.is_empty() {
+        return Ok(Value::Null);
+    }
+    let s_val = args[0].clone();
+    if let Value::String(s) = s_val {
+        let chars: Vec<String> = s.chars().map(|c| c.to_string()).collect();
+        let index = Rc::new(RefCell::new(0));
+
+        let iter_body = move |vm: &mut VM, _args: Vec<Value>| {
+            let mut idx = index.borrow_mut();
+            if *idx < chars.len() {
+                let val = Value::string(chars[*idx].clone());
+                *idx += 1;
+                return crate::vm::native_coroutine::native_coroutine_yield(vm, vec![val]);
+            }
+            Ok(Value::Null)
+        };
+
+        let mut fiber = Fiber::new();
+        let nf_rc = Rc::new(Box::new(iter_body) as Box<NativeFnType>);
+        fiber.native_function = Some(nf_rc.clone());
+        fiber.stack.push(Value::NativeFunction(nf_rc));
+        return Ok(Value::Coroutine(Rc::new(RefCell::new(fiber))));
+    }
+    Ok(Value::Null)
 }

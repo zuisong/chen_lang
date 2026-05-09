@@ -7,10 +7,14 @@ use std::time::Duration;
 use crate::value::Value;
 use crate::vm::{Fiber, VMRuntimeError};
 
+type FiberRef = Rc<RefCell<Fiber>>;
+type ReadyTask = (FiberRef, Result<Value, VMRuntimeError>);
+type ReadyQueue = Rc<RefCell<VecDeque<ReadyTask>>>;
+
 /// 异步运行时状态
 pub struct AsyncState {
     /// 待恢复的任务队列 (Fiber, ResumeValue)
-    pub ready_queue: Rc<RefCell<VecDeque<(Rc<RefCell<Fiber>>, Result<Value, VMRuntimeError>)>>>,
+    pub ready_queue: ReadyQueue,
     /// 对待处理任务的计数
     pub pending_tasks: Rc<RefCell<usize>>,
     pub notify: Rc<tokio::sync::Notify>,

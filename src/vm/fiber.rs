@@ -26,9 +26,11 @@ pub struct CallFrame {
     pub fp: usize,
     pub program: Option<Rc<Program>>,
     pub closure: Option<Rc<ObjClosure>>,
+    pub discard_return: bool,
+    pub push_values_after_return: Vec<Value>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Fiber {
     pub stack: Vec<Value>,
     pub pc: usize,
@@ -45,6 +47,8 @@ pub struct Fiber {
     pub skip_push_on_resume: bool,
     /// 标记：是否是 spawn 创建的协程（完成时需要减少 pending_tasks）
     pub is_spawned: bool,
+    /// 支持原生协程：存储要在协程中运行的原生函数
+    pub native_function: Option<Rc<Box<crate::value::NativeFnType>>>,
 }
 
 impl Default for Fiber {
@@ -68,6 +72,17 @@ impl Fiber {
             result: None,
             skip_push_on_resume: false,
             is_spawned: false,
+            native_function: None,
         }
+    }
+}
+
+impl std::fmt::Debug for Fiber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Fiber")
+            .field("state", &self.state)
+            .field("stack_len", &self.stack.len())
+            .field("pc", &self.pc)
+            .finish()
     }
 }

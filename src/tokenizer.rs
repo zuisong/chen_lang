@@ -45,9 +45,34 @@ pub enum Keyword {
     FINALLY,
     /// throw
     THROW,
-    /// async
     /// import
     IMPORT,
+    /// type
+    TYPE,
+    /// struct
+    STRUCT,
+    /// enum
+    ENUM,
+    /// match
+    MATCH,
+    /// impl
+    IMPL,
+    /// fn
+    FN,
+    /// in
+    IN,
+    /// int
+    INT,
+    /// float
+    FLOAT,
+    /// bool
+    BOOL,
+    /// string
+    STRING,
+    /// object
+    OBJECT,
+    /// null
+    NULL,
 }
 
 /// 操作符
@@ -123,6 +148,14 @@ pub enum Token {
     RSquare,
     /// 冒号
     Colon,
+    /// ->
+    Arrow,
+    /// =>
+    FatArrow,
+    /// &
+    Ampersand,
+    /// |
+    Pipe,
     /// 逗号
     COMMA,
     /// (
@@ -236,21 +269,27 @@ pub mod winnow {
                 literal(",").value(Token::COMMA),
             )),
             alt((
-                literal("+").value(Token::Operator(Operator::Add)),
-                literal("*").value(Token::Operator(Operator::Multiply)),
-                literal("/").value(Token::Operator(Operator::Divide)),
-                literal("%").value(Token::Operator(Operator::Mod)),
-                literal("==").value(Token::Operator(Operator::Equals)),
-                literal("=").value(Token::Operator(Operator::Assign)),
-                literal("&&").value(Token::Operator(Operator::And)),
-                literal("||").value(Token::Operator(Operator::Or)),
-                literal("!=").value(Token::Operator(Operator::NotEquals)),
-                literal("!").value(Token::Operator(Operator::Not)),
-                literal("<=").value(Token::Operator(Operator::LtE)),
-                literal("<").value(Token::Operator(Operator::Lt)),
-                literal(">=").value(Token::Operator(Operator::GtE)),
-                literal(">").value(Token::Operator(Operator::Gt)),
-                literal("-").value(Token::Operator(Operator::Subtract)),
+                alt((
+                    literal("=>").value(Token::FatArrow),
+                    literal("->").value(Token::Arrow),
+                    literal("+").value(Token::Operator(Operator::Add)),
+                    literal("*").value(Token::Operator(Operator::Multiply)),
+                    literal("/").value(Token::Operator(Operator::Divide)),
+                    literal("%").value(Token::Operator(Operator::Mod)),
+                    literal("==").value(Token::Operator(Operator::Equals)),
+                    literal("=").value(Token::Operator(Operator::Assign)),
+                    literal("&&").value(Token::Operator(Operator::And)),
+                    literal("&").value(Token::Ampersand),
+                    literal("||").value(Token::Operator(Operator::Or)),
+                    literal("|").value(Token::Pipe),
+                    literal("!=").value(Token::Operator(Operator::NotEquals)),
+                    literal("!").value(Token::Operator(Operator::Not)),
+                    literal("<=").value(Token::Operator(Operator::LtE)),
+                    literal("<").value(Token::Operator(Operator::Lt)),
+                    literal(">=").value(Token::Operator(Operator::GtE)),
+                    literal(">").value(Token::Operator(Operator::Gt)),
+                    literal("-").value(Token::Operator(Operator::Subtract)),
+                )),
                 alt((
                     delimited(literal("\""), take_until(0.., "\""), literal("\"")),
                     delimited(literal("'"), take_until(0.., "'"), literal("'")),
@@ -281,6 +320,19 @@ pub mod winnow {
                         "finally" => Token::Keyword(Keyword::FINALLY),
                         "throw" => Token::Keyword(Keyword::THROW),
                         "import" => Token::Keyword(Keyword::IMPORT),
+                        "type" => Token::Keyword(Keyword::TYPE),
+                        "struct" => Token::Keyword(Keyword::STRUCT),
+                        "enum" => Token::Keyword(Keyword::ENUM),
+                        "match" => Token::Keyword(Keyword::MATCH),
+                        "impl" => Token::Keyword(Keyword::IMPL),
+                        "fn" => Token::Keyword(Keyword::FN),
+                        "in" => Token::Keyword(Keyword::IN),
+                        "int" => Token::Keyword(Keyword::INT),
+                        "float" => Token::Keyword(Keyword::FLOAT),
+                        "bool" => Token::Keyword(Keyword::BOOL),
+                        "string" => Token::Keyword(Keyword::STRING),
+                        "object" => Token::Keyword(Keyword::OBJECT),
+                        "null" => Token::Keyword(Keyword::NULL),
                         "true" => Token::Bool(true),
                         "false" => Token::Bool(false),
                         _ => Token::Identifier(s.to_string()),
@@ -377,6 +429,10 @@ mod handwritten {
             ':' => (Token::Colon, loc.incr()),
             '.' => (Token::Dot, loc.incr()),
             ',' => (Token::COMMA, loc.incr()),
+            '-' if next == '>' => (Token::Arrow, loc.incr2()),
+            '=' if next == '>' => (Token::FatArrow, loc.incr2()),
+            '&' if next != '&' => (Token::Ampersand, loc.incr()),
+            '|' if next != '|' => (Token::Pipe, loc.incr()),
             '+' => (Token::Operator(Operator::Add), loc.incr()),
             '*' => (Token::Operator(Operator::Multiply), loc.incr()),
             '/' => (Token::Operator(Operator::Divide), loc.incr()),
@@ -473,6 +529,19 @@ mod handwritten {
                     "finally" => Token::Keyword(Keyword::FINALLY),
                     "throw" => Token::Keyword(Keyword::THROW),
                     "import" => Token::Keyword(Keyword::IMPORT),
+                    "type" => Token::Keyword(Keyword::TYPE),
+                    "struct" => Token::Keyword(Keyword::STRUCT),
+                    "enum" => Token::Keyword(Keyword::ENUM),
+                    "match" => Token::Keyword(Keyword::MATCH),
+                    "impl" => Token::Keyword(Keyword::IMPL),
+                    "fn" => Token::Keyword(Keyword::FN),
+                    "in" => Token::Keyword(Keyword::IN),
+                    "int" => Token::Keyword(Keyword::INT),
+                    "float" => Token::Keyword(Keyword::FLOAT),
+                    "bool" => Token::Keyword(Keyword::BOOL),
+                    "string" => Token::Keyword(Keyword::STRING),
+                    "object" => Token::Keyword(Keyword::OBJECT),
+                    "null" => Token::Keyword(Keyword::NULL),
                     "true" => Token::Bool(true),
                     "false" => Token::Bool(false),
                     _ => Token::Identifier(s),

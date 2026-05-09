@@ -1,4 +1,4 @@
-let println = import "stdlib/io".println
+let println = import("stdlib/io").println
 
 # 简单的字符串重复函数
 def repeat(str, count) {

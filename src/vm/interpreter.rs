@@ -11,8 +11,11 @@ use super::native_http::create_http_object;
 use super::native_io::create_io_object;
 use super::native_json::create_json_object;
 use super::native_process::create_process_object;
+use crate::compiler::compile;
+use crate::expression::{Literal, Pattern};
+use crate::parser::parse_from_source;
 use crate::tokenizer::Location;
-use crate::value::{ObjClosure, ObjUpvalue, UpvalueState, Value, ValueError, ValueType};
+use crate::value::{ObjClosure, ObjUpvalue, OpResult, UpvalueState, Value, ValueError, ValueType};
 use crate::vm::fiber::{CallFrame, ExceptionHandler};
 use crate::vm::{Fiber, FiberState, Instruction, Program, RuntimeErrorWithContext, VM, VMResult, VMRuntimeError};
 
@@ -374,7 +377,7 @@ impl VM {
                         }
                     };
 
-                    let ast = match crate::parser::parse_from_source(&code) {
+                    let ast = match parse_from_source(&code) {
                         Ok(a) => a,
                         Err(e) => {
                             return Err(VMRuntimeError::UncaughtException(format!(
@@ -384,7 +387,7 @@ impl VM {
                         }
                     };
 
-                    let module_program = crate::compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
+                    let module_program = compile(&code.chars().collect::<Vec<char>>(), ast);
 
                     let saved_stack_size = self.stack.len();
                     let saved_pc = self.pc;
@@ -439,6 +442,37 @@ impl VM {
                 }
 
                 self.stack.push(Value::Object(Rc::new(RefCell::new(table_ref))));
+            }
+
+            Instruction::MatchPattern(pattern) => {
+                let value = self.stack.pop().unwrap_or(Value::null());
+                let mut bindings = IndexMap::new();
+                if pattern_matches(&value, pattern, &mut bindings) {
+                    let captures = crate::value::Table {
+                        data: bindings,
+                        metatable: None,
+                    };
+                    self.stack.push(Value::Object(Rc::new(RefCell::new(captures))));
+                    self.stack.push(Value::Bool(true));
+                } else {
+                    self.stack.push(Value::Bool(false));
+                }
+            }
+
+            Instruction::BindPatternLocals(bindings) => {
+                let captures = self.stack.pop().unwrap_or(Value::null());
+                for (name, offset) in bindings {
+                    let value = if let Value::Object(table_ref) = &captures {
+                        table_ref.borrow().data.get(name).cloned().unwrap_or(Value::Null)
+                    } else {
+                        Value::Null
+                    };
+                    let index = self.fp + offset;
+                    if index >= self.stack.len() {
+                        self.stack.resize(index + 1, Value::Null);
+                    }
+                    self.stack[index] = value;
+                }
             }
 
             Instruction::Pop => {
@@ -501,15 +535,17 @@ impl VM {
                 let op_result = left.add(&right)?;
 
                 match op_result {
-                    crate::value::OpResult::Value(value) => {
+                    OpResult::Value(value) => {
                         self.stack.push(value);
                     }
-                    crate::value::OpResult::MetamethodCall(call_info) => {
+                    OpResult::MetamethodCall(call_info) => {
                         self.stack.push(call_info.metamethod);
-                        self.stack.push(call_info.left);
-                        self.stack.push(call_info.right);
+                        let argc = call_info.args.len();
+                        for arg in call_info.args {
+                            self.stack.push(arg);
+                        }
 
-                        let call_stack_instr = Instruction::CallStack(2);
+                        let call_stack_instr = Instruction::CallStack(argc);
                         return self.execute_instruction(&call_stack_instr, program);
                     }
                 }
@@ -521,15 +557,17 @@ impl VM {
                 let op_result = left.subtract(&right)?;
 
                 match op_result {
-                    crate::value::OpResult::Value(value) => {
+                    OpResult::Value(value) => {
                         self.stack.push(value);
                     }
-                    crate::value::OpResult::MetamethodCall(call_info) => {
+                    OpResult::MetamethodCall(call_info) => {
                         self.stack.push(call_info.metamethod);
-                        self.stack.push(call_info.left);
-                        self.stack.push(call_info.right);
+                        let argc = call_info.args.len();
+                        for arg in call_info.args {
+                            self.stack.push(arg);
+                        }
 
-                        let call_stack_instr = Instruction::CallStack(2);
+                        let call_stack_instr = Instruction::CallStack(argc);
                         return self.execute_instruction(&call_stack_instr, program);
                     }
                 }
@@ -541,15 +579,17 @@ impl VM {
                 let op_result = left.multiply(&right)?;
 
                 match op_result {
-                    crate::value::OpResult::Value(value) => {
+                    OpResult::Value(value) => {
                         self.stack.push(value);
                     }
-                    crate::value::OpResult::MetamethodCall(call_info) => {
+                    OpResult::MetamethodCall(call_info) => {
                         self.stack.push(call_info.metamethod);
-                        self.stack.push(call_info.left);
-                        self.stack.push(call_info.right);
+                        let argc = call_info.args.len();
+                        for arg in call_info.args {
+                            self.stack.push(arg);
+                        }
 
-                        let call_stack_instr = Instruction::CallStack(2);
+                        let call_stack_instr = Instruction::CallStack(argc);
                         return self.execute_instruction(&call_stack_instr, program);
                     }
                 }
@@ -712,6 +752,8 @@ impl VM {
                                 fp: self.fp,
                                 program: self.program.clone(),
                                 closure: self.current_closure.clone(),
+                                discard_return: false,
+                                push_values_after_return: Vec::new(),
                             });
                             self.fp = self.stack.len() - *arg_count;
 
@@ -747,6 +789,8 @@ impl VM {
                                         fp: self.fp,
                                         program: self.program.clone(),
                                         closure: self.current_closure.clone(),
+                                        discard_return: false,
+                                        push_values_after_return: Vec::new(),
                                     });
                                     self.fp = self.stack.len() - *arg_count;
                                     self.program = Some(closure.program.clone());
@@ -795,7 +839,12 @@ impl VM {
                         frame.closure.as_ref().map(|c| &c.name)
                     );
                     self.current_closure = frame.closure;
-                    self.stack.push(return_value);
+                    if !frame.discard_return {
+                        self.stack.push(return_value);
+                    }
+                    for v in frame.push_values_after_return {
+                        self.stack.push(v);
+                    }
                     Ok(true)
                 } else if let Some(fiber_rc) = &self.current_fiber {
                     fiber_rc.borrow_mut().state = FiberState::Dead;
@@ -921,125 +970,134 @@ impl VM {
 
             Instruction::GetField(field) => {
                 let obj = self.stack.pop().unwrap_or(Value::null());
-                let mut value = if let Value::String(_) = obj {
-                    self.string_prototype.get_field_with_meta(field)
+                let mut op_result = if let Value::String(_) = obj {
+                    self.string_prototype.get_field_with_meta(field)?
                 } else {
-                    obj.get_field_with_meta(field)
+                    obj.get_field_with_meta(field)?
                 };
 
-                if let Value::Null = value
+                if let OpResult::Value(Value::Null) = op_result
                     && let Value::Object(_) = obj
-                    && field == "keys"
                 {
-                    let array_proto = self.array_prototype.clone();
-                    value = Value::NativeFunction(Rc::new(Box::new(move |_vm, args| {
-                        if args.is_empty() {
-                            return Err(ValueError::TypeMismatch {
-                                expected: ValueType::Object,
-                                found: ValueType::Null,
-                                operation: "keys".into(),
-                            }
-                            .into());
-                        }
-                        let obj = &args[0];
-                        if let Value::Object(table_rc) = obj {
-                            let table = table_rc.borrow();
-                            let mut data = IndexMap::new();
-                            for (i, k) in table.data.keys().enumerate() {
-                                data.insert(i.to_string(), Value::string(k.clone()));
-                            }
-
-                            let mut res_table = crate::value::Table { data, metatable: None };
-                            if let Value::Object(proto_rc) = &array_proto {
-                                res_table.metatable = Some(proto_rc.clone());
-                            }
-
-                            return Ok(Value::Object(Rc::new(RefCell::new(res_table))));
-                        }
-                        Err(ValueError::TypeMismatch {
-                            expected: ValueType::Object,
-                            found: obj.get_type(),
-                            operation: "keys".into(),
-                        }
-                        .into())
-                    })));
+                    op_result = self.object_prototype.get_field_with_meta(field)?;
                 }
 
-                self.stack.push(value);
+                match op_result {
+                    OpResult::Value(value) => {
+                        self.stack.push(value);
+                    }
+                    OpResult::MetamethodCall(call_info) => {
+                        self.stack.push(call_info.metamethod);
+                        let argc = call_info.args.len();
+                        for arg in call_info.args {
+                            self.stack.push(arg);
+                        }
+                        let call_stack_instr = Instruction::CallStack(argc);
+                        return self.execute_instruction(&call_stack_instr, program);
+                    }
+                }
             }
 
             Instruction::SetField(field) => {
                 let value = self.stack.pop().unwrap_or(Value::null());
                 let obj = self.stack.pop().unwrap_or(Value::null());
-                obj.set_field_with_meta(field.clone(), value)?;
+                let op_result = obj.set_field_with_meta(field.clone(), value)?;
+                match op_result {
+                    OpResult::Value(_) => {}
+                    OpResult::MetamethodCall(call_info) => {
+                        let is_native = matches!(call_info.metamethod, Value::NativeFunction(_));
+                        self.stack.push(call_info.metamethod);
+                        let argc = call_info.args.len();
+                        for arg in call_info.args {
+                            self.stack.push(arg);
+                        }
+                        let call_stack_instr = Instruction::CallStack(argc);
+                        let res = self.execute_instruction(&call_stack_instr, program);
+
+                        if is_native {
+                            self.stack.pop();
+                        } else if let Some(frame) = self.call_stack.last_mut() {
+                            frame.discard_return = true;
+                        }
+                        return res;
+                    }
+                }
             }
 
             Instruction::GetMethod(field) => {
                 let obj = self.stack.pop().unwrap_or(Value::null());
-                let mut value = if let Value::String(_) = obj {
-                    self.string_prototype.get_field_with_meta(field)
+                let mut op_result = if let Value::String(_) = obj {
+                    self.string_prototype.get_field_with_meta(field)?
+                } else if let Value::Coroutine(_) = obj {
+                    if let Some(co_obj) = self.variables.get("coroutine") {
+                        co_obj.get_field_with_meta(field)?
+                    } else {
+                        OpResult::Value(Value::Null)
+                    }
                 } else {
-                    obj.get_field_with_meta(field)
+                    obj.get_field_with_meta(field)?
                 };
 
-                if let Value::Null = value
+                if let OpResult::Value(Value::Null) = op_result
                     && let Value::Object(_) = obj
-                    && field == "keys"
                 {
-                    let array_proto = self.array_prototype.clone();
-                    value = Value::NativeFunction(Rc::new(Box::new(move |_vm, args| {
-                        if args.is_empty() {
-                            return Err(ValueError::TypeMismatch {
-                                expected: ValueType::Object,
-                                found: ValueType::Null,
-                                operation: "keys".into(),
-                            }
-                            .into());
-                        }
-                        let obj = &args[0];
-                        if let Value::Object(table_rc) = obj {
-                            let table = table_rc.borrow();
-                            let mut data = IndexMap::new();
-                            for (i, k) in table.data.keys().enumerate() {
-                                data.insert(i.to_string(), Value::string(k.clone()));
-                            }
-
-                            let mut res_table = crate::value::Table { data, metatable: None };
-                            if let Value::Object(proto_rc) = &array_proto {
-                                res_table.metatable = Some(proto_rc.clone());
-                            }
-
-                            return Ok(Value::Object(Rc::new(RefCell::new(res_table))));
-                        }
-                        Err(ValueError::TypeMismatch {
-                            expected: ValueType::Object,
-                            found: obj.get_type(),
-                            operation: "keys".into(),
-                        }
-                        .into())
-                    })));
+                    op_result = self.object_prototype.get_field_with_meta(field)?;
                 }
 
-                self.stack.push(value);
-                self.stack.push(obj);
+                match op_result {
+                    OpResult::Value(value) => {
+                        self.stack.push(value);
+                        self.stack.push(obj);
+                    }
+                    OpResult::MetamethodCall(call_info) => {
+                        let is_native = matches!(call_info.metamethod, Value::NativeFunction(_));
+                        self.stack.push(call_info.metamethod);
+                        let argc = call_info.args.len();
+                        for arg in call_info.args {
+                            self.stack.push(arg);
+                        }
+                        let call_stack_instr = Instruction::CallStack(argc);
+                        let res = self.execute_instruction(&call_stack_instr, program);
+
+                        if is_native {
+                            self.stack.push(obj);
+                        } else if let Some(frame) = self.call_stack.last_mut() {
+                            frame.push_values_after_return.push(obj);
+                        }
+                        return res;
+                    }
+                }
             }
 
             Instruction::GetIndex => {
                 let index = self.stack.pop().unwrap_or(Value::null());
                 let obj = self.stack.pop().unwrap_or(Value::null());
-                match obj {
-                    Value::Object(table_ref) => {
-                        let key = index.to_string();
-                        let table = table_ref.borrow();
-                        let value = table.data.get(&key).cloned().unwrap_or(Value::null());
+                let key = index.to_string();
+
+                let mut op_result = if let Value::String(_) = obj {
+                    self.string_prototype.get_field_with_meta(&key)?
+                } else {
+                    obj.get_field_with_meta(&key)?
+                };
+
+                if let OpResult::Value(Value::Null) = op_result
+                    && let Value::Object(_) = obj
+                {
+                    op_result = self.object_prototype.get_field_with_meta(&key)?;
+                }
+
+                match op_result {
+                    OpResult::Value(value) => {
                         self.stack.push(value);
                     }
-                    _ => {
-                        return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                            operator: "get_index".to_string(),
-                            left_type: obj.get_type(),
-                            right_type: ValueType::Null,
-                        }));
+                    OpResult::MetamethodCall(call_info) => {
+                        self.stack.push(call_info.metamethod);
+                        let argc = call_info.args.len();
+                        for arg in call_info.args {
+                            self.stack.push(arg);
+                        }
+                        let call_stack_instr = Instruction::CallStack(argc);
+                        return self.execute_instruction(&call_stack_instr, program);
                     }
                 }
             }
@@ -1050,8 +1108,28 @@ impl VM {
                 let obj = self.stack.pop().unwrap_or(Value::null());
                 match obj {
                     Value::Object(table_ref) => {
-                        let key = index.to_string();
-                        table_ref.borrow_mut().data.insert(key, value);
+                        let op_result =
+                            Value::Object(table_ref.clone()).set_field_with_meta(index.to_string(), value)?;
+                        match op_result {
+                            OpResult::Value(_) => {}
+                            OpResult::MetamethodCall(call_info) => {
+                                let is_native = matches!(call_info.metamethod, Value::NativeFunction(_));
+                                self.stack.push(call_info.metamethod);
+                                let argc = call_info.args.len();
+                                for arg in call_info.args {
+                                    self.stack.push(arg);
+                                }
+                                let call_stack_instr = Instruction::CallStack(argc);
+                                let res = self.execute_instruction(&call_stack_instr, program);
+
+                                if is_native {
+                                    self.stack.pop();
+                                } else if let Some(frame) = self.call_stack.last_mut() {
+                                    frame.discard_return = true;
+                                }
+                                return res;
+                            }
+                        }
                     }
                     _ => {
                         return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
@@ -1090,6 +1168,8 @@ impl VM {
                             fp: self.fp,
                             program: self.program.clone(),
                             closure: self.current_closure.clone(),
+                            discard_return: false,
+                            push_values_after_return: Vec::new(),
                         });
                         self.fp = self.stack.len() - *arg_count;
                         self.program = Some(closure.program.clone());
@@ -1161,5 +1241,61 @@ impl VM {
         }
 
         Ok(true)
+    }
+}
+
+fn pattern_matches(value: &Value, pattern: &Pattern, bindings: &mut IndexMap<String, Value>) -> bool {
+    match pattern {
+        Pattern::Wildcard(_) => true,
+        Pattern::Binding(name, _) => {
+            bindings.insert(name.clone(), value.clone());
+            true
+        }
+        Pattern::Literal(Literal::Value(expected), _) => value == expected,
+        Pattern::Struct { name, fields, .. } => {
+            let Value::Object(table_ref) = value else {
+                return false;
+            };
+            let table = table_ref.borrow();
+            if !matches!(table.data.get("__struct"), Some(Value::String(actual)) if actual.as_str() == name) {
+                return false;
+            }
+            for (field, field_pattern) in fields {
+                let Some(field_value) = table.data.get(field) else {
+                    return false;
+                };
+                if !pattern_matches(field_value, field_pattern, bindings) {
+                    return false;
+                }
+            }
+            true
+        }
+        Pattern::EnumVariant {
+            enum_name,
+            variant,
+            inner,
+            ..
+        } => {
+            let Value::Object(table_ref) = value else {
+                return false;
+            };
+            let table = table_ref.borrow();
+            if let Some(expected_enum) = enum_name
+                && !matches!(table.data.get("__enum"), Some(Value::String(actual)) if actual.as_str() == expected_enum)
+            {
+                return false;
+            }
+            if !matches!(table.data.get("__variant"), Some(Value::String(actual)) if actual.as_str() == variant) {
+                return false;
+            }
+            if let Some(inner_pattern) = inner {
+                let Some(payload) = table.data.get("value") else {
+                    return false;
+                };
+                pattern_matches(payload, inner_pattern, bindings)
+            } else {
+                true
+            }
+        }
     }
 }

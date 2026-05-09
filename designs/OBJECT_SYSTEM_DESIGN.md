@@ -71,7 +71,7 @@ Chen Lang 的对象系统将模仿 Lua 的极简主义设计：
             3.  如果 `__index` 是 Table，递归查找。✅
             4.  如果 `__index` 是 Function，调用它 `call(__index, object, key)`。(已支持)
         *   **写入 (`SetField`)**:
-            如果 `object.data` 中找不到 key 且存在 `__newindex` 元方法，则调用之。(未来功能)
+            如果 `object.data` 中找不到 key 且存在 `__newindex` 元方法，则调用该函数拦截赋值行为。✅
         *   **运算符重载 (`Add`, `Sub` 等)**:
             修改 `Value::add` 等方法。如果操作数不是基本类型，检查是否有 `__add` 元方法并调用。✅
 

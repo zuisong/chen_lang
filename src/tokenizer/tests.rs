@@ -3,7 +3,7 @@
 
 use pretty_assertions::assert_eq;
 
-use crate::tokenizer::{Token, tokenizer_handwritten, winnow::tokenizer as tokenizer_winnow};
+use crate::tokenizer::{Keyword, Token, tokenizer_handwritten, winnow::tokenizer as tokenizer_winnow};
 
 #[test]
 fn test_handwritten_parity_basic() {
@@ -81,4 +81,20 @@ fn test_handwritten_comments() {
 
     let winnow_tokens = tokenizer_winnow(code.to_string()).unwrap();
     assert_eq!(tokens, winnow_tokens);
+}
+
+#[test]
+fn test_type_annotation_tokens() {
+    let code = "def add(a: int, b: float) -> bool { return true } let x: string = 'ok'";
+    let winnow_tokens = tokenizer_winnow(code.to_string()).unwrap();
+    let handwritten_tokens = tokenizer_handwritten(code.to_string()).unwrap();
+    assert_eq!(winnow_tokens, handwritten_tokens);
+
+    let token_values: Vec<_> = winnow_tokens.into_iter().map(|(token, _)| token).collect();
+    assert!(token_values.contains(&Token::Colon));
+    assert!(token_values.contains(&Token::Arrow));
+    assert!(token_values.contains(&Token::Keyword(Keyword::INT)));
+    assert!(token_values.contains(&Token::Keyword(Keyword::FLOAT)));
+    assert!(token_values.contains(&Token::Keyword(Keyword::BOOL)));
+    assert!(token_values.contains(&Token::Keyword(Keyword::STRING)));
 }
