@@ -57,6 +57,13 @@ impl Type {
         }
 
         match (self, expected) {
+            (found, Type::Generic { name, arguments }) if name == "Option" && arguments.len() == 1 => {
+                matches!(found, Type::Null) || found.can_assign_to(&arguments[0])
+            }
+            (Type::Generic { name, arguments }, expected) if name == "Option" && arguments.len() == 1 => {
+                Type::Null.can_assign_to(expected) && arguments[0].can_assign_to(expected)
+            }
+            (Type::Generic { name, .. }, Type::Object) if name == "Map" => true,
             (found, Type::Union(types)) => types.iter().any(|candidate| found.can_assign_to(candidate)),
             (Type::Union(types), expected) => types.iter().all(|candidate| candidate.can_assign_to(expected)),
             (
@@ -360,10 +367,15 @@ impl TypeChecker {
                 Ok(Type::Unknown)
             }
             Expression::ObjectLiteral(fields, _) => {
+                let mut value_type = Type::Unknown;
                 for (_, value) in fields {
-                    self.check_expression(value)?;
+                    let current = self.check_expression(value)?;
+                    value_type = self.merge_types(&value_type, &current);
                 }
-                Ok(Type::Object)
+                Ok(Type::Generic {
+                    name: "Map".to_string(),
+                    arguments: vec![Type::String, value_type],
+                })
             }
             Expression::ArrayLiteral(elements, _) => {
                 let mut element_type = Type::Unknown;
@@ -455,17 +467,22 @@ impl TypeChecker {
                 })
                 .collect(),
             return_type: Box::new(
-                self.resolve_aliases(&function
-                    .return_type
-                    .as_ref()
-                    .map(Type::from_annotation)
-                    .unwrap_or_else(|| self.infer_function_return_type(function))),
+                self.resolve_aliases(
+                    &function
+                        .return_type
+                        .as_ref()
+                        .map(Type::from_annotation)
+                        .unwrap_or_else(|| self.infer_function_return_type(function)),
+                ),
             ),
         }
     }
 
     fn infer_function_return_type(&self, function: &FunctionDeclaration) -> Type {
-        if let Some(Statement::Return(ret)) = function.body.iter().find(|statement| matches!(statement, Statement::Return(_)))
+        if let Some(Statement::Return(ret)) = function
+            .body
+            .iter()
+            .find(|statement| matches!(statement, Statement::Return(_)))
         {
             return self.infer_expression_shallow(&ret.expression, function);
         }
@@ -500,6 +517,16 @@ impl TypeChecker {
                 Type::Generic {
                     name: "Array".to_string(),
                     arguments: vec![element_type],
+                }
+            }
+            Expression::ObjectLiteral(fields, _) => {
+                let value_type = fields
+                    .iter()
+                    .map(|(_, value)| self.infer_expression_shallow(value, function))
+                    .fold(Type::Unknown, |acc, ty| self.merge_types(&acc, &ty));
+                Type::Generic {
+                    name: "Map".to_string(),
+                    arguments: vec![Type::String, value_type],
                 }
             }
             _ => Type::Unknown,
@@ -694,5 +721,115 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[test]
+    fn accepts_generic_array_annotation() {
+        let ast = parser::parse_from_source("let arr: Array<int> = [1, 2, 3]").unwrap();
+        assert!(check(&ast).is_ok());
+    }
+
+    #[test]
+    fn rejects_generic_array_element_mismatch() {
+        let ast = parser::parse_from_source("let arr: Array<int> = [1, \"two\"]").unwrap();
+        assert!(matches!(
+            check(&ast),
+            Err(TypeError::TypeMismatch {
+                expected: Type::Generic { .. },
+                found: Type::Generic { .. },
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn accepts_option_annotation_with_value_or_null() {
+        let ast = parser::parse_from_source(
+            r#"
+let present: Option<string> = "ok"
+let missing: Option<string> = null
+"#,
+        )
+        .unwrap();
+        assert!(check(&ast).is_ok());
+    }
+
+    #[test]
+    fn rejects_option_inner_type_mismatch() {
+        let ast = parser::parse_from_source("let maybe: Option<string> = 10").unwrap();
+        assert!(matches!(check(&ast), Err(TypeError::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn accepts_map_annotation_from_object_literal() {
+        let ast = parser::parse_from_source(r#"let point: Map<string, int> = ${ x: 1, y: 2 }"#).unwrap();
+        assert!(check(&ast).is_ok());
+    }
+
+    #[test]
+    fn keeps_object_annotation_compatible_with_object_literal() {
+        let ast = parser::parse_from_source(r#"let point: object = ${ x: 1, y: 2 }"#).unwrap();
+        assert!(check(&ast).is_ok());
+    }
+
+    #[test]
+    fn rejects_map_value_type_mismatch() {
+        let ast = parser::parse_from_source(r#"let point: Map<string, int> = ${ x: 1, y: "two" }"#).unwrap();
+        assert!(matches!(check(&ast), Err(TypeError::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn accepts_union_annotation_variants() {
+        let ast = parser::parse_from_source(
+            r#"
+let n: int | float = 1
+let maybe: string | null = null
+"#,
+        )
+        .unwrap();
+        assert!(check(&ast).is_ok());
+    }
+
+    #[test]
+    fn rejects_value_outside_union() {
+        let ast = parser::parse_from_source("let n: int | float = \"no\"").unwrap();
+        assert!(matches!(check(&ast), Err(TypeError::TypeMismatch { .. })));
+    }
+
+    #[test]
+    fn resolves_type_aliases() {
+        let ast = parser::parse_from_source(
+            r#"
+type MaybeNumber = int | null
+let value: MaybeNumber = null
+"#,
+        )
+        .unwrap();
+        assert!(check(&ast).is_ok());
+    }
+
+    #[test]
+    fn infers_identity_as_generic_function() {
+        let ast = parser::parse_from_source(
+            r#"
+def identity(x) { x }
+let a: int = identity(1)
+let b: string = identity("ok")
+"#,
+        )
+        .unwrap();
+        assert!(check(&ast).is_ok());
+    }
+
+    #[test]
+    fn rejects_bad_generic_identity_assignment() {
+        let ast = parser::parse_from_source(
+            r#"
+def identity(x) { x }
+let a: string = identity(1)
+"#,
+        )
+        .unwrap();
+        assert!(matches!(check(&ast), Err(TypeError::TypeMismatch { .. })));
     }
 }

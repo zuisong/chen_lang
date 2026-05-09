@@ -67,3 +67,47 @@ fn parse_unannotated_code_still_works() {
         other => panic!("expected function declaration, got {other:?}"),
     }
 }
+
+#[test]
+fn parse_phase2_type_annotations() {
+    let code = r#"
+type Point = object
+let arr: Array<int> = [1, 2, 3]
+let opt: Option<string> = null
+def process(val: int | float) -> int | float { return val }
+"#;
+    let statements = parser::parse_from_source(code).unwrap();
+
+    match &statements[0] {
+        Statement::TypeAliasDeclaration(alias) => {
+            assert_eq!(alias.name, "Point");
+            assert_eq!(alias.target, TypeAnnotation::Object);
+        }
+        other => panic!("expected type alias declaration, got {other:?}"),
+    }
+
+    match &statements[1] {
+        Statement::Local(local) => assert_eq!(
+            local.type_annotation,
+            Some(TypeAnnotation::Generic {
+                name: "Array".to_string(),
+                arguments: vec![TypeAnnotation::Int],
+            })
+        ),
+        other => panic!("expected local declaration, got {other:?}"),
+    }
+
+    match &statements[3] {
+        Statement::FunctionDeclaration(function) => {
+            assert_eq!(
+                function.parameters[0].type_annotation,
+                Some(TypeAnnotation::Union(vec![TypeAnnotation::Int, TypeAnnotation::Float]))
+            );
+            assert_eq!(
+                function.return_type,
+                Some(TypeAnnotation::Union(vec![TypeAnnotation::Int, TypeAnnotation::Float]))
+            );
+        }
+        other => panic!("expected function declaration, got {other:?}"),
+    }
+}

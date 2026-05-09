@@ -256,7 +256,6 @@ pub mod winnow {
             )),
             alt((
                 literal("->").value(Token::Arrow),
-                literal("|").value(Token::Pipe),
                 literal("+").value(Token::Operator(Operator::Add)),
                 literal("*").value(Token::Operator(Operator::Multiply)),
                 literal("/").value(Token::Operator(Operator::Divide)),
@@ -265,6 +264,7 @@ pub mod winnow {
                 literal("=").value(Token::Operator(Operator::Assign)),
                 literal("&&").value(Token::Operator(Operator::And)),
                 literal("||").value(Token::Operator(Operator::Or)),
+                literal("|").value(Token::Pipe),
                 literal("!=").value(Token::Operator(Operator::NotEquals)),
                 literal("!").value(Token::Operator(Operator::Not)),
                 literal("<=").value(Token::Operator(Operator::LtE)),

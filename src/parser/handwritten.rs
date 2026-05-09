@@ -435,11 +435,9 @@ impl Parser {
         };
         self.consume(&Token::Operator(Operator::Assign), "Expected '=' after type alias name")?;
         let target = self.parse_type_annotation()?;
-        Ok(Statement::TypeAliasDeclaration(crate::expression::TypeAliasDeclaration {
-            name,
-            target,
-            loc,
-        }))
+        Ok(Statement::TypeAliasDeclaration(
+            crate::expression::TypeAliasDeclaration { name, target, loc },
+        ))
     }
 
     fn parse_type_annotation(&mut self) -> Result<TypeAnnotation, ParseError> {
@@ -490,7 +488,10 @@ impl Parser {
                     break;
                 }
             }
-            self.consume(&Token::Operator(Operator::Gt), "Expected '>' after generic type arguments")?;
+            self.consume(
+                &Token::Operator(Operator::Gt),
+                "Expected '>' after generic type arguments",
+            )?;
             Ok(TypeAnnotation::Generic { name, arguments })
         } else {
             Ok(base)
