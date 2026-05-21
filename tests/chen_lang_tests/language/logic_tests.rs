@@ -3,12 +3,12 @@ use crate::common::run_chen_lang_code;
 #[test]
 fn test_boolean_operations() {
     let code = r#"
-let a = 1
-let b = 0
+let a = true
+let b = false
 let result = a && b
-print(result)
+console.log(result)
 let result2 = a || b
-print(result2)
+console.log(result2)
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -22,11 +22,11 @@ fn test_comparison_operations() {
 let a = 5
 let b = 3
 let result = a > b
-print(result)
+console.log(result)
 let result2 = a == b
-print(result2)
+console.log(result2)
 let result3 = a <= b
-print(result3)
+console.log(result3)
 "#;
 
     let output = run_chen_lang_code(code).unwrap();

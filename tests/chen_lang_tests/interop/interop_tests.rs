@@ -30,7 +30,7 @@ fn test_call_rust_object_method() {
     counter.increment()
     counter.increment()
     let val = counter.get()
-    io.print(val)
+    console.print(val)
     "#;
 
     // 2. Setup the VM with the mapped object
@@ -53,7 +53,7 @@ fn test_call_rust_object_method() {
             let counter = counter.clone();
             bind_method(
                 "increment",
-                Box::new(move |_vm, _args| {
+                Box::new(move |_vm, _ctx| {
                     counter.borrow_mut().increment();
                     Ok(Value::Null)
                 }),
@@ -65,7 +65,7 @@ fn test_call_rust_object_method() {
             let counter = counter.clone();
             bind_method(
                 "get",
-                Box::new(move |_vm, _args| {
+                Box::new(move |_vm, _ctx| {
                     let val = counter.borrow().get_value();
                     Ok(Value::int(val))
                 }),
@@ -84,7 +84,7 @@ fn test_call_rust_object_method() {
 fn test_rust_object_with_args() {
     let code = r#"
     let result = calculator.add(10, 20)
-    io.print(result)
+    console.print(result)
     "#;
 
     let output = run_chen_lang_code_with_setup(code, |vm| {
@@ -96,9 +96,9 @@ fn test_rust_object_with_args() {
             // Add method takes 2 arguments
             obj.data.insert(
                 "add".to_string(),
-                Value::NativeFunction(Rc::new(Box::new(|_vm, args| {
-                    let a = args.get(0).and_then(|v| v.to_int()).unwrap_or(0);
-                    let b = args.get(1).and_then(|v| v.to_int()).unwrap_or(0);
+                Value::NativeFunction(Rc::new(Box::new(|_vm, ctx| {
+                    let a = ctx.args.first().and_then(|v| v.to_int()).unwrap_or(0);
+                    let b = ctx.args.get(1).and_then(|v| v.to_int()).unwrap_or(0);
                     Ok(Value::int(a + b))
                 }))),
             );

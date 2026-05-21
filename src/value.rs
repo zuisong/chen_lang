@@ -36,8 +36,15 @@ pub struct ObjClosure {
     pub upvalues: Vec<ObjUpvalue>,
 }
 
+/// 原生函数调用上下文
+pub struct NativeContext {
+    pub this: Option<Value>,
+    pub args: Vec<Value>,
+}
+
 /// 原生函数类型
-pub type NativeFnType = dyn Fn(&mut crate::vm::VM, Vec<Value>) -> Result<Value, VMRuntimeError> + 'static;
+pub type NativeFnType =
+    dyn Fn(&mut crate::vm::VM, NativeContext) -> Result<Value, VMRuntimeError> + 'static;
 
 /// 运行时值类型 - 统一表示所有数据类型
 #[derive(Clone)]
@@ -592,11 +599,11 @@ impl Value {
 /// 逻辑运算实现
 impl Value {
     pub fn and(&self, other: &Value) -> Value {
-        Value::bool(self.is_truthy() && other.is_truthy())
+        if self.is_truthy() { other.clone() } else { self.clone() }
     }
 
     pub fn or(&self, other: &Value) -> Value {
-        Value::bool(self.is_truthy() || other.is_truthy())
+        if self.is_truthy() { self.clone() } else { other.clone() }
     }
 
     pub fn not(&self) -> Value {

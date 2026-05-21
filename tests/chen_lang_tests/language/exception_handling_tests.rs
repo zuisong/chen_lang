@@ -5,10 +5,10 @@ fn test_try_catch_basic() {
     let code = r#"
     try {
         throw "Something went wrong!"
-    } catch error {
-        println("Caught error: " + error)
+    } catch (error) {
+        console.log("Caught error: " + error)
     }
-    println("Program continues...")
+    console.log("Program continues...")
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Caught error: Something went wrong!"));
@@ -21,16 +21,16 @@ fn test_try_catch_with_finally() {
     let cleanup_called = false
     
     try {
-        println("In try block")
+        console.log("In try block")
         throw "Error occurred"
-    } catch error {
-        println("In catch block: " + error)
+    } catch (error) {
+        console.log("In catch block: " + error)
     } finally {
-        println("In finally block")
+        console.log("In finally block")
         cleanup_called = true
     }
     
-    println("Cleanup called: " + cleanup_called)
+    console.log("Cleanup called: " + cleanup_called)
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("In try block"));
@@ -42,8 +42,8 @@ fn test_try_catch_with_finally() {
 #[test]
 fn test_try_catch_in_function() {
     let code = r#"
-    def divide(a, b) {
-        if b == 0 {
+    function divide(a, b) {
+        if (b == 0) {
             throw "Division by zero"
         }
         a / b
@@ -51,15 +51,15 @@ fn test_try_catch_in_function() {
     
     try {
         let result = divide(10, 2)
-        println("Result: " + result)
+        console.log("Result: " + result)
         
         let bad_result = divide(10, 0)
-        println("This should not print")
-    } catch error {
-        println("Caught: " + error)
+        console.log("This should not print")
+    } catch (error) {
+        console.log("Caught: " + error)
     }
     
-    println("Program completed")
+    console.log("Program completed")
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Result: 5"));
@@ -72,22 +72,22 @@ fn test_try_catch_in_function() {
 fn test_nested_try_catch() {
     let code = r#"
     try {
-        println("Outer try")
+        console.log("Outer try")
         
         try {
-            println("Inner try")
+            console.log("Inner try")
             throw "Inner error"
-        } catch inner_error {
-            println("Inner catch: " + inner_error)
+        } catch (inner_error) {
+            console.log("Inner catch: " + inner_error)
             throw "Outer error"
         }
         
-        println("This should not print")
-    } catch outer_error {
-        println("Outer catch: " + outer_error)
+        console.log("This should not print")
+    } catch (outer_error) {
+        console.log("Outer catch: " + outer_error)
     }
     
-    println("Done")
+    console.log("Done")
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Outer try"));
@@ -104,7 +104,7 @@ fn test_try_catch_without_error_variable() {
     try {
         throw "Some error"
     } catch {
-        println("Error caught (no variable)")
+        console.log("Error caught (no variable)")
     }
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
@@ -116,8 +116,8 @@ fn test_throw_string() {
     let code = r#"
     try {
         throw "Error message"
-    } catch e {
-        println("Caught: " + e)
+    } catch (e) {
+        console.log("Caught: " + e)
     }
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
@@ -129,8 +129,8 @@ fn test_throw_number() {
     let code = r#"
     try {
         throw 42
-    } catch e {
-        println("Caught: " + e)
+    } catch (e) {
+        console.log("Caught: " + e)
     }
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
@@ -143,15 +143,15 @@ fn test_finally_executes_on_success() {
     let finally_ran = false
     
     try {
-        println("Try block")
-    } catch e {
-        println("This should not run")
+        console.log("Try block")
+    } catch (e) {
+        console.log("This should not run")
     } finally {
-        println("Finally block")
+        console.log("Finally block")
         finally_ran = true
     }
     
-    println("Finally ran: " + finally_ran)
+    console.log("Finally ran: " + finally_ran)
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Try block"));
@@ -167,19 +167,19 @@ fn test_multiple_throws_in_sequence() {
     
     try {
         throw "First"
-    } catch e {
-        println("Caught first: " + e)
+    } catch (e) {
+        console.log("Caught first: " + e)
         count = count + 1
     }
     
     try {
         throw "Second"
-    } catch e {
-        println("Caught second: " + e)
+    } catch (e) {
+        console.log("Caught second: " + e)
         count = count + 1
     }
     
-    println("Count: " + count)
+    console.log("Count: " + count)
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Caught first: First"));

@@ -1,5 +1,4 @@
 //! 一个小的玩具语言
-#![allow(soft_unstable)]
 // #![deny(missing_docs)]
 // #![deny(unused_imports)]
 // #![deny(unused_parens)]
@@ -74,8 +73,7 @@ pub struct RunOptions {
 
 #[test]
 fn test_run_captured() {
-    let code = r#"let io = import("stdlib/io")
-    io.print("Hello World")"#;
+    let code = r#"console.print("Hello World")"#;
     let output = run_captured(code.to_string()).unwrap();
     assert_eq!(output, "Hello World");
 }

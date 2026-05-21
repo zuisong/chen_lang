@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 
+use crate::value::NativeContext;
 use super::*;
 pub fn create_json_object() -> Value {
     let mut table = crate::value::Table {
@@ -17,10 +18,9 @@ pub fn create_json_object() -> Value {
     Value::Object(Rc::new(RefCell::new(table)))
 }
 
-fn native_json_parse(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    // args[0] is string
-    if let Some(Value::String(s)) = args.first() {
-        let v: serde_json::Value = serde_json::from_str(s).map_err(|_e| ValueError::InvalidOperation {
+fn native_json_parse(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    if let Some(Value::String(s)) = ctx.args.last() {
+        let v: serde_json::Value = serde_json::from_str(&s).map_err(|_e| ValueError::InvalidOperation {
             operator: "JSON.parse".into(),
             left_type: ValueType::String,
             right_type: ValueType::Null,
@@ -30,8 +30,8 @@ fn native_json_parse(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeE
     Ok(Value::Null)
 }
 
-fn native_json_stringify(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if let Some(val) = args.first() {
+fn native_json_stringify(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    if let Some(val) = ctx.args.last() {
         let j = chen_to_json(val);
         return Ok(Value::string(j.to_string()));
     }

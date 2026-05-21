@@ -3,14 +3,14 @@ use crate::common::run_chen_lang_code;
 #[test]
 fn test_function_scope_isolation() {
     let code = r#"
-def func() {
+function func() {
     let local_var = "local_value"
     return "test"
 }
 
 let result = "abcd"
 func()
-print(result)
+console.log(result)
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -20,13 +20,13 @@ print(result)
 #[test]
 fn test_function_variable_not_leaked() {
     let code = r#"
-def func() {
+function func() {
     let secret = "should_not_be_visible"
     return "done"
 }
 
 func()
-print(secret)  # 这应该报错：未定义变量
+console.log(secret)
 "#;
 
     let result = run_chen_lang_code(code);
@@ -37,11 +37,11 @@ print(secret)  # 这应该报错：未定义变量
 fn test_if_statement_scope() {
     let code = r#"
 let x = "global"
-if true {
+if (true) {
     let x = "local"
-    println(x)
+    console.log(x)
 }
-println(x)
+console.log(x)
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -56,12 +56,12 @@ println(x)
 fn test_for_loop_scope() {
     let code = r#"
 let i = 1
-for i <= 3 {
+while (i <= 3) {
     let temp = i
-    println(temp)
+    console.log(temp)
     i = i + 1
 }
-println(i)
+console.log(i)
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -77,15 +77,15 @@ println(i)
 #[test]
 fn test_simple_block_assignment() {
     let code = r#"
-    let x = {
+    let x = function() {
         let a = 10
         let b = 20
-        a + b
-    }
-    if x == 30 {
-        println("Test 1 Passed")
+        return a + b
+    }()
+    if (x == 30) {
+        console.log("Test 1 Passed")
     } else {
-        println("Test 1 Failed: Expected 30, got " + x)
+        console.log("Test 1 Failed: Expected 30, got " + x)
     }
     "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -95,17 +95,17 @@ fn test_simple_block_assignment() {
 #[test]
 fn test_nested_blocks() {
     let code = r#"
-    let y = {
+    let y = function() {
         let c = 5
-        {
+        return function() {
             let d = 10
-            c + d
-        }
-    }
-    if y == 15 {
-        println("Test 2 Passed")
+            return c + d
+        }()
+    }()
+    if (y == 15) {
+        console.log("Test 2 Passed")
     } else {
-        println("Test 2 Failed: Expected 15, got " + y)
+        console.log("Test 2 Failed: Expected 15, got " + y)
     }
     "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -115,32 +115,30 @@ fn test_nested_blocks() {
 #[test]
 fn test_block_with_if_else() {
     let code = r#"
-    let z = {
+    let z = function() {
         let e = 100
-        if e > 50 {
+        return if (e > 50) {
             1
         } else {
             0
         }
-    }
-    println("Test 3 (If statement): " + z)
+    }()
+    console.log("Test 3 (If statement): " + z)
     "#;
     let output = run_chen_lang_code(code).unwrap();
-    // The output will depend on whether if is treated as an expression or statement
     assert!(output.contains("Test 3 (If statement):"));
 }
 
 #[test]
 fn test_block_ending_with_assignment() {
     let code = r#"
-    let w = {
+    let w = function() {
         let f = 1
         f = f + 1
-    }
-    println("Test 4 (Assignment): " + w)
+    }()
+    console.log("Test 4 (Assignment): " + w)
     "#;
     let output = run_chen_lang_code(code).unwrap();
-    // Assignment is a statement, so w should be null
     assert!(output.contains("Test 4 (Assignment):"));
 }
 
@@ -148,7 +146,7 @@ fn test_block_ending_with_assignment() {
 fn test_empty_block() {
     let code = r#"
     let v = {}
-    println("Test 5 (Empty): " + v)
+    console.log("Test 5 (Empty): " + v)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert!(output.contains("Test 5 (Empty):"));
@@ -157,10 +155,10 @@ fn test_empty_block() {
 #[test]
 fn test_block_value_simple() {
     let code = r#"
-    let result = {
-        5 + 10
-    }
-    println(result)
+    let result = function() {
+        return 5 + 10
+    }()
+    console.log(result)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "15");
@@ -169,12 +167,12 @@ fn test_block_value_simple() {
 #[test]
 fn test_block_value_with_variables() {
     let code = r#"
-    let result = {
+    let result = function() {
         let x = 10
         let y = 20
-        x + y
-    }
-    println(result)
+        return x + y
+    }()
+    console.log(result)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "30");
@@ -182,55 +180,49 @@ fn test_block_value_with_variables() {
 
 #[test]
 fn test_all_scope_value_tests() {
-    // Run the complete test file
     let code = r#"
-# Test 1: Simple block assignment
-let x = {
+let x = function() {
     let a = 10
     let b = 20
-    a + b
-}
-if x == 30 {
-    println("Test 1 Passed")
+    return a + b
+}()
+if (x == 30) {
+    console.log("Test 1 Passed")
 } else {
-    println("Test 1 Failed: Expected 30, got " + x)
+    console.log("Test 1 Failed: Expected 30, got " + x)
 }
 
-# Test 2: Nested blocks
-let y = {
+let y = function() {
     let c = 5
-    {
+    return function() {
         let d = 10
-        c + d
-    }
-}
-if y == 15 {
-    println("Test 2 Passed")
+        return c + d
+    }()
+}()
+if (y == 15) {
+    console.log("Test 2 Passed")
 } else {
-    println("Test 2 Failed: Expected 15, got " + y)
+    console.log("Test 2 Failed: Expected 15, got " + y)
 }
 
-# Test 3: Block with if/else
-let z = {
+let z = function() {
     let e = 100
-    if e > 50 {
+    return if (e > 50) {
         1
     } else {
         0
     }
-}
-println("Test 3 (If statement): " + z) 
+}()
+console.log("Test 3 (If statement): " + z) 
 
-# Test 4: Block ending with non-expression
-let w = {
+let w = function() {
     let f = 1
     f = f + 1
-}
-println("Test 4 (Assignment): " + w)
+}()
+console.log("Test 4 (Assignment): " + w)
 
-# Test 5: Empty block
 let v = {}
-println("Test 5 (Empty): " + v)
+console.log("Test 5 (Empty): " + v)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert!(output.contains("Test 1 Passed"));

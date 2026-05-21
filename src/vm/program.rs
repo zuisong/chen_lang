@@ -21,6 +21,7 @@ pub enum Instruction {
 
     // 变量操作
     Load(String),  // 加载变量（全局变量或函数符号回退）
+    LoadThis,      // 加载 this 绑定
     Store(String), // 存储到变量（全局变量）
 
     // 运算操作（统一接口）
@@ -73,7 +74,8 @@ pub enum Instruction {
     GetIndex,          // 获取对象索引：obj[index]（弹出 index, obj，压入 value）
 
     // Call function from stack
-    CallStack(usize), // 从栈顶调用函数（函数对象在 args 之下）
+    CallStack(usize),       // 从栈顶调用函数（函数对象在 args 之下）
+    CallMethodStack(usize), // 从栈顶调用方法（receiver 在函数对象之下）
 
     // Array creation (Syntactic sugar for object with numeric keys)
     BuildArray(usize),                        // 从栈顶 n 个元素构建数组对象

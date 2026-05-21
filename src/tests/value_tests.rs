@@ -80,3 +80,18 @@ fn test_truthy_values() {
     assert!(!Value::string("".to_string()).is_truthy());
     assert!(!Value::null().is_truthy());
 }
+
+#[test]
+fn test_js_logical_operators_return_operands() {
+    assert_eq!(
+        Value::null().or(&Value::string("fallback".to_string())),
+        Value::string("fallback".to_string())
+    );
+    assert_eq!(Value::int(0).and(&Value::string("x".to_string())), Value::int(0));
+    assert_eq!(Value::string("value".to_string()).and(&Value::int(1)), Value::int(1));
+    assert_eq!(
+        Value::string("value".to_string()).or(&Value::int(1)),
+        Value::string("value".to_string())
+    );
+    assert_eq!(Value::string("".to_string()).not(), Value::bool(true));
+}

@@ -8,8 +8,8 @@ use thiserror::Error;
 
 use crate::expression::{
     Assign, Ast, BinaryOperation, EnumDeclaration, EnumVariantDeclaration, Expression, ForInLoop, FunctionCall,
-    FunctionDeclaration, If, ImplDeclaration, Literal, Local, Loop, MatchArm, MatchExpression, MethodCall, Parameter,
-    Pattern, Return, Statement, StructDeclaration, StructExpression, TryCatch, TypeAnnotation, Unary,
+    FunctionDeclaration, If, ImplDeclaration, Literal, Local, Loop, MatchArm, MatchExpression, Parameter, Pattern,
+    Return, Statement, StructDeclaration, StructExpression, TryCatch, TypeAnnotation, Unary,
 };
 use crate::tokenizer::Keyword;
 use crate::tokenizer::Location;
@@ -110,7 +110,6 @@ impl Parser {
             (Token::Pipe, Token::Pipe) => true,
             (Token::Ampersand, Token::Ampersand) => true,
             (Token::Dot, Token::Dot) => true,
-            (Token::DollarLBig, Token::DollarLBig) => true,
             (Token::NewLine, Token::NewLine) => true,
             (Token::COMMA, Token::COMMA) => true,
             _ => false,
@@ -167,8 +166,14 @@ impl Parser {
             return self.parse_for();
         }
 
-        if self.match_token(&Token::Keyword(Keyword::DEF)) {
+        if self.match_token(&Token::Keyword(Keyword::FUNCTION)) {
             return self.parse_function();
+        }
+        if self.match_token(&Token::Keyword(Keyword::WHILE)) {
+            return self.parse_while();
+        }
+        if self.match_token(&Token::Keyword(Keyword::IF)) {
+            return Ok(Statement::Expression(self.parse_if()?));
         }
         if self.match_token(&Token::Keyword(Keyword::TYPE)) {
             return self.parse_type_alias();
@@ -194,9 +199,6 @@ impl Parser {
         }
         if self.match_token(&Token::Keyword(Keyword::TRY)) {
             return self.parse_try_catch();
-        }
-        if self.match_token(&Token::Keyword(Keyword::THROW)) {
-            return self.parse_throw();
         }
         if self.match_token(&Token::Keyword(Keyword::THROW)) {
             return self.parse_throw();
@@ -276,7 +278,9 @@ impl Parser {
 
     fn parse_if(&mut self) -> Result<Expression, ParseError> {
         let start_loc = self.peek_location();
+        self.consume(&Token::LParen, "Expected '(' after 'if'")?;
         let condition = self.parse_expression_logic()?;
+        self.consume(&Token::RParen, "Expected ')' after if condition")?;
 
         self.skip_newlines();
         self.consume(&Token::LBig, "Expected '{' after if condition")?;
@@ -287,8 +291,7 @@ impl Parser {
         self.skip_newlines();
         if self.match_token(&Token::Keyword(Keyword::ELSE)) {
             self.skip_newlines();
-            if self.check(&Token::Keyword(Keyword::IF)) {
-                self.advance(); // Consume 'if'
+            if self.match_token(&Token::Keyword(Keyword::IF)) {
                 let next_if = self.parse_if()?;
                 else_branch = vec![Statement::Expression(next_if)];
             } else {
@@ -306,68 +309,55 @@ impl Parser {
         }))
     }
 
+    fn parse_while(&mut self) -> Result<Statement, ParseError> {
+        let start_loc = self.peek_location();
+        self.consume(&Token::LParen, "Expected '(' after 'while'")?;
+        let condition = self.parse_expression_logic()?;
+        self.consume(&Token::RParen, "Expected ')' after while condition")?;
+
+        self.skip_newlines();
+        self.consume(&Token::LBig, "Expected '{' after while condition")?;
+        let body = self.parse_block()?;
+        self.consume(&Token::RBig, "Expected '}' after while block")?;
+
+        Ok(Statement::Loop(Loop {
+            test: condition,
+            body,
+            loc: start_loc,
+        }))
+    }
+
     fn parse_for(&mut self) -> Result<Statement, ParseError> {
         let start_loc = self.peek_location();
 
-        // 1. Check for infinite loop: for { ... }
-        if self.check(&Token::LBig) {
-            self.advance(); // consume '{'
-            let body = self.parse_block()?;
-            self.consume(&Token::RBig, "Expected '}' after for block")?;
-            return Ok(Statement::Loop(Loop {
-                test: Expression::Literal(Literal::Value(Value::Bool(true)), start_loc),
-                body,
-                loc: start_loc,
-            }));
+        self.consume(&Token::LParen, "Expected '(' after 'for'")?;
+
+        if !self.match_token(&Token::Keyword(Keyword::LET)) {
+            return Err(ParseError::Message {
+                msg: "Expected 'let' in for loop (currently only for-of is supported)".to_string(),
+                loc: self.peek_location(),
+            });
         }
 
-        // 2. Check for for-in or while-style:
-        // We look ahead to see if it's an Identifier followed by IN
-        let is_for_in = if let Some(Token::Identifier(_)) = self.peek() {
-            self.tokens
-                .get(self.current + 1)
-                .map(|(t, _)| t == &Token::Keyword(Keyword::IN))
-                .unwrap_or(false)
-        } else {
-            false
-        };
+        let var_name = self.consume_identifier("Expected variable name after 'let' in for loop")?;
 
-        if is_for_in {
-            let var_name = if let Some(Token::Identifier(name)) = self.advance() {
-                name.clone()
-            } else {
-                unreachable!()
-            };
+        self.consume(&Token::Keyword(Keyword::OF), "Expected 'of' in for loop")?;
 
-            self.consume(&Token::Keyword(Keyword::IN), "Expected 'in' after variable name")?;
-            let iterable = self.parse_expression_logic()?;
+        let iterable = self.parse_expression_logic()?;
 
-            self.skip_newlines();
-            self.consume(&Token::LBig, "Expected '{' after for-in iterable")?;
-            let body = self.parse_block()?;
-            self.consume(&Token::RBig, "Expected '}' after for-in block")?;
+        self.consume(&Token::RParen, "Expected ')' after for-of header")?;
 
-            Ok(Statement::ForIn(ForInLoop {
-                var: var_name,
-                iterable,
-                body,
-                loc: start_loc,
-            }))
-        } else {
-            // While style: for condition { ... }
-            let condition = self.parse_expression_logic()?;
+        self.skip_newlines();
+        self.consume(&Token::LBig, "Expected '{' after for-of header")?;
+        let body = self.parse_block()?;
+        self.consume(&Token::RBig, "Expected '}' after for-of block")?;
 
-            self.skip_newlines();
-            self.consume(&Token::LBig, "Expected '{' after for condition")?;
-            let body = self.parse_block()?;
-            self.consume(&Token::RBig, "Expected '}' after for block")?;
-
-            Ok(Statement::Loop(Loop {
-                test: condition,
-                body,
-                loc: start_loc,
-            }))
-        }
+        Ok(Statement::ForIn(ForInLoop {
+            var: var_name,
+            iterable,
+            body,
+            loc: start_loc,
+        }))
     }
 
     fn parse_function_definition(&mut self) -> Result<FunctionDeclaration, ParseError> {
@@ -540,7 +530,7 @@ impl Parser {
         self.skip_newlines();
         while !self.check(&Token::RBig) {
             self.skip_newlines();
-            if self.match_token(&Token::Keyword(Keyword::FN)) || self.match_token(&Token::Keyword(Keyword::DEF)) {
+            if self.match_token(&Token::Keyword(Keyword::FN)) || self.match_token(&Token::Keyword(Keyword::FUNCTION)) {
                 methods.push(self.parse_function_definition()?);
             } else {
                 return Err(ParseError::Message {
@@ -626,11 +616,6 @@ impl Parser {
     fn parse_expression_logic(&mut self) -> Result<Expression, ParseError> {
         let start_loc = self.peek_location();
         self.skip_newlines();
-        if self.match_token(&Token::LBig) {
-            let stmts = self.parse_block()?;
-            self.consume(&Token::RBig, "Expected '}' after block")?;
-            return Ok(Expression::Block(stmts, start_loc));
-        }
         if self.match_token(&Token::Keyword(Keyword::MATCH)) {
             return self.parse_match_expression(start_loc);
         }
@@ -834,38 +819,6 @@ impl Parser {
                     index: Box::new(index),
                     loc: self.peek_location(),
                 };
-            } else if self.match_token(&Token::Colon) {
-                if let Some(Token::Identifier(method)) = self.advance() {
-                    let method_name = method.clone();
-                    self.skip_newlines();
-                    self.consume(&Token::LParen, "Expected '(' after method name")?;
-                    let mut args = Vec::new();
-                    self.skip_newlines();
-                    if !self.check(&Token::RParen) {
-                        loop {
-                            self.skip_newlines();
-                            args.push(self.parse_expression_logic()?);
-                            self.skip_newlines();
-                            if !self.match_token(&Token::COMMA) {
-                                break;
-                            }
-                        }
-                    }
-                    self.skip_newlines();
-                    self.consume(&Token::RParen, "Expected ')' after arguments")?;
-
-                    expr = Expression::MethodCall(MethodCall {
-                        object: Box::new(expr),
-                        method: method_name,
-                        arguments: args,
-                        loc: self.peek_location(),
-                    });
-                } else {
-                    return Err(ParseError::Message {
-                        msg: "Expected method name after ':'".to_string(),
-                        loc: self.peek_location(),
-                    });
-                }
             } else {
                 break;
             }
@@ -891,31 +844,15 @@ impl Parser {
                     Ok(Expression::Identifier(name, start_loc))
                 }
             }
-            Token::DollarLBig => self.parse_object_literal(),
+            Token::LBig => self.parse_object_literal_content(start_loc),
             Token::LSquare => self.parse_array_literal(),
             Token::Keyword(Keyword::IF) => self.parse_if(),
-            Token::Keyword(Keyword::DEF) => {
+            Token::Keyword(Keyword::FUNCTION) => {
                 let decl = self.parse_function_definition()?;
                 Ok(Expression::Function(decl))
             }
+            Token::Keyword(Keyword::THIS) => Ok(Expression::Identifier("this".to_string(), start_loc)),
             // ASYNC check removed
-            Token::Keyword(Keyword::IMPORT) => {
-                // import("path")
-                self.skip_newlines();
-                self.consume(&Token::LParen, "Expected '(' after 'import'")?;
-                self.skip_newlines();
-                if let Some(Token::String(s)) = self.advance() {
-                    let path = s.clone();
-                    self.skip_newlines();
-                    self.consume(&Token::RParen, "Expected ')' after import path")?;
-                    Ok(Expression::Import { path, loc: start_loc })
-                } else {
-                    Err(ParseError::Message {
-                        msg: "Expected string path inside import(...)".to_string(),
-                        loc: self.peek_location(),
-                    })
-                }
-            }
             Token::LParen => {
                 self.skip_newlines();
                 let expr = self.parse_expression_logic()?;
@@ -927,8 +864,7 @@ impl Parser {
         }
     }
 
-    fn parse_object_literal(&mut self) -> Result<Expression, ParseError> {
-        let start_loc = self.peek_location();
+    fn parse_object_literal_content(&mut self, start_loc: Location) -> Result<Expression, ParseError> {
         let mut fields = Vec::new();
         self.skip_newlines();
         if !self.check(&Token::RBig) {
@@ -1139,11 +1075,11 @@ impl Parser {
         self.skip_newlines();
         self.consume(&Token::Keyword(Keyword::CATCH), "Expected 'catch' after try block")?;
 
-        // Optional error variable name
-        let error_name = if let Some(Token::Identifier(name)) = self.peek() {
-            let n = name.clone();
-            self.advance();
-            Some(n)
+        // Catch variable with parentheses: catch (error)
+        let error_name = if self.match_token(&Token::LParen) {
+            let name = self.consume_identifier("Expected variable name after '(' in catch")?;
+            self.consume(&Token::RParen, "Expected ')' after catch variable")?;
+            Some(name)
         } else {
             None
         };

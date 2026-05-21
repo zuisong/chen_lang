@@ -1,9 +1,39 @@
 #[cfg(test)]
 mod object_tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
     use pretty_assertions::assert_matches;
 
     use crate::value::Value;
-    use crate::vm::{Instruction, Program, VM};
+    use crate::vm::{Instruction, NativeFnType, Program, VM, VMRuntimeError};
+    use crate::{compiler, parser};
+
+    fn run_value(code: &str) -> Result<Value, VMRuntimeError> {
+        let ast = parser::parse_from_source(code).unwrap();
+        let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
+        let mut vm = VM::new();
+        vm.execute(&program).map_err(|err| err.error)
+    }
+
+    fn run_capture_values(code: &str) -> Result<Vec<Value>, VMRuntimeError> {
+        let ast = parser::parse_from_source(code).unwrap();
+        let program = compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
+        let values = Rc::new(RefCell::new(Vec::new()));
+        let captured_values = values.clone();
+        let capture_fn = move |_vm: &mut VM, ctx: crate::value::NativeContext| {
+            captured_values.borrow_mut().extend(ctx.args);
+            Ok(Value::null())
+        };
+
+        let mut vm = VM::new();
+        vm.variables.insert(
+            "capture".to_string(),
+            Value::NativeFunction(Rc::new(Box::new(capture_fn) as Box<NativeFnType>)),
+        );
+        vm.execute(&program).map_err(|err| err.error)?;
+        Ok(values.borrow().clone())
+    }
 
     /// 测试 VM 指令：NewObject
     #[test]
@@ -68,10 +98,10 @@ mod object_tests {
     /// 测试基础对象字面量和字段访问
     #[test]
     fn test_object_basics() {
-        let code = r#"let io = import("stdlib/io")
-let obj = ${ name: "Chen", age: 25 }
-io.println(obj.name)
-io.println(obj.age)"#;
+        let code = r#"
+let obj = { name: "Chen", age: 25 }
+console.log(obj.name)
+console.log(obj.age)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -84,10 +114,10 @@ io.println(obj.age)"#;
     /// 测试字段赋值
     #[test]
     fn test_field_assignment() {
-        let code = r#"let io = import("stdlib/io")
-let obj = ${ name: "Alice" }
+        let code = r#"
+let obj = { name: "Alice" }
 obj.city = "Shanghai"
-io.println(obj.city)"#;
+console.log(obj.city)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -99,10 +129,10 @@ io.println(obj.city)"#;
     /// 测试索引访问
     #[test]
     fn test_index_operations() {
-        let code = r#"let io = import("stdlib/io")
-let obj = ${ name: "Bob" }
+        let code = r#"
+let obj = { name: "Bob" }
 obj["country"] = "China"
-io.println(obj["country"])"#;
+console.log(obj["country"])"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -114,9 +144,9 @@ io.println(obj["country"])"#;
     /// 测试嵌套对象
     #[test]
     fn test_nested_objects() {
-        let code = r#"let io = import("stdlib/io")
-let person = ${ name: "Eve", address: ${ city: "Beijing", zip: 100000 } }
-io.println(person.address.city)"#;
+        let code = r#"
+let person = { name: "Eve", address: { city: "Beijing", zip: 100000 } }
+console.log(person.address.city)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -128,20 +158,20 @@ io.println(person.address.city)"#;
     /// 测试 Metatable 原型继承
     #[test]
     fn test_metatable_inheritance() {
-        let code = r#"let io = import("stdlib/io")
-let Animal = ${
-    __index: ${
+        let code = r#"
+let Animal = {
+    __index: {
         speak: "Some sound",
         legs: 4
     }
 }
 
-let dog = ${ name: "Buddy" }
-set_meta(dog, Animal)
+let dog = { name: "Buddy" }
+Chen.setMeta(dog, Animal)
 
-io.println(dog.name)
-io.println(dog.speak)
-io.println(dog.legs)"#;
+console.log(dog.name)
+console.log(dog.speak)
+console.log(dog.legs)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -155,11 +185,11 @@ io.println(dog.legs)"#;
     /// 测试 set_meta 和 get_meta
     #[test]
     fn test_metatable_functions() {
-        let code = r#"let io = import("stdlib/io")
-let proto = ${ __index: ${ greet: "Hello" } }
-let obj = ${ name: "Alice" }
-set_meta(obj, proto)
-io.println(obj.greet)"#;
+        let code = r#"
+let proto = { __index: { greet: "Hello" } }
+let obj = { name: "Alice" }
+Chen.setMeta(obj, proto)
+console.log(obj.greet)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -171,11 +201,11 @@ io.println(obj.greet)"#;
     /// 测试直接字段优先于 metatable
     #[test]
     fn test_metatable_precedence() {
-        let code = r#"let io = import("stdlib/io")
-let proto = ${ value: 100 }
-let obj = ${ value: 10 }
-set_meta(obj, proto)
-io.println(obj.value)"#;
+        let code = r#"
+let proto = { value: 100 }
+let obj = { value: 10 }
+Chen.setMeta(obj, proto)
+console.log(obj.value)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -192,11 +222,11 @@ io.println(obj.value)"#;
     /// 测试对象引用共享
     #[test]
     fn test_object_reference() {
-        let code = r#"let io = import("stdlib/io")
-let obj1 = ${ value: 10 }
+        let code = r#"
+let obj1 = { value: 10 }
 let obj2 = obj1
 obj2.value = 20
-io.println(obj1.value)"#;
+console.log(obj1.value)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -209,13 +239,13 @@ io.println(obj1.value)"#;
     /// 测试动态添加字段
     #[test]
     fn test_dynamic_fields() {
-        let code = r#"let io = import("stdlib/io")
-let person = ${ name: "Grace" }
+        let code = r#"
+let person = { name: "Grace" }
 person.age = 28
 person.city = "Shanghai"
-io.println(person.name)
-io.println(person.age)
-io.println(person.city)"#;
+console.log(person.name)
+console.log(person.age)
+console.log(person.city)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -229,13 +259,13 @@ io.println(person.city)"#;
     /// 测试对象相等性（引用比较）
     #[test]
     fn test_object_equality() {
-        let code = r#"let io = import("stdlib/io")
-        let obj1 = ${ a: 1 }
-        let obj2 = ${ a: 1 }
+        let code = r#"
+        let obj1 = { a: 1 }
+        let obj2 = { a: 1 }
         let obj3 = obj1
 
-        io.println(obj1 == obj2) # Should be false (different references)
-        io.println(obj1 == obj3) # Should be true (same reference)
+        console.log(obj1 == obj2) // Should be false (different references)
+        console.log(obj1 == obj3) // Should be true (same reference)
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -250,21 +280,21 @@ io.println(person.city)"#;
     /// 测试对象存储多种类型
     #[test]
     fn test_object_mixed_types() {
-        let code = r#"let io = import("stdlib/io")
-        let obj = ${
+        let code = r#"
+        let obj = {
             i: 42,
             f: 3.14,
             b: true,
             s: "string",
             n: null,
-            o: ${ nested: true }
+            o: { nested: true }
         }
-        io.println(obj.i)
-        io.println(obj.f)
-        io.println(obj.b)
-        io.println(obj.s)
-        io.println(obj.n)
-        io.println(obj.o.nested)
+        console.log(obj.i)
+        console.log(obj.f)
+        console.log(obj.b)
+        console.log(obj.s)
+        console.log(obj.n)
+        console.log(obj.o.nested)
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -281,19 +311,19 @@ io.println(person.city)"#;
     /// 测试多层 Metatable 继承
     #[test]
     fn test_metatable_chain() {
-        let code = r#"let io = import("stdlib/io")
-        let grand = ${ __index: ${ name: "Grandpa" } }
-        let parent = ${ __index: ${ age: 50 } }
+        let code = r#"
+        let grand = { __index: { name: "Grandpa" } }
+        let parent = { __index: { age: 50 } }
 
-        # Chain: parent -> grand
-        set_meta(parent.__index, grand)
+        // Chain: parent -> grand
+        Chen.setMeta(parent.__index, grand)
 
-        let child = ${ }
-        # Chain: child -> parent
-        set_meta(child, parent)
+        let child = { }
+        // Chain: child -> parent
+        Chen.setMeta(child, parent)
 
-        io.println("Age: " + child.age)
-        io.println("Name: " + child.name)
+        console.log("Age: " + child.age)
+        console.log("Name: " + child.name)
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -307,40 +337,40 @@ io.println(person.city)"#;
     /// 测试 get_meta 和清除 meta
     #[test]
     fn test_get_and_clear_meta() {
-        let code = r#"let io = import("stdlib/io")
-        let meta = ${ __index: ${ x: 1 } }
-        let obj = ${ }
+        let code = r#"
+        let meta = { __index: { x: 1 } }
+        let obj = { }
 
-        # 1. Initial should be null
-        if get_meta(obj) == null {
-            io.println("Initial: null")
+        // 1. Initial should be null
+        if (Chen.getMeta(obj) == null) {
+            console.log("Initial: null")
         } else {
-            io.println("Initial: not null")
+            console.log("Initial: not null")
         }
 
-        # 2. Set meta
-        set_meta(obj, meta)
-        let m = get_meta(obj)
-        if m == meta {
-            io.println("Meta match: true")
+        // 2. Set meta
+        Chen.setMeta(obj, meta)
+        let m = Chen.getMeta(obj)
+        if (m == meta) {
+            console.log("Meta match: true")
         } else {
-            io.println("Meta match: false")
+            console.log("Meta match: false")
         }
 
-        io.println("Field x: " + obj.x)
+        console.log("Field x: " + obj.x)
 
-        # 3. Clear meta
-        set_meta(obj, null)
-        if get_meta(obj) == null {
-            io.println("Cleared: null")
+        // 3. Clear meta
+        Chen.setMeta(obj, null)
+        if (Chen.getMeta(obj) == null) {
+            console.log("Cleared: null")
         } else {
-            io.println("Cleared: not null")
+            console.log("Cleared: not null")
         }
 
-        if obj.x == null {
-            io.println("Field x cleared: null")
+        if (obj.x == null) {
+            console.log("Field x cleared: null")
         } else {
-            io.println("Field x cleared: " + obj.x)
+            console.log("Field x cleared: " + obj.x)
         }
         "#;
 
@@ -358,33 +388,33 @@ io.println(person.city)"#;
     /// 测试方法调用 (Assign function to field)
     #[test]
     fn test_method_call() {
-        let code = r#"let io = import("stdlib/io")
-        def greet(self, name) {
-            return "Hello " + name
+        let code = r#"
+        function greet(name) {
+            return "Hello " + name + " from " + this.name
         }
 
-        let obj = ${ }
+        let obj = { name: "Object" }
         obj.say = greet
 
-        io.println(obj:say("World"))
+        console.log(obj.say("World"))
         "#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Execution failed: {:?}", result.err());
         let output = result.unwrap();
-        assert!(output.contains("Hello World"));
+        assert!(output.contains("Hello World from Object"));
     }
 
     /// 测试循环引用（仅创建，不打印以免栈溢出）
     #[test]
     fn test_circular_reference() {
-        let code = r#"let io = import("stdlib/io")
-        let a = ${ name: "A" }
-        let b = ${ name: "B" }
+        let code = r#"
+        let a = { name: "A" }
+        let b = { name: "B" }
         a.next = b
         b.prev = a
-        io.println(a.next.name)
-        io.println(a.next.prev.name)
+        console.log(a.next.name)
+        console.log(a.next.prev.name)
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -398,43 +428,43 @@ io.println(person.city)"#;
     /// 测试原型方法继承 (通过 __index)
     #[test]
     fn test_prototype_method() {
-        let code = r#"let io = import("stdlib/io")
-        def speak(self) {
-            return "I am an object"
+        let code = r#"
+        function speak() {
+            return "I am " + this.name
         }
 
-        let proto = ${ speak: speak }
-        let obj = ${ }
-        set_meta(obj, ${ __index: proto })
+        let proto = { speak: speak }
+        let obj = { name: "an object" }
+        Chen.setMeta(obj, { __index: proto })
 
-        io.println(obj:speak())
+        console.log(obj.speak())
         "#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Execution failed: {:?}", result.err());
         let output = result.unwrap();
         assert!(output.contains("I am an object"));
     }
 
-    /// 测试显式传递 self (模拟方法)
+    /// 测试 this 绑定 (模拟方法)
     #[test]
-    fn test_explicit_self_method() {
-        let code = r#"let io = import("stdlib/io")
-        def increment(self) {
-            self.count = self.count + 1
+    fn test_this_binding_method() {
+        let code = r#"
+        function increment() {
+            this.count = this.count + 1
         }
 
-        let counter = ${ count: 0 }
+        let counter = { count: 0 }
         counter.inc = increment
 
-        counter:inc()
-        io.println(counter.count)
-        counter:inc()
-        io.println(counter.count)
+        counter.inc()
+        console.log(counter.count)
+        counter.inc()
+        console.log(counter.count)
         "#;
 
         let result = crate::run_captured(code.to_string());
-        assert!(result.is_ok());
+        assert!(result.is_ok(), "Execution failed: {:?}", result.err());
         let output = result.unwrap();
         assert!(output.contains("1"));
         assert!(output.contains("2"));
@@ -443,31 +473,27 @@ io.println(person.city)"#;
     /// 模拟 Class 的行为 (构造函数 + 原型链方法)
     #[test]
     fn test_class_simulation() {
-        let code = r#"let io = import("stdlib/io")
-
-
-        def point_str(self) {
-            return "(" + self.x + "," + self.y + ")"
+        let code = r#"
+        function point_str() {
+            return "(" + this.x + "," + this.y + ")"
         }
-        def NewPoint(x, y) {
-
-
-            # 1. 定义方法 (通常这些放在外面作为公共原型)
-            let methods = ${
+        function NewPoint(x, y) {
+            // 1. 定义方法 (通常这些放在外面作为公共原型)
+            let methods = {
                 str: point_str
             }
 
-            # 2. 创建实例
-            let instance = ${ x: x, y: y }
+            // 2. 创建实例
+            let instance = { x: x, y: y }
 
-            # 3. 建立继承关系
-            set_meta(instance, ${ __index: methods })
+            // 3. 建立继承关系
+            Chen.setMeta(instance, { __index: methods })
 
             return instance
         }
 
         let p = NewPoint(10, 20)
-        io.println(p:str()) # 像调用对象方法一样
+        console.log(p.str()) // 像调用对象方法一样
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -481,20 +507,20 @@ io.println(person.city)"#;
     /// 测试 __index 是一个函数的情况
     #[test]
     fn test_metatable_index_function() {
-        let code = r#"let io = import("stdlib/io")
-        def index_handler(obj, key) {
+        let code = r#"
+        function index_handler(obj, key) {
             return "fallback_" + key
         }
 
-        let proto = ${
+        let proto = {
             __index: index_handler
         }
-        let obj = ${ name: "Alice" }
-        set_meta(obj, proto)
+        let obj = { name: "Alice" }
+        Chen.setMeta(obj, proto)
 
-        io.println(obj.name)
-        io.println(obj.age)
-        io.println(obj["city"])
+        console.log(obj.name)
+        console.log(obj.age)
+        console.log(obj["city"])
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -510,25 +536,25 @@ io.println(person.city)"#;
     /// 测试 __newindex 是一个函数的情况
     #[test]
     fn test_metatable_newindex_function() {
-        let code = r#"let io = import("stdlib/io")
-        let store = ${}
+        let code = r#"
+        let store = {}
         
-        def newindex_handler(obj, key, value) {
+        function newindex_handler(obj, key, value) {
             store[key] = "intercepted_" + value 
         }
 
-        let proto = ${
+        let proto = {
             __newindex: newindex_handler
         }
-        let obj = ${}
-        set_meta(obj, proto)
+        let obj = {}
+        Chen.setMeta(obj, proto)
 
         obj.name = "Alice"
         obj["age"] = 25
 
-        io.println(obj.name)
-        io.println(store.name)
-        io.println(store.age)
+        console.log(obj.name)
+        console.log(store.name)
+        console.log(store.age)
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -540,34 +566,437 @@ io.println(person.city)"#;
         assert_eq!(lines[1], "intercepted_Alice");
         assert_eq!(lines[2], "intercepted_25");
     }
+
+    #[test]
+    fn test_js_method_call_binds_this() {
+        let values = run_capture_values(
+            r#"
+            function getName() {
+                return this.name
+            }
+
+            let obj = { name: "Alice", getName: getName }
+            capture(obj.getName())
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(values, vec![Value::string("Alice".to_string())]);
+    }
+
+    #[test]
+    fn test_js_ordinary_function_call_does_not_bind_this() {
+        let error = run_value(
+            r#"
+            function getName() {
+                return this.name
+            }
+
+            let obj = { name: "Alice", getName: getName }
+            let get = obj.getName
+            get()
+            "#,
+        )
+        .unwrap_err();
+
+        assert_matches!(error, VMRuntimeError::ValueError(_));
+    }
+
+    #[test]
+    fn test_js_unbound_this_errors() {
+        let error = run_value(
+            r#"
+            function readThis() {
+                return this
+            }
+
+            readThis()
+            "#,
+        )
+        .unwrap_err();
+
+        assert_matches!(error, VMRuntimeError::ValueError(_));
+    }
+
+    #[test]
+    fn test_js_nested_method_calls_restore_outer_this() {
+        let values = run_capture_values(
+            r#"
+            let obj2 = {
+                name: "inner",
+                method: function() {
+                    return this.name
+                }
+            }
+
+            let obj1 = {
+                name: "outer",
+                method: function() {
+                    obj2.method()
+                    capture(this.name)
+                }
+            }
+
+            obj1.method()
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(values, vec![Value::string("outer".to_string())]);
+    }
+
+    #[test]
+    fn test_js_object_create_inherits_missing_fields() {
+        let values = run_capture_values(
+            r#"
+            let proto = { name: "proto" }
+            let obj = Object.create(proto)
+            obj.own = "own"
+            capture(obj.name, obj.own)
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            values,
+            vec![Value::string("proto".to_string()), Value::string("own".to_string())]
+        );
+    }
+
+    #[test]
+    fn test_js_object_keys_and_entries_return_arrays() {
+        let values = run_capture_values(
+            r#"
+            let obj = { a: 1, b: 2 }
+            let keys = Object.keys(obj)
+            let entries = Object.entries(obj)
+            capture(keys[0], keys[1], entries[0][0], entries[0][1], entries[1][0], entries[1][1])
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            values,
+            vec![
+                Value::string("a".to_string()),
+                Value::string("b".to_string()),
+                Value::string("a".to_string()),
+                Value::int(1),
+                Value::string("b".to_string()),
+                Value::int(2),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_js_chen_set_meta_and_get_meta() {
+        let values = run_capture_values(
+            r#"
+            let meta = { __index: { value: 42 } }
+            let obj = {}
+            Chen.setMeta(obj, meta)
+            capture(obj.value, Chen.getMeta(obj) == meta)
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(values, vec![Value::int(42), Value::bool(true)]);
+    }
+
+    #[test]
+    fn test_js_missing_field_returns_null() {
+        let values = run_capture_values(
+            r#"
+            let obj = {}
+            capture(obj.missing)
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(values, vec![Value::null()]);
+    }
+
+    #[test]
+    fn test_js_runtime_globals_are_available() {
+        let values = run_capture_values(
+            r#"
+            capture(Chen != null, Chen.fs != null, Chen.process != null, Chen.timer != null, Chen.date != null, Chen.coroutine != null)
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            values,
+            vec![
+                Value::bool(true),
+                Value::bool(true),
+                Value::bool(true),
+                Value::bool(true),
+                Value::bool(true),
+                Value::bool(true),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_js_console_log_and_print() {
+        let output = crate::run_captured(
+            r#"
+            console.print("hello")
+            console.log(" world")
+            "#
+            .to_string(),
+        )
+        .unwrap();
+
+        assert_eq!(output, "hello world\n");
+    }
+
+    #[test]
+    fn test_js_extracted_console_methods_do_not_drop_first_argument() {
+        let output = crate::run_captured(
+            r#"
+            let print = console.print
+            let log = console.log
+            print("hello")
+            log(" world")
+            "#
+            .to_string(),
+        )
+        .unwrap();
+
+        assert_eq!(output, "hello world\n");
+    }
+
+    #[test]
+    fn test_js_extracted_chen_runtime_methods_work_without_receiver() {
+        let output = crate::run_captured(
+            r#"
+            let sleep = Chen.timer.sleepMs
+            let exec = Chen.process.exec
+            sleep(0)
+            console.print(exec("printf ok").stdout.trim())
+            "#
+            .to_string(),
+        )
+        .unwrap();
+
+        assert_eq!(output, "ok");
+    }
+
+    #[test]
+    fn test_js_json_global_parse_and_stringify() {
+        let output = crate::run_captured(
+            r#"
+            let text = JSON.stringify({ ok: true })
+            let parsed = JSON.parse(text)
+            console.log(parsed.ok)
+            "#
+            .to_string(),
+        )
+        .unwrap();
+
+        assert_eq!(output.trim(), "true");
+    }
+
+    #[test]
+    fn test_js_chen_load_uses_cache() {
+        let path = "target/chen_lang_test_cached_module.chen.js";
+        std::fs::create_dir_all("target").unwrap();
+        std::fs::write(
+            path,
+            r#"
+            console.print("loaded")
+            return { value: 7 }
+            "#,
+        )
+        .unwrap();
+
+        let code = format!(
+            r#"
+            let first = Chen.load("{path}")
+            let second = Chen.load("{path}")
+            console.log(first.value + second.value)
+            "#
+        );
+        let output = crate::run_captured(code).unwrap();
+
+        assert_eq!(output, "loaded14\n");
+    }
+
+    #[test]
+    fn test_js_fs_camel_case_api_names() {
+        let path = "target/chen_lang_test_fs_api.txt";
+        let code = format!(
+            r#"
+            Chen.fs.writeTextFile("{path}", "hello")
+            let text = Chen.fs.readTextFile("{path}")
+            let entries = Chen.fs.readDir("target")
+            console.log(text, Chen.fs.exists("{path}"), entries.length > 0)
+            Chen.fs.remove("{path}")
+            "#
+        );
+        let output = crate::run_captured(code).unwrap();
+
+        assert_eq!(output.trim(), "hello true true");
+        assert!(!std::path::Path::new(path).exists());
+    }
+
+    #[test]
+    fn test_js_collection_length_and_array_methods() {
+        let output = crate::run_captured(
+            r#"
+            let arr = [1, 2]
+            console.log(arr.length)
+            console.log(arr.push(3))
+            console.log(arr.length)
+            console.log(arr.pop())
+            console.log(arr.length)
+            "#
+            .to_string(),
+        )
+        .unwrap();
+
+        let lines: Vec<&str> = output.trim().lines().collect();
+        assert_eq!(lines, vec!["2", "3", "3", "3", "2"]);
+    }
+
+    #[test]
+    fn test_js_string_length_and_methods() {
+        let output = crate::run_captured(
+            r#"
+            let s = "  Chen  "
+            console.log(s.length)
+            console.log(s.trim())
+            console.log("abc".toUpperCase())
+            console.log("ABC".toLowerCase())
+            "#
+            .to_string(),
+        )
+        .unwrap();
+
+        let lines: Vec<&str> = output.trim().lines().collect();
+        assert_eq!(lines, vec!["8", "Chen", "ABC", "abc"]);
+    }
+
+    #[test]
+    fn test_js_runtime_api_aliases_exist() {
+        let values = run_capture_values(
+            r#"
+            capture(Chen.timer.sleepMs != null, Chen.http == null || Chen.http.fetch != null, Chen.date.now != null, Chen.process.exec != null)
+            "#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            values,
+            vec![
+                Value::bool(true),
+                Value::bool(true),
+                Value::bool(true),
+                Value::bool(true)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_js_expression_semantics() {
+        let output = crate::run_captured(
+            r#"
+            console.log(null || "fallback")
+            console.log(0 && "x")
+            console.log(!"")
+            console.log("count: " + 3)
+            if ("") {
+                console.log("yes")
+            } else {
+                console.log("no")
+            }
+            "#
+            .to_string(),
+        )
+        .unwrap();
+
+        let lines: Vec<&str> = output.trim().lines().collect();
+        assert_eq!(lines, vec!["fallback", "0", "true", "count: 3", "no"]);
+    }
+
+    /// 测试 unbound this (extracted method)
+    #[test]
+    fn test_unbound_this() {
+        let code = r#"
+        function getName() {
+            return this.name
+        }
+        let obj = { name: "Alice", getName: getName }
+        let m = obj.getName // extracted
+        m()
+        "#;
+
+        let result = crate::run_captured(code.to_string());
+        assert!(
+            result.is_err(),
+            "Expected error when calling extracted method without this binding"
+        );
+    }
+
+    /// 测试 nested calls and this stability
+    #[test]
+    fn test_nested_this_stability() {
+        let code = r#"
+        let obj1 = {
+            name: "obj1",
+            method: function() {
+                console.log(this.name)
+                obj2.method()
+                console.log(this.name)
+            }
+        }
+        let obj2 = {
+            name: "obj2",
+            method: function() {
+                console.log(this.name)
+            }
+        }
+        obj1.method()
+        "#;
+
+        let result = crate::run_captured(code.to_string());
+        assert!(result.is_ok());
+        let output = result.unwrap();
+        let lines: Vec<&str> = output.trim().lines().collect();
+        assert_eq!(lines[0], "obj1");
+        assert_eq!(lines[1], "obj2");
+        assert_eq!(lines[2], "obj1");
+    }
 }
 
 /// 测试嵌套函数定义 (Nested Functions)
 #[test]
 fn test_nested_function_class() {
-    let code = r#"let io = import("stdlib/io")
-        def NewPoint(x, y) {
-            # 嵌套定义函数
-            def point_str(self) {
-                return "(" + self.x + "," + self.y + ")"
+    let code = r#"
+        function NewPoint(x, y) {
+            // 嵌套定义函数
+            function point_str() {
+                return "(" + this.x + "," + this.y + ")"
             }
 
-            let methods = ${
+            let methods = {
                 str: point_str
             }
 
-            let instance = ${ x: x, y: y }
-            set_meta(instance, ${ __index: methods })
+            let instance = { x: x, y: y }
+            Chen.setMeta(instance, { __index: methods })
 
             return instance
         }
 
         let p = NewPoint(10, 20)
-        io.println(p:str())
+        console.log(p.str())
         "#;
 
     let result = crate::run_captured(code.to_string());
-    assert!(result.is_ok());
+    assert!(result.is_ok(), "Execution failed: {:?}", result.err());
     let output = result.unwrap();
     assert!(output.contains("(10,20)"));
 }

@@ -71,16 +71,28 @@ fn test_handwritten_strings() {
 #[test]
 fn test_handwritten_comments() {
     let code = r#"
-    # line 1
-    let x = 1 # line 2
+    // line 1
+    let x = 1 // line 2
     "#;
     let tokens = tokenizer_handwritten(code.to_string()).unwrap();
     // Should contain NewLines and logic tokens, but no Comments
-    // NewLine, Let, x, Assign, 1, NewLine
-    // Depending on how many newlines are in the source string.
 
     let winnow_tokens = tokenizer_winnow(code.to_string()).unwrap();
     assert_eq!(tokens, winnow_tokens);
+}
+
+#[test]
+fn test_hash_comment_rejected() {
+    let code = "let x = 1 # some hash comment";
+    let res_handwritten = tokenizer_handwritten(code.to_string());
+    assert!(res_handwritten.is_err());
+    let err_msg = res_handwritten.unwrap_err().to_string();
+    assert!(err_msg.contains("Hash comments (#) are not supported"));
+
+    let res_winnow = tokenizer_winnow(code.to_string());
+    assert!(res_winnow.is_err());
+    let err_msg_w = res_winnow.unwrap_err().to_string();
+    assert!(err_msg_w.contains("Hash comments (#) are not supported"));
 }
 
 #[test]

@@ -1,7 +1,7 @@
 use std::io::{self, BufRead, Write};
 use std::rc::Rc;
 
-use crate::value::Value;
+use crate::value::{NativeContext, Value};
 use crate::vm::VM;
 
 pub fn create_io_object() -> Value {
@@ -10,16 +10,16 @@ pub fn create_io_object() -> Value {
     if let Value::Object(obj) = &io_obj {
         let mut obj = obj.borrow_mut();
 
-        let print_fn = |vm: &mut VM, args: Vec<Value>| {
-            for val in args {
+        let print_fn = |vm: &mut VM, ctx: NativeContext| {
+            for val in ctx.args {
                 write!(vm.stdout, "{}", val).unwrap();
             }
             vm.stdout.flush().unwrap();
             Ok(Value::null())
         };
 
-        let println_fn = |vm: &mut VM, args: Vec<Value>| {
-            for val in args {
+        let println_fn = |vm: &mut VM, ctx: NativeContext| {
+            for val in ctx.args {
                 write!(vm.stdout, "{}", val).unwrap();
             }
             writeln!(vm.stdout).unwrap();
@@ -27,7 +27,7 @@ pub fn create_io_object() -> Value {
             Ok(Value::null())
         };
 
-        let readline_fn = |_vm: &mut VM, _args: Vec<Value>| {
+        let readline_fn = |_vm: &mut VM, _ctx: NativeContext| {
             let stdin = io::stdin();
             let mut line = String::new();
             stdin

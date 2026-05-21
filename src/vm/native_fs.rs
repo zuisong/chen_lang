@@ -4,44 +4,55 @@ use std::rc::Rc;
 
 use indexmap::IndexMap;
 
-use crate::value::{Table, Value, ValueError};
+use crate::value::{NativeContext, NativeFnType, Value, ValueError};
 use crate::vm::{VM, VMRuntimeError};
 
 pub fn create_fs_object() -> Value {
     let fs_obj = Value::object();
 
-    let read_file_fn = |_vm: &mut VM, args: Vec<Value>| -> Result<Value, VMRuntimeError> {
-        let path_arg = if args.len() > 1 { &args[1] } else { &args[0] };
+    let read_file_fn = |_vm: &mut VM, ctx: NativeContext| -> Result<Value, VMRuntimeError> {
+        if ctx.args.is_empty() {
+            return Err(VMRuntimeError::ValueError(ValueError::TypeMismatch {
+                expected: crate::value::ValueType::String,
+                found: crate::value::ValueType::Null,
+                operation: "fs.readTextFile".to_string(),
+            }));
+        }
+        let path_arg = &ctx.args[0];
         let path = path_arg.as_string().ok_or_else(|| {
             VMRuntimeError::ValueError(ValueError::TypeMismatch {
                 expected: crate::value::ValueType::String,
                 found: path_arg.get_type(),
-                operation: "fs.read_file".to_string(),
+                operation: "fs.readTextFile".to_string(),
             })
         })?;
 
         match fs::read_to_string(path) {
             Ok(content) => Ok(Value::string(content)),
             Err(e) => Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                operator: format!("fs.read_file: {}", e),
+                operator: format!("fs.readTextFile: {}", e),
                 left_type: crate::value::ValueType::String,
                 right_type: crate::value::ValueType::Null,
             })),
         }
     };
 
-    let write_file_fn = |_vm: &mut VM, args: Vec<Value>| -> Result<Value, VMRuntimeError> {
-        let (path_arg, content_arg) = if args.len() > 2 {
-            (&args[1], &args[2])
-        } else {
-            (&args[0], &args[1])
-        };
+    let write_file_fn = |_vm: &mut VM, ctx: NativeContext| -> Result<Value, VMRuntimeError> {
+        if ctx.args.len() < 2 {
+            return Err(VMRuntimeError::ValueError(ValueError::TypeMismatch {
+                expected: crate::value::ValueType::String,
+                found: crate::value::ValueType::Null,
+                operation: "fs.writeTextFile".to_string(),
+            }));
+        }
+        let path_arg = &ctx.args[0];
+        let content_arg = &ctx.args[1];
 
         let path = path_arg.as_string().ok_or_else(|| {
             VMRuntimeError::ValueError(ValueError::TypeMismatch {
                 expected: crate::value::ValueType::String,
                 found: path_arg.get_type(),
-                operation: "fs.write_file".to_string(),
+                operation: "fs.writeTextFile".to_string(),
             })
         })?;
 
@@ -49,22 +60,29 @@ pub fn create_fs_object() -> Value {
             VMRuntimeError::ValueError(ValueError::TypeMismatch {
                 expected: crate::value::ValueType::String,
                 found: content_arg.get_type(),
-                operation: "fs.write_file".to_string(),
+                operation: "fs.writeTextFile".to_string(),
             })
         })?;
 
         match fs::write(path, content) {
             Ok(_) => Ok(Value::null()),
             Err(e) => Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                operator: format!("fs.write_file: {}", e),
+                operator: format!("fs.writeTextFile: {}", e),
                 left_type: crate::value::ValueType::String,
                 right_type: crate::value::ValueType::Null,
             })),
         }
     };
 
-    let exists_fn = |_vm: &mut VM, args: Vec<Value>| -> Result<Value, VMRuntimeError> {
-        let path_arg = if args.len() > 1 { &args[1] } else { &args[0] };
+    let exists_fn = |_vm: &mut VM, ctx: NativeContext| -> Result<Value, VMRuntimeError> {
+        if ctx.args.is_empty() {
+            return Err(VMRuntimeError::ValueError(ValueError::TypeMismatch {
+                expected: crate::value::ValueType::String,
+                found: crate::value::ValueType::Null,
+                operation: "fs.exists".to_string(),
+            }));
+        }
+        let path_arg = &ctx.args[0];
         let path = path_arg.as_string().ok_or_else(|| {
             VMRuntimeError::ValueError(ValueError::TypeMismatch {
                 expected: crate::value::ValueType::String,
@@ -76,8 +94,15 @@ pub fn create_fs_object() -> Value {
         Ok(Value::bool(std::path::Path::new(path).exists()))
     };
 
-    let remove_fn = |_vm: &mut VM, args: Vec<Value>| -> Result<Value, VMRuntimeError> {
-        let path_arg = if args.len() > 1 { &args[1] } else { &args[0] };
+    let remove_fn = |_vm: &mut VM, ctx: NativeContext| -> Result<Value, VMRuntimeError> {
+        if ctx.args.is_empty() {
+            return Err(VMRuntimeError::ValueError(ValueError::TypeMismatch {
+                expected: crate::value::ValueType::String,
+                found: crate::value::ValueType::Null,
+                operation: "fs.remove".to_string(),
+            }));
+        }
+        let path_arg = &ctx.args[0];
         let path = path_arg.as_string().ok_or_else(|| {
             VMRuntimeError::ValueError(ValueError::TypeMismatch {
                 expected: crate::value::ValueType::String,
@@ -110,25 +135,32 @@ pub fn create_fs_object() -> Value {
         }
     };
 
-    let read_dir_fn = |_vm: &mut VM, args: Vec<Value>| -> Result<Value, VMRuntimeError> {
-        let path_arg = if args.len() > 1 { &args[1] } else { &args[0] };
+    let read_dir_fn = |_vm: &mut VM, ctx: NativeContext| -> Result<Value, VMRuntimeError> {
+        if ctx.args.is_empty() {
+            return Err(VMRuntimeError::ValueError(ValueError::TypeMismatch {
+                expected: crate::value::ValueType::String,
+                found: crate::value::ValueType::Null,
+                operation: "fs.readDir".to_string(),
+            }));
+        }
+        let path_arg = &ctx.args[0];
         let path = path_arg.as_string().ok_or_else(|| {
             VMRuntimeError::ValueError(ValueError::TypeMismatch {
                 expected: crate::value::ValueType::String,
                 found: path_arg.get_type(),
-                operation: "fs.read_dir".to_string(),
+                operation: "fs.readDir".to_string(),
             })
         })?;
 
         let entries = fs::read_dir(path).map_err(|e| {
             VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                operator: format!("fs.read_dir: {}", e),
+                operator: format!("fs.readDir: {}", e),
                 left_type: crate::value::ValueType::String,
                 right_type: crate::value::ValueType::Null,
             })
         })?;
 
-        let mut table = Table {
+        let mut table = crate::value::Table {
             data: IndexMap::new(),
             metatable: None,
         };
@@ -148,26 +180,20 @@ pub fn create_fs_object() -> Value {
 
     if let Value::Object(obj) = &fs_obj {
         let mut obj = obj.borrow_mut();
-        obj.data.insert(
-            "read_file".to_string(),
-            Value::NativeFunction(Rc::new(Box::new(read_file_fn))),
-        );
-        obj.data.insert(
-            "write_file".to_string(),
-            Value::NativeFunction(Rc::new(Box::new(write_file_fn))),
-        );
-        obj.data.insert(
-            "exists".to_string(),
-            Value::NativeFunction(Rc::new(Box::new(exists_fn))),
-        );
-        obj.data.insert(
-            "remove".to_string(),
-            Value::NativeFunction(Rc::new(Box::new(remove_fn))),
-        );
-        obj.data.insert(
-            "read_dir".to_string(),
-            Value::NativeFunction(Rc::new(Box::new(read_dir_fn))),
-        );
+        let read_file = Value::NativeFunction(Rc::new(Box::new(read_file_fn) as Box<NativeFnType>));
+        let write_file = Value::NativeFunction(Rc::new(Box::new(write_file_fn) as Box<NativeFnType>));
+        let exists = Value::NativeFunction(Rc::new(Box::new(exists_fn) as Box<NativeFnType>));
+        let remove = Value::NativeFunction(Rc::new(Box::new(remove_fn) as Box<NativeFnType>));
+        let read_dir = Value::NativeFunction(Rc::new(Box::new(read_dir_fn) as Box<NativeFnType>));
+
+        obj.data.insert("read_file".to_string(), read_file.clone());
+        obj.data.insert("readTextFile".to_string(), read_file);
+        obj.data.insert("write_file".to_string(), write_file.clone());
+        obj.data.insert("writeTextFile".to_string(), write_file);
+        obj.data.insert("exists".to_string(), exists);
+        obj.data.insert("remove".to_string(), remove);
+        obj.data.insert("read_dir".to_string(), read_dir.clone());
+        obj.data.insert("readDir".to_string(), read_dir);
     }
 
     fs_obj

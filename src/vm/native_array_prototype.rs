@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::value::NativeContext;
 use super::*;
 use crate::vm::native_coroutine::native_coroutine_yield;
 
@@ -27,6 +28,10 @@ pub fn create_array_prototype() -> Value {
         Value::NativeFunction(Rc::new(Box::new(native_array_len) as Box<NativeFnType>)),
     );
     table.data.insert(
+        "length".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(native_array_len) as Box<NativeFnType>)),
+    );
+    table.data.insert(
         "iter".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_array_iter) as Box<NativeFnType>)),
     );
@@ -47,20 +52,29 @@ pub fn create_array_prototype() -> Value {
     proto_val
 }
 
-pub fn native_array_push(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if args.is_empty() {
-        Err(ValueError::TypeMismatch {
+fn array_receiver<'a>(
+    ctx: &'a NativeContext,
+    operation: &str,
+) -> Result<&'a Value, VMRuntimeError> {
+    let Some(obj) = ctx.this.as_ref().or_else(|| ctx.args.first()) else {
+        return Err(ValueError::TypeMismatch {
             expected: ValueType::Object,
             found: ValueType::Null,
-            operation: "push".into(),
-        })?;
-    }
+            operation: operation.into(),
+        }
+        .into());
+    };
 
-    let obj = &args[0];
+    Ok(obj)
+}
+
+pub fn native_array_push(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    let obj = array_receiver(&ctx, "push")?;
+
     if let Value::Object(table_rc) = obj {
         let mut table = table_rc.borrow_mut();
         let idx = table.data.len();
-        let val = if args.len() > 1 { args[1].clone() } else { Value::Null };
+        let val = ctx.args.first().cloned().unwrap_or(Value::Null);
 
         table.data.insert(idx.to_string(), val);
         return Ok(Value::Int((idx + 1) as i32));
@@ -72,15 +86,8 @@ pub fn native_array_push(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRunt
     })?
 }
 
-pub fn native_array_pop(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if args.is_empty() {
-        Err(ValueError::TypeMismatch {
-            expected: ValueType::Object,
-            found: ValueType::Null,
-            operation: "pop".into(),
-        })?;
-    }
-    let obj = &args[0];
+pub fn native_array_pop(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    let obj = array_receiver(&ctx, "pop")?;
     if let Value::Object(table_rc) = obj {
         let mut table = table_rc.borrow_mut();
         if let Some((_, val)) = table.data.pop() {
@@ -91,11 +98,10 @@ pub fn native_array_pop(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRunti
     Ok(Value::Null)
 }
 
-pub fn native_array_len(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if args.is_empty() {
+pub fn native_array_len(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    let Ok(obj) = array_receiver(&ctx, "length") else {
         return Ok(Value::Int(0));
-    }
-    let obj = &args[0];
+    };
     if let Value::Object(table_rc) = obj {
         let table = table_rc.borrow();
         return Ok(Value::Int(table.data.len() as i32));
@@ -103,12 +109,9 @@ pub fn native_array_len(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRunti
     Ok(Value::Int(0))
 }
 
-pub fn native_array_iter(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if args.is_empty() {
-        return Ok(Value::Null);
-    }
-    let table_rc = match &args[0] {
-        Value::Object(t) => t.clone(),
+pub fn native_array_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    let table_rc = match ctx.this.as_ref().or_else(|| ctx.args.first()) {
+        Some(Value::Object(t)) => t.clone(),
         _ => return Ok(Value::Null),
     };
 
@@ -118,7 +121,7 @@ pub fn native_array_iter(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRunt
     };
     let index = Rc::new(RefCell::new(0));
 
-    let iter_body = move |vm: &mut VM, _args: Vec<Value>| {
+    let iter_body = move |vm: &mut VM, _ctx: NativeContext| {
         let mut idx = index.borrow_mut();
         if *idx < len {
             let val = {
@@ -142,12 +145,9 @@ pub fn native_array_iter(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRunt
     Ok(Value::Coroutine(Rc::new(RefCell::new(fiber))))
 }
 
-pub fn native_array_entries(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if args.is_empty() {
-        return Ok(Value::Null);
-    }
-    let table_rc = match &args[0] {
-        Value::Object(t) => t.clone(),
+pub fn native_array_entries(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    let table_rc = match ctx.this.as_ref().or_else(|| ctx.args.first()) {
+        Some(Value::Object(t)) => t.clone(),
         _ => return Ok(Value::Null),
     };
 
@@ -157,7 +157,7 @@ pub fn native_array_entries(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMR
     };
     let index = Rc::new(RefCell::new(0));
 
-    let iter_body = move |vm: &mut VM, _args: Vec<Value>| {
+    let iter_body = move |vm: &mut VM, _ctx: NativeContext| {
         let mut idx = index.borrow_mut();
         if *idx < len {
             let val = {

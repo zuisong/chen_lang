@@ -3,12 +3,12 @@ use crate::common::run_chen_lang_code;
 #[test]
 fn test_minimal_test() {
     let code = r#"
-def func(){
+function func(){
     return 123
 }
 let x = 1
 x = func()
-println(x)
+console.log(x)
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -18,13 +18,13 @@ println(x)
 #[test]
 fn test_simple_test() {
     let code = r#"
-def test(){
-    println("hello")
+function test(){
+    console.log("hello")
     return 42
 }
 let x = 0
 x = test()
-println("done")
+console.log("done")
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -35,15 +35,15 @@ println("done")
 #[test]
 fn test_fibonacci_example() {
     let code = r#"
-def fibonacci(n){
-    if n <= 1 {
+function fibonacci(n){
+    if (n <= 1) {
         return n
     }
     return fibonacci(n-1) + fibonacci(n-2)
 }
-println(fibonacci(1))
-println(fibonacci(2))
-println(fibonacci(3))
+console.log(fibonacci(1))
+console.log(fibonacci(2))
+console.log(fibonacci(3))
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -58,10 +58,10 @@ println(fibonacci(3))
 fn test_anonymous_function_variable() {
     let output = run_chen_lang_code(
         r#"
-        let add_one = def(x) {
+        let add_one = function(x) {
             return x + 1
         }
-        println(add_one(10))
+        console.log(add_one(10))
     "#,
     )
     .expect("failed");
@@ -72,10 +72,10 @@ fn test_anonymous_function_variable() {
 fn test_immediate_invocation() {
     let output = run_chen_lang_code(
         r#"
-        let result = def(x, y) {
+        let result = function(x, y) {
             return x * y
         } (5, 6)
-        println(result)
+        console.log(result)
     "#,
     )
     .expect("failed");
@@ -86,12 +86,12 @@ fn test_immediate_invocation() {
 fn test_high_order_function() {
     let output = run_chen_lang_code(
         r#"
-        def apply(f, val) {
+        function apply(f, val) {
             return f(val)
         }
         
-        let res = apply(def(x){ return x * 2 }, 21)
-        println(res)
+        let res = apply(function(x){ return x * 2 }, 21)
+        console.log(res)
     "#,
     )
     .expect("failed");
@@ -101,10 +101,10 @@ fn test_high_order_function() {
 #[test]
 fn test_implicit_return_add() {
     let code = r#"
-    def add(a, b) {
+    function add(a, b) {
         a + b
     }
-    println(add(1, 2))
+    console.log(add(1, 2))
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "3");
@@ -113,10 +113,10 @@ fn test_implicit_return_add() {
 #[test]
 fn test_explicit_return() {
     let code = r#"
-    def explicit_return(a) {
+    function explicit_return(a) {
         return a * 2
     }
-    println(explicit_return(10))
+    console.log(explicit_return(10))
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "20");
@@ -125,9 +125,9 @@ fn test_explicit_return() {
 #[test]
 fn test_empty_function_returns_null() {
     let code = r#"
-    def empty() {
+    function empty() {
     }
-    println(empty())
+    console.log(empty())
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "null");
@@ -136,10 +136,10 @@ fn test_empty_function_returns_null() {
 #[test]
 fn test_statement_end_returns_null() {
     let code = r#"
-    def statement_end() {
+    function statement_end() {
         let x = 1
     }
-    println(statement_end())
+    console.log(statement_end())
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "null");
@@ -149,24 +149,24 @@ fn test_statement_end_returns_null() {
 fn test_all_implicit_returns() {
     // Run the complete test file
     let code = r#"
-def add(a, b) {
+function add(a, b) {
     a + b
 }
-println(add(1, 2))
+console.log(add(1, 2))
 
-def explicit_return(a) {
+function explicit_return(a) {
     return a * 2
 }
-println(explicit_return(10))
+console.log(explicit_return(10))
 
-def empty() {
+function empty() {
 }
-println(empty())
+console.log(empty())
 
-def statement_end() {
+function statement_end() {
     let x = 1
 }
-println(statement_end())
+console.log(statement_end())
     "#;
     let output = run_chen_lang_code(code).unwrap();
     let lines: Vec<&str> = output.trim().lines().collect();

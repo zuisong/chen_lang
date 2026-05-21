@@ -1,27 +1,22 @@
-use chen_lang::run_captured as run_captured_orig;
-
-fn run_captured(code: String) -> Result<String, chen_lang::ChenError> {
-    let prelude = r#"let io = import("stdlib/io")
-let println = io.println
-"#;
-    run_captured_orig(format!("{}{}", prelude, code))
-}
+use chen_lang::run_captured;
 
 #[test]
 fn test_object_keys_basic() {
     let code = r#"
-        let obj = ${ a: 1, b: 2 }
-        let keys = obj:keys()
-        
-        # Verify length
-        println(keys:len())
-        
-        # Verify content (order might vary but IndexMap preserves insertion order)
-        println(keys[0])
-        println(keys[1])
+        let obj = { a: 1, b: 2 }
+        console.log("obj: " + obj)
+        console.log("Object: " + Object)
+        console.log("keys_fn: " + Object.keys)
+        let keys = Object.keys(obj)
+        console.log("keys: " + keys)
+        console.log("keys_len: " + keys.length)
+        console.log(keys.length)
+        console.log(keys[0])
+        console.log(keys[1])
     "#;
 
     let output = run_captured(code.to_string()).unwrap();
+    println!("DEBUG OUTPUT:\n{}", output);
     assert!(output.contains("2"));
     assert!(output.contains("a"));
     assert!(output.contains("b"));
@@ -30,12 +25,12 @@ fn test_object_keys_basic() {
 #[test]
 fn test_object_keys_iteration() {
     let code = r#"
-        let obj = ${ x: 10, y: 20, z: 30 }
-        let keys = obj:keys()
+        let obj = { x: 10, y: 20, z: 30 }
+        let keys = Object.keys(obj)
         let i = 0
-        for i < keys:len() {
+        while (i < keys.length) {
             let k = keys[i]
-            println(k, "=", obj[k])
+            console.log(k + "=" + obj[k])
             i = i + 1
         }
     "#;
@@ -50,10 +45,10 @@ fn test_object_keys_iteration() {
 fn test_array_keys() {
     let code = r#"
         let arr = [100, 200]
-        let keys = arr:keys()
-        println(keys:len())
-        println(keys[0])
-        println(keys[1])
+        let keys = Object.keys(arr)
+        console.log(keys.length)
+        console.log(keys[0])
+        console.log(keys[1])
     "#;
 
     let output = run_captured(code.to_string()).unwrap();
@@ -65,9 +60,9 @@ fn test_array_keys() {
 #[test]
 fn test_empty_object_keys() {
     let code = r#"
-        let obj = ${}
-        let keys = obj:keys()
-        println(keys:len())
+        let obj = {}
+        let keys = Object.keys(obj)
+        console.log(keys.length)
     "#;
 
     let output = run_captured(code.to_string()).unwrap();
@@ -76,31 +71,22 @@ fn test_empty_object_keys() {
 
 #[test]
 fn test_keys_on_non_object() {
-    // String has method len(), but not keys() currently unless we added it (we didn't).
-    // Actually, string_prototype uses same GetField logic, so if we implemented it in GetField/GetMethod generic fallback
-    // it depends on how we implemented it.
-    // In vm.rs, we checked: `if let Value::Object(_) = obj`.
-    // So strings should NOT have keys().
     let code = r#"
         let s = "hello"
-        let k = s.keys()
+        let k = Object.keys(s)
     "#;
 
     let result = run_captured(code.to_string());
-    // Should fail with TypeMismatch or similar because s.keys is null, and we try to call it?
-    // Wait, if s.keys lookup returns Null (because generic fallback checks Object type),
-    // then `let k = s.keys()` tries to call Null.
-    // VM should error "Attempt to call non-function value".
     assert!(result.is_err());
 }
 
 #[test]
 fn test_object_static_keys() {
     let code = r#"
-        let obj = ${ first: 1, second: 2 }
+        let obj = { first: 1, second: 2 }
         let keys = Object.keys(obj)
-        println(keys[0])
-        println(keys[1])
+        console.log(keys[0])
+        console.log(keys[1])
     "#;
 
     let output = run_captured(code.to_string()).unwrap();

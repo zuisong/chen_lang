@@ -13,6 +13,7 @@ enum VarLocation {
     Local(i32),     // Offset from FP
     Upvalue(usize), // Index in closure's upvalue list
     Global(String), // Global variable name
+    This,           // 'this' binding
 }
 
 impl Scope {
@@ -311,7 +312,7 @@ impl<'a> Compiler<'a> {
         state.upvalues.len() - 1
     }
 
-    // Resolves a variable: Local -> Upvalue -> Global
+    // Resolves a variable: Local -> Upvalue -> This -> Global
     fn resolve_variable(&mut self, name: &str) -> Option<VarLocation> {
         let state_idx = self.states.len() - 1;
 
@@ -325,7 +326,12 @@ impl<'a> Compiler<'a> {
             return Some(VarLocation::Upvalue(up_idx));
         }
 
-        // 3. Global
+        // 3. This
+        if name == "this" {
+            return Some(VarLocation::This);
+        }
+
+        // 4. Global
         Some(VarLocation::Global(name.to_string()))
     }
 
@@ -511,7 +517,7 @@ impl<'a> Compiler<'a> {
         match var_location {
             VarLocation::Local(offset) => self.emit(Instruction::MovePlusFP(offset as usize), loc),
             VarLocation::Global(name) => self.emit(Instruction::Store(name), loc),
-            _ => panic!("Cannot define variable in Upvalue location"),
+            _ => panic!("Cannot define function in Upvalue or This location"),
         }
     }
 
@@ -532,6 +538,9 @@ impl<'a> Compiler<'a> {
                         }
                         VarLocation::Global(name) => {
                             self.emit(Instruction::Load(name), loc);
+                        }
+                        VarLocation::This => {
+                            self.emit(Instruction::LoadThis, loc);
                         }
                     }
                 } else {
@@ -776,7 +785,7 @@ impl<'a> Compiler<'a> {
             VarLocation::Global(name) => {
                 self.emit(Instruction::Store(name), loc);
             }
-            VarLocation::Upvalue(_) => panic!("Cannot define local variable as Upvalue"),
+            _ => panic!("Cannot define local variable as Upvalue or This"),
         }
     }
 
@@ -795,6 +804,7 @@ impl<'a> Compiler<'a> {
             VarLocation::Upvalue(index) => {
                 self.emit(Instruction::SetUpvalue(index), loc);
             }
+            VarLocation::This => panic!("Cannot assign to 'this'"),
         }
     }
 
@@ -825,11 +835,21 @@ impl<'a> Compiler<'a> {
         let loc = fc.loc;
         let len = fc.arguments.len();
         let arguments = fc.arguments;
-        let other_callee = *fc.callee;
+        let callee = *fc.callee;
+
+        if let Expression::GetField { object, field, .. } = callee {
+            self.compile_expression(*object);
+            self.emit(Instruction::GetMethod(field), loc);
+            for arg in arguments {
+                self.compile_expression(arg);
+            }
+            self.emit(Instruction::CallMethodStack(len), loc);
+            return;
+        }
 
         {
             // Optimized call
-            let is_optimized_call = if let Expression::Identifier(ref name, _) = other_callee {
+            let is_optimized_call = if let Expression::Identifier(ref name, _) = callee {
                 match self.resolve_variable(name) {
                     Some(VarLocation::Local(_)) | Some(VarLocation::Upvalue(_)) => false,
                     _ => {
@@ -842,7 +862,7 @@ impl<'a> Compiler<'a> {
             };
 
             if is_optimized_call {
-                if let Expression::Identifier(name, _) = other_callee {
+                if let Expression::Identifier(name, _) = callee {
                     for arg in arguments {
                         self.compile_expression(arg);
                     }
@@ -851,7 +871,7 @@ impl<'a> Compiler<'a> {
                     unreachable!();
                 }
             } else {
-                self.compile_expression(other_callee);
+                self.compile_expression(callee);
                 for arg in arguments {
                     self.compile_expression(arg);
                 }
@@ -870,7 +890,7 @@ impl<'a> Compiler<'a> {
             self.compile_expression(arg);
         }
 
-        self.emit(Instruction::CallStack(len + 1), loc);
+        self.emit(Instruction::CallMethodStack(len), loc);
     }
 
     fn compile_return(&mut self, ret: Return) {
@@ -1025,10 +1045,10 @@ impl<'a> Compiler<'a> {
 
         self.begin_scope();
 
-        // 1. Compile iterable, call :iter() on it, and store it in a hidden local variable
+        // 1. Compile iterable, call .iter() on it, and store it in a hidden local variable
         self.compile_expression(for_in.iterable);
-        self.emit(Instruction::GetMethod("iter".to_string()), loc); // [iterable, iter_fn, iterable]
-        self.emit(Instruction::CallStack(1), loc); // [coroutine]
+        self.emit(Instruction::GetMethod("iter".to_string()), loc);
+        self.emit(Instruction::CallMethodStack(0), loc); // [coroutine]
         let iter_loc = self.define_variable(iter_var);
         match iter_loc {
             VarLocation::Local(offset) => {
@@ -1109,7 +1129,7 @@ impl<'a> Compiler<'a> {
             VarLocation::Global(name) => {
                 self.emit(Instruction::Store(name), loc);
             }
-            VarLocation::Upvalue(_) => unreachable!(),
+            _ => unreachable!("Loop variable must be local or global"),
         }
 
         self.current_state().loop_stack.push(LoopLabels {
@@ -1190,7 +1210,7 @@ impl<'a> Compiler<'a> {
                 VarLocation::Global(name) => {
                     self.emit(Instruction::Store(name), loc);
                 }
-                VarLocation::Upvalue(_) => panic!("Cannot define error variable as Upvalue"),
+                _ => panic!("Cannot define error variable as Upvalue or This"),
             }
         } else {
             // Pop the error value if no variable to store it

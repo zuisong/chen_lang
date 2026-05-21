@@ -4,8 +4,8 @@ use crate::common::run_chen_lang_code;
 fn test_simple_for_loop() {
     let code = r#"
 let i = 0
-for i <= 2 {
-    print(i)
+while (i <= 2) {
+    console.print(i)
     i = i + 1
 }
 "#;
@@ -21,8 +21,8 @@ fn test_simple_if_statement() {
     let code = r#"
 let a = 5
 let b = 3
-if a > b {
-    print(1)
+if (a > b) {
+    console.print(1)
 }
 "#;
 
@@ -34,11 +34,11 @@ if a > b {
 fn test_if_else_example() {
     let code = r#"
 let i = 0
-for i <= 99 {
-    if i%2 == 0 {
-        println(i + " 是偶数 ")
+while (i <= 99) {
+    if (i%2 == 0) {
+        console.log(i + " 是偶数 ")
     } else {
-        println(i + " 是奇数 ")
+        console.log(i + " 是奇数 ")
     }
     i = i + 1
 }
@@ -46,7 +46,6 @@ for i <= 99 {
 
     let output = run_chen_lang_code(code).unwrap();
 
-    // 验证包含偶数和奇数的输出
     assert!(output.contains("0 是偶数"));
     assert!(output.contains("1 是奇数"));
     assert!(output.contains("98 是偶数"));
@@ -57,13 +56,13 @@ for i <= 99 {
 fn test_break() {
     let code = r#"
 let i = 0
-for i < 10 {
+while (i < 10) {
     i = i + 1
-    if i == 5 {
+    if (i == 5) {
         break
     }
 }
-print(i)
+console.print(i)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "5");
@@ -74,16 +73,15 @@ fn test_continue() {
     let code = r#"
 let i = 0
 let sum = 0
-for i < 10 {
+while (i < 10) {
     i = i + 1
-    if i % 2 == 0 {
+    if (i % 2 == 0) {
         continue
     }
     sum = sum + i
 }
-print(sum)
+console.print(sum)
 "#;
-    // 1 + 3 + 5 + 7 + 9 = 25
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "25");
 }
@@ -94,18 +92,18 @@ fn test_nested_loops_break() {
 let i = 0
 let j = 0
 let sum = 0
-for i < 3 {
+while (i < 3) {
     i = i + 1
     j = 0
-    for j < 3 {
+    while (j < 3) {
         j = j + 1
-        if j == 2 {
+        if (j == 2) {
             break
         }
         sum = sum + 1
     }
 }
-print(sum)
+console.print(sum)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "3");
@@ -115,24 +113,24 @@ print(sum)
 fn test_infinite_for() {
     let code = r#"
 let i = 0
-for {
+while (true) {
     i = i + 1
-    if i == 3 {
+    if (i == 3) {
         break
     }
 }
-print(i)
+console.print(i)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "3");
 }
 
 #[test]
-fn test_for_in_array() {
+fn test_for_of_array() {
     let code = r#"
 let arr = [10, 20, 30]
-for x in arr {
-    print(x)
+for (let x of arr) {
+    console.print(x)
 }
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -142,11 +140,11 @@ for x in arr {
 }
 
 #[test]
-fn test_for_in_object() {
+fn test_for_of_object() {
     let code = r#"
-let obj = ${ a: 1, b: 2 }
-for v in obj {
-    print(v)
+let obj = { a: 1, b: 2 }
+for (let v of obj) {
+    console.print(v)
 }
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -155,11 +153,11 @@ for v in obj {
 }
 
 #[test]
-fn test_for_in_string() {
+fn test_for_of_string() {
     let code = r#"
 let s = "ABC"
-for char in s {
-    print(char)
+for (let char of s) {
+    console.print(char)
 }
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -169,14 +167,16 @@ for char in s {
 }
 
 #[test]
-fn test_for_in_coroutine() {
+fn test_for_of_coroutine() {
     let code = r#"
-let co = coroutine.create(def() {
-    coroutine.yield(100)
-    coroutine.yield(200)
+let create = Chen.coroutine.create
+let yield = Chen.coroutine.yield
+let co = create(function() {
+    yield(100)
+    yield(200)
 })
-for x in co {
-    print(x)
+for (let x of co) {
+    console.print(x)
 }
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -185,29 +185,14 @@ for x in co {
 }
 
 #[test]
-fn test_explicit_iter_call() {
-    let code = r#"
-let arr = [5, 6]
-let it = arr:iter()
-print(coroutine.resume(it))
-print(coroutine.resume(it))
-print(coroutine.resume(it))
-"#;
-    let output = run_chen_lang_code(code).unwrap();
-    assert!(output.contains("5"));
-    assert!(output.contains("6"));
-    assert!(output.contains("null"));
-}
-
-#[test]
-fn test_for_in_break() {
+fn test_for_of_break() {
     let code = r#"
 let arr = [1, 2, 3, 4]
-for x in arr {
-    if x == 3 {
+for (let x of arr) {
+    if (x == 3) {
         break
     }
-    print(x)
+    console.print(x)
 }
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -217,29 +202,28 @@ for x in arr {
 }
 
 #[test]
-fn test_for_in_continue() {
+fn test_for_of_continue() {
     let code = r#"
 let arr = [1, 2, 3, 4]
 let sum = 0
-for x in arr {
-    if x == 2 {
+for (let x of arr) {
+    if (x == 2) {
         continue
     }
     sum = sum + x
 }
-print(sum)
+console.print(sum)
 "#;
-    // 1 + 3 + 4 = 8
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "8");
 }
 
 #[test]
-fn test_for_in_array_entries() {
+fn test_for_of_array_entries() {
     let code = r#"
 let arr = ["A", "B"]
-for e in arr:entries() {
-    print(e.key + ":" + e.value)
+for (let e of arr.entries()) {
+    console.print(e.key + ":" + e.value)
 }
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -248,11 +232,11 @@ for e in arr:entries() {
 }
 
 #[test]
-fn test_for_in_object_entries() {
+fn test_for_of_object_entries() {
     let code = r#"
-let obj = ${ x: 100 }
-for e in obj:entries() {
-    print(e.key + "=" + e.value)
+let obj = { x: 100 }
+for (let e of obj.entries()) {
+    console.print(e[0] + "=" + e[1])
 }
 "#;
     let output = run_chen_lang_code(code).unwrap();

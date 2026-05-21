@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::value::NativeContext;
 use super::*;
 use crate::vm::{Fiber, FiberState};
 
@@ -23,7 +24,7 @@ pub fn create_coroutine_object() -> Value {
     );
     table.data.insert(
         "yield".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_coroutine_yield) as Box<NativeFnType>)),
+        Value::NativeFunction(Rc::new(Box::new(native_coroutine_yield_native) as Box<NativeFnType>)),
     );
     table.data.insert(
         "spawn".to_string(),
@@ -41,15 +42,8 @@ pub fn create_coroutine_object() -> Value {
     Value::Object(Rc::new(RefCell::new(table)))
 }
 
-fn native_coroutine_create(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    let mut args = args;
-    if let Some(co_obj) = vm.variables.get("coroutine")
-        && !args.is_empty()
-        && &args[0] == co_obj
-    {
-        args.remove(0);
-    }
-
+fn native_coroutine_create(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    let args = ctx.args;
     if args.is_empty() {
         return Err(ValueError::TypeMismatch {
             expected: ValueType::Function,
@@ -90,15 +84,8 @@ fn native_coroutine_create(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
     .into())
 }
 
-fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    let mut args = args;
-    if let Some(co_obj) = vm.variables.get("coroutine")
-        && !args.is_empty()
-        && &args[0] == co_obj
-    {
-        args.remove(0);
-    }
-
+fn native_coroutine_resume(vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    let args = ctx.args;
     if args.is_empty() {
         return Err(ValueError::TypeMismatch {
             expected: ValueType::Coroutine,
@@ -208,7 +195,7 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
         // For native functions, we pass the current stack as arguments
         let args = vm.stack.clone();
         vm.stack.clear(); // Clear stack before call
-        nf(vm, args).map_err(|e| crate::vm::error::RuntimeErrorWithContext {
+        nf(vm, NativeContext { this: None, args }).map_err(|e| crate::vm::error::RuntimeErrorWithContext {
             error: e,
             loc: crate::tokenizer::Location::default(),
             pc: vm.pc,
@@ -255,15 +242,11 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
     Ok(result)
 }
 
-pub fn native_coroutine_yield(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    let mut args = args;
-    if let Some(co_obj) = vm.variables.get("coroutine")
-        && !args.is_empty()
-        && &args[0] == co_obj
-    {
-        args.remove(0);
-    }
+fn native_coroutine_yield_native(vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    native_coroutine_yield(vm, ctx.args)
+}
 
+pub fn native_coroutine_yield(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
     let current_fiber_rc = if let Some(c) = &vm.current_fiber {
         c.clone()
     } else {
@@ -300,15 +283,8 @@ pub fn native_coroutine_yield(vm: &mut VM, args: Vec<Value>) -> Result<Value, VM
     Err(VMRuntimeError::Yield)
 }
 
-fn native_coroutine_status(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    let mut args = args;
-    if let Some(co_obj) = vm.variables.get("coroutine")
-        && !args.is_empty()
-        && &args[0] == co_obj
-    {
-        args.remove(0);
-    }
-
+fn native_coroutine_status(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    let args = ctx.args;
     if args.is_empty() {
         return Err(ValueError::TypeMismatch {
             expected: ValueType::Coroutine,
@@ -341,16 +317,8 @@ fn native_coroutine_status(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
 
 /// coroutine.spawn(co, args...) - 非阻塞启动协程
 /// 将协程放入 ready_queue，由事件循环调度执行
-fn native_coroutine_spawn(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    let mut args = args;
-    // 移除 self 参数（coroutine 对象本身）
-    if let Some(co_obj) = vm.variables.get("coroutine")
-        && !args.is_empty()
-        && &args[0] == co_obj
-    {
-        args.remove(0);
-    }
-
+fn native_coroutine_spawn(vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    let args = ctx.args;
     if args.is_empty() {
         return Err(ValueError::TypeMismatch {
             expected: ValueType::Coroutine,
@@ -460,16 +428,8 @@ fn native_coroutine_spawn(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRunt
 
 /// coroutine.await_all([co1, co2, ...]) - 等待所有协程完成
 /// 返回所有协程的结果数组
-fn native_coroutine_await_all(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    let mut args = args;
-    // 移除 self 参数
-    if let Some(co_obj) = vm.variables.get("coroutine")
-        && !args.is_empty()
-        && &args[0] == co_obj
-    {
-        args.remove(0);
-    }
-
+fn native_coroutine_await_all(vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    let args = ctx.args;
     if args.is_empty() {
         return Err(ValueError::TypeMismatch {
             expected: ValueType::Object,
@@ -627,10 +587,6 @@ fn native_coroutine_await_all(vm: &mut VM, args: Vec<Value>) -> Result<Value, VM
     Err(VMRuntimeError::Yield)
 }
 
-fn native_coroutine_iter(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if !args.is_empty() {
-        Ok(args[0].clone())
-    } else {
-        Ok(Value::Null)
-    }
+fn native_coroutine_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    Ok(ctx.this.or_else(|| ctx.args.first().cloned()).unwrap_or(Value::Null))
 }

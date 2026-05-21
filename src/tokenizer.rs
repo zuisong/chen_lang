@@ -31,6 +31,10 @@ pub enum Keyword {
     FOR,
     /// def
     DEF,
+    /// function
+    FUNCTION,
+    /// while
+    WHILE,
     /// return
     RETURN,
     /// break
@@ -61,6 +65,10 @@ pub enum Keyword {
     FN,
     /// in
     IN,
+    /// of
+    OF,
+    /// this
+    THIS,
     /// int
     INT,
     /// float
@@ -134,8 +142,6 @@ pub enum Token {
     String(String),
     /// 标识符
     Identifier(String),
-    /// ${
-    DollarLBig,
     /// .
     Dot,
     /// 左大括号
@@ -169,7 +175,6 @@ pub enum Token {
     // 空格
     Space,
 }
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Location {
     pub col: u32,
@@ -253,8 +258,7 @@ pub mod winnow {
 
     pub fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
         alt((
-            literal("${").value(Token::DollarLBig),
-            (literal("#"), till_line_ending).map(|_| Token::Comment),
+            (literal("//"), till_line_ending).map(|_| Token::Comment),
             alt((
                 line_ending.value(Token::NewLine),
                 one_of((' ', '\t', '\r', '\n')).value(Token::Space),
@@ -311,8 +315,10 @@ pub mod winnow {
                         "return" => Token::Keyword(Keyword::RETURN),
                         "if" => Token::Keyword(Keyword::IF),
                         "def" => Token::Keyword(Keyword::DEF),
+                        "function" => Token::Keyword(Keyword::FUNCTION),
                         "else" => Token::Keyword(Keyword::ELSE),
                         "for" => Token::Keyword(Keyword::FOR),
+                        "while" => Token::Keyword(Keyword::WHILE),
                         "break" => Token::Keyword(Keyword::BREAK),
                         "continue" => Token::Keyword(Keyword::CONTINUE),
                         "try" => Token::Keyword(Keyword::TRY),
@@ -327,6 +333,8 @@ pub mod winnow {
                         "impl" => Token::Keyword(Keyword::IMPL),
                         "fn" => Token::Keyword(Keyword::FN),
                         "in" => Token::Keyword(Keyword::IN),
+                        "of" => Token::Keyword(Keyword::OF),
+                        "this" => Token::Keyword(Keyword::THIS),
                         "int" => Token::Keyword(Keyword::INT),
                         "float" => Token::Keyword(Keyword::FLOAT),
                         "bool" => Token::Keyword(Keyword::BOOL),
@@ -350,6 +358,12 @@ pub mod winnow {
         let mut tokens = vec![];
 
         loop {
+            if input.starts_with('#') {
+                return Err(TokenError::ParseErrorWithLocation {
+                    msg: "Hash comments (#) are not supported. Use // instead.".to_string(),
+                    line: loc.line,
+                });
+            }
             debug!(?input);
             let start_loc = loc;
             let (remain_input, token) = parse_with_winnow(input).map_err(|e| TokenError::ParseErrorWithLocation {
@@ -403,20 +417,12 @@ mod handwritten {
         let cur = *chars.get(loc.index).unwrap_or(&' ');
         let next = *chars.get(loc.index + 1).unwrap_or(&' ');
         let res = match cur {
-            '$' => {
-                // Check for ${
-                if next == '{' {
-                    (Token::DollarLBig, loc.incr2())
-                } else {
-                    return Err(TokenError::UnknownToken { token: cur });
-                }
-            }
+            '$' => return Err(TokenError::UnknownToken { token: cur }),
             '#' => {
-                let mut l = loc.incr();
-                while l.index < chars.len() && chars[l.index] != '\n' {
-                    l = l.incr();
-                }
-                (Token::Comment, l) // Don't consume newline here, let next iteration handle it or just stop at newline
+                return Err(TokenError::ParseErrorWithLocation {
+                    msg: "Hash comments (#) are not supported. Use // instead.".to_string(),
+                    line: loc.line,
+                });
             }
             '\n' | '\r' => (Token::NewLine, loc.new_line()),
             _ if cur.is_whitespace() => (Token::Space, loc.incr()),
@@ -435,7 +441,14 @@ mod handwritten {
             '|' if next != '|' => (Token::Pipe, loc.incr()),
             '+' => (Token::Operator(Operator::Add), loc.incr()),
             '*' => (Token::Operator(Operator::Multiply), loc.incr()),
-            '/' => (Token::Operator(Operator::Divide), loc.incr()),
+            '/' if next == '/' => {
+                let mut l = loc.incr2();
+                while l.index < chars.len() && chars[l.index] != '\n' {
+                    l = l.incr();
+                }
+                (Token::Comment, l)
+            }
+            '/' if next != '/' => (Token::Operator(Operator::Divide), loc.incr()),
             '%' => (Token::Operator(Operator::Mod), loc.incr()),
             '=' if next == '=' => (Token::Operator(Operator::Equals), loc.incr2()),
             '=' if next != '=' => (Token::Operator(Operator::Assign), loc.incr()),
@@ -520,8 +533,10 @@ mod handwritten {
                     "return" => Token::Keyword(Keyword::RETURN),
                     "if" => Token::Keyword(Keyword::IF),
                     "def" => Token::Keyword(Keyword::DEF),
+                    "function" => Token::Keyword(Keyword::FUNCTION),
                     "else" => Token::Keyword(Keyword::ELSE),
                     "for" => Token::Keyword(Keyword::FOR),
+                    "while" => Token::Keyword(Keyword::WHILE),
                     "break" => Token::Keyword(Keyword::BREAK),
                     "continue" => Token::Keyword(Keyword::CONTINUE),
                     "try" => Token::Keyword(Keyword::TRY),
@@ -536,6 +551,8 @@ mod handwritten {
                     "impl" => Token::Keyword(Keyword::IMPL),
                     "fn" => Token::Keyword(Keyword::FN),
                     "in" => Token::Keyword(Keyword::IN),
+                    "of" => Token::Keyword(Keyword::OF),
+                    "this" => Token::Keyword(Keyword::THIS),
                     "int" => Token::Keyword(Keyword::INT),
                     "float" => Token::Keyword(Keyword::FLOAT),
                     "bool" => Token::Keyword(Keyword::BOOL),

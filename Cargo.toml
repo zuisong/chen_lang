@@ -53,4 +53,4 @@ tempfile = "3"
 
 [workspace]
 resolver = "3"
-members = ["lsp"]
+#members = ["lsp"]

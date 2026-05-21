@@ -4,24 +4,32 @@ use std::time::Duration;
 
 use indexmap::IndexMap;
 
-use crate::value::{NativeFnType, Value, ValueError, ValueType};
+use crate::value::{NativeContext, NativeFnType, Value, ValueError, ValueType};
 use crate::vm::error::VMRuntimeError;
 use crate::vm::{Fiber, FiberState, VM};
 
 pub fn create_timer_object() -> Value {
-    let mut table = crate::value::Table {
+    let timer = Value::Object(Rc::new(RefCell::new(crate::value::Table {
         data: IndexMap::new(),
         metatable: None,
-    };
-    table.data.insert(
-        "sleep".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_timer_sleep) as Box<NativeFnType>)),
-    );
+    })));
 
-    Value::Object(Rc::new(RefCell::new(table)))
+    if let Value::Object(table_rc) = &timer {
+        let mut table = table_rc.borrow_mut();
+        let sleep_fn = Value::NativeFunction(Rc::new(
+            Box::new(|vm: &mut VM, ctx: NativeContext| native_timer_sleep(vm, ctx))
+                as Box<NativeFnType>,
+        ));
+
+        table.data.insert("sleep".to_string(), sleep_fn.clone());
+        table.data.insert("sleepMs".to_string(), sleep_fn);
+    }
+
+    timer
 }
 
-fn native_timer_sleep(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+fn native_timer_sleep(vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    let args = ctx.args;
     if args.is_empty() {
         return Err(ValueError::TypeMismatch {
             expected: ValueType::Int,

@@ -2,14 +2,21 @@
 use std::process::Command;
 use std::rc::Rc;
 
-use crate::value::{Value, ValueError};
+use crate::value::{NativeContext, Value, ValueError};
 use crate::vm::{VM, VMRuntimeError};
 
 pub fn create_process_object() -> Value {
     let process_obj = Value::object();
 
-    let exec_fn = |_vm: &mut VM, args: Vec<Value>| -> Result<Value, VMRuntimeError> {
-        let cmd_arg = if args.len() > 1 { &args[1] } else { &args[0] };
+    let exec_fn = |_vm: &mut VM, ctx: NativeContext| -> Result<Value, VMRuntimeError> {
+        if ctx.args.is_empty() {
+            return Err(VMRuntimeError::ValueError(ValueError::TypeMismatch {
+                expected: crate::value::ValueType::String,
+                found: crate::value::ValueType::Null,
+                operation: "process.exec".to_string(),
+            }));
+        }
+        let cmd_arg = &ctx.args[0];
         let _cmd_str = cmd_arg.as_string().ok_or_else(|| {
             VMRuntimeError::ValueError(ValueError::TypeMismatch {
                 expected: crate::value::ValueType::String,

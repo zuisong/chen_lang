@@ -3,12 +3,11 @@ use crate::*;
 #[test]
 fn test_fs_read_write() {
     let code = r#"
-        let fs = import("stdlib/fs")
-        let io = import("stdlib/io")
+        let fs = Chen.fs
         let path = "test_file.txt"
-        fs.write_file(path, "Hello Chen Lang")
-        let content = fs.read_file(path)
-        io.print(content)
+        fs.writeTextFile(path, "Hello Chen Lang")
+        let content = fs.readTextFile(path)
+        console.print(content)
         fs.remove(path)
     "#;
 
@@ -20,15 +19,14 @@ fn test_fs_read_write() {
 #[test]
 fn test_fs_read_dir() {
     let code = r#"
-        let fs = import("stdlib/fs")
-        let process = import("stdlib/process")
-        let io = import("stdlib/io")
+        let fs = Chen.fs
+        let process = Chen.process
         let dir = "test_dir"
         process.exec("mkdir " + dir)
-        fs.write_file(dir + "/f1.txt", "1")
-        fs.write_file(dir + "/f2.txt", "2")
-        let entries = fs.read_dir(dir)
-        io.println(entries:len())
+        fs.writeTextFile(dir + "/f1.txt", "1")
+        fs.writeTextFile(dir + "/f2.txt", "2")
+        let entries = fs.readDir(dir)
+        console.log(entries.length)
         fs.remove(dir)
     "#;
     let result = run_captured(code.to_string());
@@ -39,14 +37,13 @@ fn test_fs_read_dir() {
 #[test]
 fn test_fs_exists() {
     let code = r#"
-        let fs = import("stdlib/fs")
-        let io = import("stdlib/io")
+        let fs = Chen.fs
         let path = "test_exists.txt"
-        io.println(fs.exists(path))
-        fs.write_file(path, "exists")
-        io.println(fs.exists(path))
+        console.log(fs.exists(path))
+        fs.writeTextFile(path, "exists")
+        console.log(fs.exists(path))
         fs.remove(path)
-        io.println(fs.exists(path))
+        console.log(fs.exists(path))
     "#;
 
     let result = run_captured(code.to_string());
@@ -63,10 +60,9 @@ fn test_fs_exists() {
 #[cfg(feature = "http")]
 fn test_http_get() {
     let code = r#"
-        let http = import("stdlib/http")
-        let io = import("stdlib/io")
-        let resp = http.request("GET", "https://httpbin.org/get")
-        io.print("Success")
+        let request = Chen.http.request
+        let resp = request("GET", "https://httpbin.org/get")
+        console.print("Success")
     "#;
     let result = run_captured(code.to_string());
     dbg!(&result);
@@ -76,10 +72,9 @@ fn test_http_get() {
 #[test]
 fn test_process_exec() {
     let code = r#"
-        let process = import("stdlib/process")
-        let io = import("stdlib/io")
+        let process = Chen.process
         let res = process.exec("echo hello")
-        io.print(res.stdout:trim())
+        console.print(res.stdout.trim())
     "#;
     let result = run_captured(code.to_string());
     assert!(result.is_ok());

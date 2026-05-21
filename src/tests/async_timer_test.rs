@@ -17,22 +17,18 @@ fn test_timer_sleep() {
     // Tests that we can sleep for a duration
     // And that the VM waits for it.
 
-    // NOTE: stdlib.date.now() returns milliseconds.
-    // importing stdlib/date implicitly? No, `stdlib.date` is not standard.
-    // We need `import("stdlib/date")`.
-    // But `import` returns the module.
-    // `native_date` has `now`.
-
     let code_fixed = r#"
-    let timer = import("stdlib/timer")
-    let date = import("stdlib/date")
-    let start = date.now()
-    timer.sleep(100)
-    let end = date.now()
+    let timer = Chen.timer
+    let date = Chen.date
+    let sleep = timer.sleep
+    let now = date.now
+    let start = now()
+    sleep(100)
+    let end = now()
     let diff = end - start
     
-    # We can't assert exact time, but it should be > 50ms and < 2000ms
-    if diff >= 50 {
+    // We can't assert exact time, but it should be > 50ms and < 2000ms
+    if (diff >= 50) {
         return "OK"
     } else {
         return "FAIL: " + diff
@@ -49,7 +45,7 @@ fn test_async_interleaving() {
     // But we can check if `sleep` works in a loop (sequential).
 
     let code = r#"
-    let timer = import("stdlib/timer")
+    let timer = Chen.timer
     timer.sleep(10)
     timer.sleep(10)
     return "Done"
@@ -60,15 +56,15 @@ fn test_async_interleaving() {
 #[test]
 fn test_spawn_closure_with_sleep() {
     let code = r#"
-    let timer = import("stdlib/timer")
-    let co = coroutine.create(def() {
-        # 匿名函数直接调用 native async，这会触发 Yield
+    let timer = Chen.timer
+    let co = Chen.coroutine.create(function() {
+        // 匿名函数直接调用 native async，这会触发 Yield
         timer.sleep(50)
         return "WakeUp"
     })
     
-    coroutine.spawn(co)
-    let results = coroutine.await_all([co])
+    Chen.coroutine.spawn(co)
+    let results = Chen.coroutine.await_all([co])
     
     return results[0]
     "#;
@@ -79,16 +75,16 @@ fn test_spawn_closure_with_sleep() {
 #[test]
 fn test_spawn_closure_captures_and_sleep() {
     let code = r#"
-    let timer = import("stdlib/timer")
+    let timer = Chen.timer
     let msg = "Capturing"
     
-    let co = coroutine.create(def() {
+    let co = Chen.coroutine.create(function() {
         timer.sleep(10)
         return msg + " Works"
     })
     
-    coroutine.spawn(co)
-    let results = coroutine.await_all([co])
+    Chen.coroutine.spawn(co)
+    let results = Chen.coroutine.await_all([co])
     
     return results[0]
     "#;

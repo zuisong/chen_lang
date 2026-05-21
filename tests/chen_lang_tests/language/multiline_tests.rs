@@ -5,7 +5,7 @@ fn test_multiline_simple_addition() {
     let code = r#"
     let x = 1 + 
         2
-    println(x)
+    console.log(x)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "3");
@@ -14,12 +14,12 @@ fn test_multiline_simple_addition() {
 #[test]
 fn test_multiline_block_expression() {
     let code = r#"
-    let y = {
+    let y = function() {
         let a = 10
-        a * 
+        return a * 
         2
-    }
-    println(y)
+    }()
+    console.log(y)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "20");
@@ -30,7 +30,7 @@ fn test_multiline_complex_expression() {
     let code = r#"
     let z = 1 + 2 * 3 +
             4
-    println(z)
+    console.log(z)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "11");
@@ -42,18 +42,18 @@ fn test_all_multiline_expressions() {
     let code = r#"
 let x = 1 + 
     2
-println(x)
+console.log(x)
 
-let y = {
+let y = function() {
     let a = 10
-    a * 
+    return a * 
     2
-}
-println(y)
+}()
+console.log(y)
 
 let z = 1 + 2 * 3 +
-        4
-println(z)
+    4
+console.log(z)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     let lines: Vec<&str> = output.trim().lines().collect();

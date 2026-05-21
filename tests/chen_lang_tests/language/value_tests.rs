@@ -7,7 +7,7 @@ fn test_integer_arithmetic() {
     let code = r#"
 let x = 5
 let y = 3
-print(x + y)
+console.log(x + y)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "8");
@@ -18,7 +18,7 @@ fn test_float_arithmetic() {
     let code = r#"
 let x = 3.14
 let y = 2.0
-print(x * y)
+console.log(x * y)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "6.28");
@@ -29,7 +29,7 @@ fn test_string_concatenation() {
     let code = r#"
 let hello = "Hello"
 let world = " World"
-print(hello + world)
+console.log(hello + world)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "Hello World");
@@ -41,7 +41,7 @@ fn test_mixed_type_arithmetic() {
 let int_val = 5
 let float_val = 2.5
 let result = int_val + float_val
-print(result)
+console.log(result)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "7.5");
@@ -53,7 +53,7 @@ fn test_float_division() {
 let x = 7.0
 let y = 2.0
 let result = x / y
-print(result)
+console.log(result)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "3.5");
@@ -65,7 +65,7 @@ fn test_negative_float() {
 let x = -3.14
 let y = 2.0
 let result = x * y
-print(result)
+console.log(result)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "-6.28");
@@ -77,7 +77,7 @@ fn test_variable_assignment_with_float() {
 let pi = 3.14159
 let radius = 2.0
 let area = pi * radius * radius
-print(area)
+console.log(area)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "12.56636");
@@ -89,7 +89,7 @@ fn test_string_with_numbers() {
 let prefix = "Result: "
 let number = 42
 let message = prefix + "42"
-print(message)
+console.log(message)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "Result: 42");
@@ -102,7 +102,7 @@ let a = 1.5
 let b = 2.0
 let c = 3.0
 let result = a + b * c - 0.5
-print(result)
+console.log(result)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     // 1.5 + 2.0 * 3.0 - 0.5 = 1.5 + 6.0 - 0.5 = 7.0
@@ -115,7 +115,7 @@ fn test_zero_float() {
 let x = 0.0
 let y = 5.0
 let result = x + y
-print(result)
+console.log(result)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "5");
@@ -127,7 +127,7 @@ fn test_float_comparison() {
 let a = 3.14
 let b = 3.14
 let equal = a == b
-print(equal)
+console.log(equal)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "true");
@@ -139,7 +139,7 @@ fn test_mixed_comparison() {
 let int_val = 5
 let float_val = 5.0
 let equal = int_val == float_val
-print(equal)
+console.log(equal)
 "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "true");

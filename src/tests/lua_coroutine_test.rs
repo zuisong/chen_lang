@@ -14,13 +14,13 @@ fn run_code(code: &str) -> String {
 
 #[test]
 fn test_create_with_args() {
-    // 1. coroutine.create(f, arg) -> resume()
+    // 1. Chen.coroutine.create(f, arg) -> resume()
     let code = r#"
-    def f(x) {
+    function f(x) {
         return "Arg: " + x
     }
-    let co = coroutine.create(f, 100)
-    let res = coroutine.resume(co)
+    let co = Chen.coroutine.create(f, 100)
+    let res = Chen.coroutine.resume(co)
     return res
     "#;
     assert_eq!(run_code(code), "Arg: 100");
@@ -28,13 +28,13 @@ fn test_create_with_args() {
 
 #[test]
 fn test_resume_with_args_start() {
-    // 2. coroutine.create(f) -> resume(co, arg)
+    // 2. Chen.coroutine.create(f) -> resume(co, arg)
     let code = r#"
-    def f(x) {
+    function f(x) {
         return "Arg: " + x
     }
-    let co = coroutine.create(f)
-    let res = coroutine.resume(co, 200)
+    let co = Chen.coroutine.create(f)
+    let res = Chen.coroutine.resume(co, 200)
     return res
     "#;
     assert_eq!(run_code(code), "Arg: 200");
@@ -44,13 +44,13 @@ fn test_resume_with_args_start() {
 fn test_resume_pass_data() {
     // 3. resume(co, val) -> yield returns val
     let code = r#"
-    def f() {
-        let val = coroutine.yield("start")
+    function f() {
+        let val = Chen.coroutine.yield("start")
         return "Got: " + val
     }
-    let co = coroutine.create(f)
-    coroutine.resume(co) # Start, returns "start"
-    let res = coroutine.resume(co, "World")
+    let co = Chen.coroutine.create(f)
+    Chen.coroutine.resume(co) // Start, returns "start"
+    let res = Chen.coroutine.resume(co, "World")
     return res
     "#;
     assert_eq!(run_code(code), "Got: World");
@@ -60,12 +60,12 @@ fn test_resume_pass_data() {
 fn test_yield_pass_data() {
     // 4. yield(val) -> resume returns val
     let code = r#"
-    def f() {
-        coroutine.yield("from_yield")
+    function f() {
+        Chen.coroutine.yield("from_yield")
         return 0
     }
-    let co = coroutine.create(f)
-    let res = coroutine.resume(co)
+    let co = Chen.coroutine.create(f)
+    let res = Chen.coroutine.resume(co)
     return res
     "#;
     assert_eq!(run_code(code), "from_yield");
@@ -75,14 +75,14 @@ fn test_yield_pass_data() {
 fn test_resume_no_args_is_null() {
     // 5. resume(co) -> yield returns null
     let code = r#"
-    def f() {
-        let val = coroutine.yield(1)
-        if val == null { return "Was Null" }
+    function f() {
+        let val = Chen.coroutine.yield(1)
+        if (val == null) { return "Was Null" }
         return "Not Null"
     }
-    let co = coroutine.create(f)
-    coroutine.resume(co)
-    let res = coroutine.resume(co) # No args
+    let co = Chen.coroutine.create(f)
+    Chen.coroutine.resume(co)
+    let res = Chen.coroutine.resume(co) // No args
     return res
     "#;
     assert_eq!(run_code(code), "Was Null");

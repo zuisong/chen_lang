@@ -26,6 +26,7 @@ pub struct CallFrame {
     pub fp: usize,
     pub program: Option<Rc<Program>>,
     pub closure: Option<Rc<ObjClosure>>,
+    pub this_binding: Option<Value>,
     pub discard_return: bool,
     pub push_values_after_return: Vec<Value>,
 }
@@ -40,6 +41,7 @@ pub struct Fiber {
     pub state: FiberState,
     pub caller: Option<Rc<RefCell<Fiber>>>,
     pub current_closure: Option<Rc<ObjClosure>>,
+    pub current_this: Option<Value>,
     pub program: Option<Rc<Program>>,
     /// 协程完成时的返回值（用于 await_all）
     pub result: Option<Value>,
@@ -68,6 +70,7 @@ impl Fiber {
             state: FiberState::Suspended,
             caller: None,
             current_closure: None,
+            current_this: None,
             program: None,
             result: None,
             skip_push_on_resume: false,

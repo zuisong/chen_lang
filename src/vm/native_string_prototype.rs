@@ -1,3 +1,4 @@
+use crate::value::NativeContext;
 use super::*;
 
 pub fn create_string_prototype() -> Value {
@@ -22,8 +23,20 @@ pub fn create_string_prototype() -> Value {
         Value::NativeFunction(Rc::new(Box::new(native_string_upper) as Box<NativeFnType>)),
     );
     table.data.insert(
+        "toUpperCase".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(native_string_upper) as Box<NativeFnType>)),
+    );
+    table.data.insert(
         "lower".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_string_lower) as Box<NativeFnType>)),
+    );
+    table.data.insert(
+        "toLowerCase".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(native_string_lower) as Box<NativeFnType>)),
+    );
+    table.data.insert(
+        "length".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(native_string_len) as Box<NativeFnType>)),
     );
     table.data.insert(
         "iter".to_string(),
@@ -42,22 +55,24 @@ pub fn create_string_prototype() -> Value {
     proto_val
 }
 
-pub fn native_string_len(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if args.is_empty() {
-        return Ok(Value::Int(0));
-    }
-    match &args[0] {
-        Value::String(s) => Ok(Value::Int(s.chars().count() as i32)),
-        _ => Err(ValueError::TypeMismatch {
+fn string_receiver<'a>(ctx: &'a NativeContext) -> Option<&'a Value> {
+    ctx.this.as_ref().or_else(|| ctx.args.first())
+}
+
+pub fn native_string_len(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    match string_receiver(&ctx) {
+        Some(Value::String(s)) => Ok(Value::Int(s.chars().count() as i32)),
+        Some(v) => Err(ValueError::TypeMismatch {
             expected: ValueType::String,
-            found: args[0].get_type(),
+            found: v.get_type(),
             operation: "string.len".into(),
         })?,
+        None => Ok(Value::Int(0)),
     }
 }
 
-pub fn native_string_trim(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    match args.first() {
+pub fn native_string_trim(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    match string_receiver(&ctx) {
         Some(Value::String(s)) => Ok(Value::string(s.trim().to_string())),
         Some(v) => Err(ValueError::TypeMismatch {
             expected: ValueType::String,
@@ -69,8 +84,8 @@ pub fn native_string_trim(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
     }
 }
 
-pub fn native_string_upper(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    match args.first() {
+pub fn native_string_upper(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    match string_receiver(&ctx) {
         Some(Value::String(s)) => Ok(Value::string(s.to_uppercase())),
         Some(v) => Err(crate::vm::VMRuntimeError::ValueError(ValueError::TypeMismatch {
             expected: ValueType::String,
@@ -81,8 +96,8 @@ pub fn native_string_upper(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRu
     }
 }
 
-pub fn native_string_lower(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    match args.first() {
+pub fn native_string_lower(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    match string_receiver(&ctx) {
         Some(Value::String(s)) => Ok(Value::string(s.to_lowercase())),
         Some(v) => Err(ValueError::TypeMismatch {
             expected: ValueType::String,
@@ -93,16 +108,15 @@ pub fn native_string_lower(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRu
     }
 }
 
-fn native_string_iter(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if args.is_empty() {
+fn native_string_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    let Some(s_val) = string_receiver(&ctx).cloned() else {
         return Ok(Value::Null);
-    }
-    let s_val = args[0].clone();
+    };
     if let Value::String(s) = s_val {
         let chars: Vec<String> = s.chars().map(|c| c.to_string()).collect();
         let index = Rc::new(RefCell::new(0));
 
-        let iter_body = move |vm: &mut VM, _args: Vec<Value>| {
+        let iter_body = move |vm: &mut VM, _ctx: NativeContext| {
             let mut idx = index.borrow_mut();
             if *idx < chars.len() {
                 let val = Value::string(chars[*idx].clone());

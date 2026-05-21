@@ -814,7 +814,7 @@ mod tests {
 
     #[test]
     fn checks_function_return_annotation() {
-        let ast = parser::parse_from_source("def answer() -> int { return \"no\" }").unwrap();
+        let ast = parser::parse_from_source("function answer() -> int { return \"no\" }").unwrap();
         assert!(matches!(
             check(&ast),
             Err(TypeError::ReturnTypeMismatch {
@@ -864,19 +864,19 @@ let missing: Option<string> = null
 
     #[test]
     fn accepts_map_annotation_from_object_literal() {
-        let ast = parser::parse_from_source(r#"let point: Map<string, int> = ${ x: 1, y: 2 }"#).unwrap();
+        let ast = parser::parse_from_source(r#"let point: Map<string, int> = { x: 1, y: 2 }"#).unwrap();
         assert!(check(&ast).is_ok());
     }
 
     #[test]
     fn keeps_object_annotation_compatible_with_object_literal() {
-        let ast = parser::parse_from_source(r#"let point: object = ${ x: 1, y: 2 }"#).unwrap();
+        let ast = parser::parse_from_source(r#"let point: object = { x: 1, y: 2 }"#).unwrap();
         assert!(check(&ast).is_ok());
     }
 
     #[test]
     fn rejects_map_value_type_mismatch() {
-        let ast = parser::parse_from_source(r#"let point: Map<string, int> = ${ x: 1, y: "two" }"#).unwrap();
+        let ast = parser::parse_from_source(r#"let point: Map<string, int> = { x: 1, y: "two" }"#).unwrap();
         assert!(matches!(check(&ast), Err(TypeError::TypeMismatch { .. })));
     }
 
@@ -914,7 +914,7 @@ let value: MaybeNumber = null
     fn infers_identity_as_generic_function() {
         let ast = parser::parse_from_source(
             r#"
-def identity(x) { x }
+function identity(x) { x }
 let a: int = identity(1)
 let b: string = identity("ok")
 "#,
@@ -927,7 +927,7 @@ let b: string = identity("ok")
     fn rejects_bad_generic_identity_assignment() {
         let ast = parser::parse_from_source(
             r#"
-def identity(x) { x }
+function identity(x) { x }
 let a: string = identity(1)
 "#,
         )

@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use indexmap::IndexMap;
 
-use crate::value::{Table, Value, ValueError, ValueType};
+use crate::value::{NativeContext, NativeFnType, Table, Value, ValueError, ValueType};
 use crate::vm::{Fiber, FiberState, VM, VMRuntimeError};
 
 fn value_to_header_map(value: &Value) -> Result<reqwest::header::HeaderMap, String> {
@@ -28,8 +28,8 @@ fn value_to_header_map(value: &Value) -> Result<reqwest::header::HeaderMap, Stri
 pub fn create_http_object() -> Value {
     let http_obj = Value::object();
 
-    let request_fn = |_vm: &mut VM, args: Vec<Value>| -> Result<Value, VMRuntimeError> {
-        if args.len() < 2 {
+    let request_fn = |vm: &mut VM, ctx: NativeContext| -> Result<Value, VMRuntimeError> {
+        if ctx.args.len() < 2 {
             return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                 operator: "http.request".to_string(),
                 left_type: ValueType::String,
@@ -37,10 +37,10 @@ pub fn create_http_object() -> Value {
             }));
         }
 
-        let method_arg = &args[0];
-        let url_arg = &args[1];
-        let body_arg = args.get(2).cloned();
-        let headers_arg = args.get(3).cloned();
+        let method_arg = &ctx.args[0];
+        let url_arg = &ctx.args[1];
+        let body_arg = ctx.args.get(2).cloned();
+        let headers_arg = ctx.args.get(3).cloned();
 
         let method_str = method_arg
             .as_string()
@@ -87,27 +87,27 @@ pub fn create_http_object() -> Value {
         // Unified Async Logic
         {
             // Capture Current Fiber
-            let current_fiber_rc = if let Some(c) = &_vm.current_fiber {
+            let current_fiber_rc = if let Some(c) = &vm.current_fiber {
                 c.clone()
             } else {
                 let f = Rc::new(RefCell::new(Fiber::new()));
-                _vm.current_fiber = Some(f.clone());
+                vm.current_fiber = Some(f.clone());
                 f
             };
 
             let mut current_fiber = current_fiber_rc.borrow_mut();
 
             // Increment PC to point to next instruction upon resume
-            _vm.pc += 1;
+            vm.pc += 1;
 
-            _vm.save_state_to_fiber(&mut current_fiber);
+            vm.save_state_to_fiber(&mut current_fiber);
             current_fiber.state = FiberState::Suspended;
             drop(current_fiber);
 
             let fiber_for_future = current_fiber_rc.clone();
 
             // Spawn Async Task
-            _vm.async_state.spawn_future(
+            vm.async_state.spawn_future(
                 async move {
                     let client = reqwest::Client::new();
 
@@ -176,10 +176,9 @@ pub fn create_http_object() -> Value {
 
     if let Value::Object(obj) = &http_obj {
         let mut obj = obj.borrow_mut();
-        obj.data.insert(
-            "request".to_string(),
-            Value::NativeFunction(Rc::new(Box::new(request_fn))),
-        );
+        let request = Value::NativeFunction(Rc::new(Box::new(request_fn) as Box<NativeFnType>));
+        obj.data.insert("request".to_string(), request.clone());
+        obj.data.insert("fetch".to_string(), request);
     }
 
     http_obj

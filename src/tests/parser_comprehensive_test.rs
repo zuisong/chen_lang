@@ -101,7 +101,7 @@ fn test_logical_precedence() {
 
 #[test]
 fn test_if_expression() {
-    let expr = parse_expr_str("if true { 1 } else { 0 }");
+    let expr = parse_expr_str("if (true) { 1 } else { 0 }");
 
     if let Expression::If(if_expr) = expr {
         if let Expression::Literal(Literal::Value(Value::Bool(true)), _) = *if_expr.test {
@@ -117,7 +117,7 @@ fn test_if_expression() {
 
 #[test]
 fn test_syntax_error_missing_brace() {
-    let code = "if true { 1 "; // Missing closing brace
+    let code = "if (true) { 1 "; // Missing closing brace
     let result = parse_code(code);
     assert!(result.is_err());
     let err = result.err().unwrap();
@@ -130,6 +130,23 @@ fn test_syntax_error_unexpected_token() {
     let code = "let x = +"; // unexpected operator
     let result = parse_code(code);
     assert!(result.is_err());
+}
+
+#[test]
+fn test_removed_old_syntax_is_rejected() {
+    let removed_syntax = [
+        r#"let user = ${ name: "Alice" }"#,
+        "def add(a, b) { return a + b }",
+        "obj:method(1)",
+        r#"try { throw "x" } catch error { println(error) }"#,
+        "let i = 0\nfor i < 3 { i = i + 1 }",
+        r#"let fs = import("stdlib/fs")"#,
+        "if true { 1 }", // Missing parentheses
+    ];
+
+    for code in removed_syntax {
+        assert!(parse_code(code).is_err(), "old syntax should be rejected: {code}");
+    }
 }
 
 #[test]
@@ -164,8 +181,8 @@ fn test_function_call_with_args() {
 
 #[test]
 fn test_object_literal() {
-    // ${ x: 1, y: 2 }
-    let expr = parse_expr_str("${ x: 1, y: 2 }");
+    // { x: 1, y: 2 }
+    let expr = parse_expr_str("{ x: 1, y: 2 }");
     if let Expression::ObjectLiteral(fields, _) = expr {
         assert_eq!(fields.len(), 2);
         assert_eq!(fields[0].0, "x");

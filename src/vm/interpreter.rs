@@ -154,6 +154,7 @@ impl VM {
 
     pub fn execute_rc(&mut self, program: Rc<Program>) -> VMResult {
         let saved_program = self.program.clone();
+        let saved_this = self.current_this.clone();
         self.program = Some(program.clone());
 
         // Check if we are already in a runtime (e.g. recursive import or nested call)
@@ -161,6 +162,7 @@ impl VM {
             // Already in a runtime - just run synchronously
             let res = self.execute_from(0);
             self.program = saved_program;
+            self.current_this = saved_this;
             return res;
         }
 
@@ -180,6 +182,7 @@ impl VM {
         let res = self.execute_from(0);
 
         self.program = saved_program;
+        self.current_this = saved_this;
         res
     }
 
@@ -298,6 +301,7 @@ impl VM {
         fiber.call_stack = self.call_stack.clone();
         fiber.exception_handlers = self.exception_handlers.clone();
         fiber.current_closure = self.current_closure.clone();
+        fiber.current_this = self.current_this.clone();
         fiber.program = self.program.clone();
     }
 
@@ -308,6 +312,7 @@ impl VM {
         self.call_stack = fiber.call_stack.clone();
         self.exception_handlers = fiber.exception_handlers.clone();
         self.current_closure = fiber.current_closure.clone();
+        self.current_this = fiber.current_this.clone();
         self.program = fiber.program.clone();
     }
 
@@ -513,6 +518,18 @@ impl VM {
                     } else {
                         return Err(VMRuntimeError::UndefinedVariable(var_name.clone()));
                     }
+                }
+            }
+
+            Instruction::LoadThis => {
+                if let Some(this_val) = &self.current_this {
+                    self.stack.push(this_val.clone());
+                } else {
+                    return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
+                        operator: "load_this".to_string(),
+                        left_type: ValueType::Null,
+                        right_type: ValueType::Null,
+                    }));
                 }
             }
 
@@ -752,10 +769,12 @@ impl VM {
                                 fp: self.fp,
                                 program: self.program.clone(),
                                 closure: self.current_closure.clone(),
+                                this_binding: self.current_this.clone(),
                                 discard_return: false,
                                 push_values_after_return: Vec::new(),
                             });
                             self.fp = self.stack.len() - *arg_count;
+                            self.current_this = None; // Top-level call doesn't bind this
 
                             // For direct symbol calls, we should create a "base" closure if we want current_closure to be set,
                             // but usually these are top-level and don't need it.
@@ -789,12 +808,14 @@ impl VM {
                                         fp: self.fp,
                                         program: self.program.clone(),
                                         closure: self.current_closure.clone(),
+                                        this_binding: self.current_this.clone(),
                                         discard_return: false,
                                         push_values_after_return: Vec::new(),
                                     });
                                     self.fp = self.stack.len() - *arg_count;
                                     self.program = Some(closure.program.clone());
                                     self.current_closure = Some(closure.clone());
+                                    self.current_this = None; // Variable call doesn't bind this
 
                                     self.stack.resize(self.fp + sym.nlocals, Value::null());
                                     self.pc = (sym.location as usize) - 1;
@@ -807,7 +828,7 @@ impl VM {
                                         .checked_sub(*arg_count)
                                         .ok_or(VMRuntimeError::StackUnderflow("Native call missing args".into()))?;
                                     let args: Vec<Value> = self.stack.drain(start_index..).collect();
-                                    let result = native_fn(self, args)?;
+                                    let result = native_fn(self, crate::value::NativeContext { this: None, args })?;
                                     self.stack.push(result);
                                     Ok(true)
                                 }
@@ -839,6 +860,7 @@ impl VM {
                         frame.closure.as_ref().map(|c| &c.name)
                     );
                     self.current_closure = frame.closure;
+                    self.current_this = frame.this_binding;
                     if !frame.discard_return {
                         self.stack.push(return_value);
                     }
@@ -970,6 +992,25 @@ impl VM {
 
             Instruction::GetField(field) => {
                 let obj = self.stack.pop().unwrap_or(Value::null());
+                if field == "length" {
+                    match &obj {
+                        Value::String(s) => {
+                            self.stack.push(Value::int(s.chars().count() as i32));
+                            return Ok(true);
+                        }
+                        Value::Object(table_ref) => {
+                            let is_array = table_ref.borrow().metatable.as_ref().is_some_and(
+                                |meta| matches!(&self.array_prototype, Value::Object(proto) if Rc::ptr_eq(meta, proto)),
+                            );
+                            if is_array {
+                                self.stack.push(Value::int(table_ref.borrow().data.len() as i32));
+                                return Ok(true);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
                 let mut op_result = if let Value::String(_) = obj {
                     self.string_prototype.get_field_with_meta(field)?
                 } else {
@@ -1046,8 +1087,8 @@ impl VM {
 
                 match op_result {
                     OpResult::Value(value) => {
-                        self.stack.push(value);
                         self.stack.push(obj);
+                        self.stack.push(value);
                     }
                     OpResult::MetamethodCall(call_info) => {
                         let is_native = matches!(call_info.metamethod, Value::NativeFunction(_));
@@ -1155,6 +1196,7 @@ impl VM {
                 return match func_val {
                     Value::Fn(closure) => {
                         let sym = &closure.func_symbol;
+
                         if *arg_count != sym.narguments {
                             return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                                 operator: "call_stack".to_string(),
@@ -1168,16 +1210,14 @@ impl VM {
                             fp: self.fp,
                             program: self.program.clone(),
                             closure: self.current_closure.clone(),
+                            this_binding: self.current_this.clone(),
                             discard_return: false,
                             push_values_after_return: Vec::new(),
                         });
                         self.fp = self.stack.len() - *arg_count;
                         self.program = Some(closure.program.clone());
                         self.current_closure = Some(closure.clone());
-                        debug!(
-                            "[VM DEBUG] Call Fn: {}, new current_closure: Some({})",
-                            closure.name, closure.name
-                        );
+                        self.current_this = None;
 
                         self.stack.resize(self.fp + sym.nlocals, Value::null());
                         self.pc = (sym.location as usize) - 1;
@@ -1191,7 +1231,7 @@ impl VM {
                             .ok_or(VMRuntimeError::StackUnderflow("CallStack native: missing args".into()))?;
                         let args: Vec<Value> = self.stack.drain(start_index..).collect();
 
-                        let result = native_fn(self, args);
+                        let result = native_fn(self, crate::value::NativeContext { this: None, args });
                         let val = result?;
 
                         self.stack.push(val);
@@ -1199,6 +1239,75 @@ impl VM {
                     }
                     _ => Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                         operator: "call_stack".to_string(),
+                        left_type: func_val.get_type(),
+                        right_type: ValueType::Null,
+                    })),
+                };
+            }
+
+            Instruction::CallMethodStack(arg_count) => {
+                let func_idx = self
+                    .stack
+                    .len()
+                    .checked_sub(*arg_count + 1)
+                    .ok_or(VMRuntimeError::StackUnderflow(
+                        "CallMethodStack: missing function".to_string(),
+                    ))?;
+                let receiver_idx = func_idx.checked_sub(1).ok_or(VMRuntimeError::StackUnderflow(
+                    "CallMethodStack: missing receiver".to_string(),
+                ))?;
+
+                let receiver = self.stack.remove(receiver_idx);
+                let func_val = self.stack.remove(receiver_idx);
+
+                return match func_val {
+                    Value::Fn(closure) => {
+                        let sym = &closure.func_symbol;
+
+                        if *arg_count != sym.narguments {
+                            return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
+                                operator: "call_method_stack".to_string(),
+                                left_type: ValueType::Function,
+                                right_type: ValueType::Null,
+                            }));
+                        }
+
+                        self.call_stack.push(CallFrame {
+                            pc: self.pc,
+                            fp: self.fp,
+                            program: self.program.clone(),
+                            closure: self.current_closure.clone(),
+                            this_binding: self.current_this.clone(),
+                            discard_return: false,
+                            push_values_after_return: Vec::new(),
+                        });
+                        self.fp = self.stack.len() - *arg_count;
+                        self.program = Some(closure.program.clone());
+                        self.current_closure = Some(closure.clone());
+                        self.current_this = Some(receiver);
+
+                        self.stack.resize(self.fp + sym.nlocals, Value::null());
+                        self.pc = (sym.location as usize) - 1;
+                        Ok(true)
+                    }
+                    Value::NativeFunction(native_fn) => {
+                        let start_index =
+                            self.stack
+                                .len()
+                                .checked_sub(*arg_count)
+                                .ok_or(VMRuntimeError::StackUnderflow(
+                                    "CallMethodStack native: missing args".into(),
+                                ))?;
+                        let args: Vec<Value> = self.stack.drain(start_index..).collect();
+
+                        let result = native_fn(self, crate::value::NativeContext { this: Some(receiver), args });
+                        let val = result?;
+
+                        self.stack.push(val);
+                        Ok(true)
+                    }
+                    _ => Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
+                        operator: "call_method_stack".to_string(),
                         left_type: func_val.get_type(),
                         right_type: ValueType::Null,
                     })),

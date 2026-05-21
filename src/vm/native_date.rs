@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 
+use crate::value::NativeContext;
 use super::*;
 
 pub fn create_date_object() -> Value {
@@ -10,10 +11,6 @@ pub fn create_date_object() -> Value {
     table
         .data
         .insert("__type".to_string(), Value::string("Date".to_string()));
-    table.data.insert(
-        "new".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_date_new) as Box<NativeFnType>)),
-    );
     table.data.insert(
         "format".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_date_format) as Box<NativeFnType>)),
@@ -31,14 +28,24 @@ pub fn create_date_object() -> Value {
     let val = Value::Object(table_rc.clone());
     // Class acts as prototype for instances
     table_rc.borrow_mut().data.insert("__index".to_string(), val.clone());
+    table_rc.borrow_mut().data.insert(
+        "new".to_string(),
+        Value::NativeFunction(Rc::new(Box::new({
+            let date_receiver = val.clone();
+            move |_vm: &mut VM, ctx: NativeContext| {
+                let date_class = ctx.this.as_ref().unwrap_or(&date_receiver);
+                native_date_new(ctx.args, date_class)
+            }
+        }) as Box<NativeFnType>)),
+    );
     val
 }
 
-fn native_date_new(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+fn native_date_new(args: Vec<Value>, date_class: &Value) -> Result<Value, VMRuntimeError> {
     let mut ts = Timestamp::now().as_millisecond();
-    // args[0] is Date class itself
-    if args.len() > 1 {
-        match &args[1] {
+
+    if !args.is_empty() {
+        match &args[0] {
             // Support creating from string or timestamp if we had it
             Value::String(s) => {
                 if let Ok(parsed) = s.parse::<Timestamp>() {
@@ -59,26 +66,26 @@ fn native_date_new(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeErr
     let table_rc = Rc::new(RefCell::new(crate::value::Table { data, metatable: None }));
 
     // Set prototype
-    if let Some(Value::Object(cls_rc)) = args.first() {
-        table_rc.borrow_mut().metatable = Some(cls_rc.clone());
+    if let Value::Object(rc) = date_class {
+        table_rc.borrow_mut().metatable = Some(rc.clone());
     }
 
     Ok(Value::Object(table_rc))
 }
 
-fn native_date_format(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    // args[0] is instance
-    if let Some(obj) = args.first()
-        && let Value::Object(table_rc) = obj
-    {
+fn native_date_format(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    let Some(obj) = ctx.this else {
+        return Ok(Value::Null);
+    };
+    if let Value::Object(table_rc) = obj {
         let table = table_rc.borrow();
         if let Some(Value::String(ts_str)) = table.data.get("__timestamp")
             && let Ok(ts_val) = ts_str.parse::<i64>()
             && let Ok(ts) = Timestamp::from_millisecond(ts_val)
         {
             // Default format or arg
-            let fmt = if args.len() > 1 {
-                if let Value::String(s) = &args[1] {
+            let fmt = if !ctx.args.is_empty() {
+                if let Value::String(s) = &ctx.args[0] {
                     s.to_string()
                 } else {
                     "%Y-%m-%d %H:%M:%S".to_string()
@@ -94,10 +101,8 @@ fn native_date_format(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntime
     Ok(Value::Null)
 }
 
-fn native_date_timestamp(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRuntimeError> {
-    if let Some(obj) = args.first()
-        && let Value::Object(table_rc) = obj
-    {
+fn native_date_timestamp(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
+    if let Some(Value::Object(table_rc)) = ctx.this {
         let table = table_rc.borrow();
         if let Some(Value::String(ts_str)) = table.data.get("__timestamp") {
             if let Ok(ts_val) = ts_str.parse::<i32>() {
@@ -110,7 +115,7 @@ fn native_date_timestamp(_vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRunt
     Ok(Value::Null)
 }
 
-fn native_date_now(_vm: &mut VM, _args: Vec<Value>) -> Result<Value, VMRuntimeError> {
+fn native_date_now(_vm: &mut VM, _ctx: NativeContext) -> Result<Value, VMRuntimeError> {
     let now = Timestamp::now().as_millisecond();
     Ok(Value::float(Decimal::from(now)))
 }
