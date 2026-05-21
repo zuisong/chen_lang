@@ -30,6 +30,7 @@ pub enum Instruction {
     Multiply, // 乘法
     Divide,   // 除法
     Modulo,   // 取模
+    Neg,      // 取负
 
     // 比较操作
     Equal,              // 等于
@@ -78,9 +79,7 @@ pub enum Instruction {
     CallMethodStack(usize), // 从栈顶调用方法（receiver 在函数对象之下）
 
     // Array creation (Syntactic sugar for object with numeric keys)
-    BuildArray(usize),                        // 从栈顶 n 个元素构建数组对象
-    MatchPattern(crate::expression::Pattern), // 匹配栈顶值，成功时压入捕获对象，失败时压入 false
-    BindPatternLocals(Vec<(String, usize)>),  // 从捕获对象取字段并写入 FP 局部槽位
+    BuildArray(usize), // 从栈顶 n 个元素构建数组对象
 
     // Exception handling
     Throw,                        // 抛出异常（从栈顶取值）

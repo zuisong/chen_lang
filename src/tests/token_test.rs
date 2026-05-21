@@ -2,7 +2,6 @@ use pretty_assertions::assert_eq;
 use pretty_assertions::assert_matches;
 
 use crate::tokenizer;
-use crate::tokenizer::Keyword::DEF;
 use crate::tokenizer::Keyword::{ELSE, FOR, IF, LET};
 use crate::tokenizer::Operator::{Add, Assign, Equals, Lt, Mod};
 use crate::tokenizer::Operator::{NotEquals, Or, Subtract};

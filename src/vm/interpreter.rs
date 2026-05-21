@@ -12,7 +12,7 @@ use super::native_io::create_io_object;
 use super::native_json::create_json_object;
 use super::native_process::create_process_object;
 use crate::compiler::compile;
-use crate::expression::{Literal, Pattern};
+use crate::expression::Literal;
 use crate::parser::parse_from_source;
 use crate::tokenizer::Location;
 use crate::value::{ObjClosure, ObjUpvalue, OpResult, UpvalueState, Value, ValueError, ValueType};
@@ -26,17 +26,13 @@ impl VM {
     }
 
     /// 核心事件循环 - 处理就绪任务并等待新任务
-    /// 统一的 async 实现，被 Native 和 WASM 版本共用
     async fn run_event_loop(&mut self) -> VMResult {
-        // Initial Execution
         let mut last_res = self.execute_from(0);
 
         loop {
-            // Process Ready Queue (Async Tasks Completion)
             let mut did_work = false;
             let queue = self.async_state.ready_queue.clone();
 
-            // We must detach borrow to allow mutation during resume
             let mut ready_tasks = Vec::new();
             {
                 let mut q = queue.borrow_mut();
@@ -47,13 +43,10 @@ impl VM {
 
             if !ready_tasks.is_empty() {
                 did_work = true;
-                // Resume all ready tasks
                 for (fiber, res) in ready_tasks {
-                    // 1. Set current fiber
                     self.current_fiber = Some(fiber.clone());
                     self.load_state_from_fiber(&fiber.borrow());
 
-                    // 2. Push result to stack (only if not a new spawned coroutine)
                     {
                         let mut f = fiber.borrow_mut();
                         if f.skip_push_on_resume {
@@ -77,27 +70,18 @@ impl VM {
                                             pc: self.pc,
                                         });
                                     }
-                                    // Align with main loop semantics: Throw sets PC to target-1,
-                                    // so we need to advance once before re-entering execute_from.
                                     self.pc = self.pc.saturating_add(1);
                                 }
                             }
                         }
                     }
 
-                    // 3. Continue execution
                     fiber.borrow_mut().state = FiberState::Running;
                     last_res = self.execute_from(self.pc);
 
-                    // 4. Check fiber completion and save result
-                    // Only if execution finished successfully (not yielded)
                     if let Ok(ref result) = last_res {
                         let mut f = fiber.borrow_mut();
 
-                        // We consider the fiber finished if:
-                        // 1. It is explicitly marked Dead (by Return instruction)
-                        // 2. It is still Running but call stack is empty (ran off end of script)
-                        // IMPORTANT: If it is Suspended, it yielded (e.g. async I/O), so we must NOT mark it dead.
                         let is_finished =
                             f.state == FiberState::Dead || (f.state == FiberState::Running && f.call_stack.is_empty());
 
@@ -106,19 +90,14 @@ impl VM {
                             f.state = FiberState::Dead;
                             if f.is_spawned {
                                 let mut pt = self.async_state.pending_tasks.borrow_mut();
-                                // println!("DEBUG: Fiber finished. Decrementing pending: {} -> {}", *pt, *pt - 1);
                                 *pt -= 1;
                             }
                             self.async_state.notify.notify_waiters();
                         }
                     }
 
-                    // 5. Check if we need to propagate error
                     if let Err(e) = &last_res {
-                        // If it's just a Yield, we don't propagate it as a VM error
-                        // The fiber is already suspended.
                         if matches!(e.error, VMRuntimeError::Yield) {
-                            // Continue loop
                         } else {
                             return last_res;
                         }
@@ -131,7 +110,6 @@ impl VM {
                 if pending == 0 {
                     break;
                 }
-                // Wait for notification from async tasks
                 self.async_state.notify.notified().await;
             }
         }
@@ -139,8 +117,6 @@ impl VM {
         last_res
     }
 
-    /// Execute program asynchronously (for WASM).
-    /// This keeps the VM alive to handle callbacks.
     #[cfg(target_arch = "wasm32")]
     pub async fn execute_async(&mut self, program: Rc<Program>) -> VMResult {
         let saved_program = self.program.clone();
@@ -157,9 +133,7 @@ impl VM {
         let saved_this = self.current_this.clone();
         self.program = Some(program.clone());
 
-        // Check if we are already in a runtime (e.g. recursive import or nested call)
         if tokio::runtime::Handle::try_current().is_ok() {
-            // Already in a runtime - just run synchronously
             let res = self.execute_from(0);
             self.program = saved_program;
             self.current_this = saved_this;
@@ -228,7 +202,6 @@ impl VM {
         }
     }
 
-    /// 从指定PC开始执行程序
     pub fn execute_from(&mut self, start_pc: usize) -> VMResult {
         self.pc = start_pc;
 
@@ -258,13 +231,11 @@ impl VM {
             match self.execute_instruction(&instruction_clone, &program_clone) {
                 Ok(continue_execution) => {
                     if !continue_execution {
-                        debug!("Execution stopped at PC {}", self.pc);
                         break;
                     }
                 }
                 Err(error) => {
                     if let VMRuntimeError::Yield = error {
-                        // PC has been handled by the native function if necessary
                         break;
                     }
 
@@ -273,10 +244,6 @@ impl VM {
                         col: 0,
                         index: 0,
                     });
-                    debug!(
-                        "Execution error at PC {} (Line {}:{}): {}",
-                        self.pc, loc.line, loc.col, error
-                    );
                     return Err(RuntimeErrorWithContext {
                         error,
                         loc,
@@ -287,8 +254,6 @@ impl VM {
 
             self.pc += 1;
         }
-
-        debug!("Execution completed. PC: {}, Stack: {:?}", self.pc, self.stack);
 
         let result = self.stack.pop().unwrap_or(Value::null());
         Ok(result)
@@ -316,7 +281,6 @@ impl VM {
         self.program = fiber.program.clone();
     }
 
-    /// 执行单条指令
     fn execute_instruction(&mut self, instruction: &Instruction, program: &Program) -> Result<bool, VMRuntimeError> {
         match instruction {
             Instruction::Push(value) => {
@@ -449,37 +413,6 @@ impl VM {
                 self.stack.push(Value::Object(Rc::new(RefCell::new(table_ref))));
             }
 
-            Instruction::MatchPattern(pattern) => {
-                let value = self.stack.pop().unwrap_or(Value::null());
-                let mut bindings = IndexMap::new();
-                if pattern_matches(&value, pattern, &mut bindings) {
-                    let captures = crate::value::Table {
-                        data: bindings,
-                        metatable: None,
-                    };
-                    self.stack.push(Value::Object(Rc::new(RefCell::new(captures))));
-                    self.stack.push(Value::Bool(true));
-                } else {
-                    self.stack.push(Value::Bool(false));
-                }
-            }
-
-            Instruction::BindPatternLocals(bindings) => {
-                let captures = self.stack.pop().unwrap_or(Value::null());
-                for (name, offset) in bindings {
-                    let value = if let Value::Object(table_ref) = &captures {
-                        table_ref.borrow().data.get(name).cloned().unwrap_or(Value::Null)
-                    } else {
-                        Value::Null
-                    };
-                    let index = self.fp + offset;
-                    if index >= self.stack.len() {
-                        self.stack.resize(index + 1, Value::Null);
-                    }
-                    self.stack[index] = value;
-                }
-            }
-
             Instruction::Pop => {
                 self.stack.pop();
             }
@@ -498,18 +431,16 @@ impl VM {
 
             Instruction::Load(var_name) => {
                 if let Some(value) = self.variables.get(var_name) {
-                    debug!("Loading variable {} = {:?}", var_name, value);
                     self.stack.push(value.clone());
                 } else {
                     let func_label = format!("func_{}", var_name);
                     if let Some(prog) = &self.program {
                         if let Some(symbol) = prog.syms.get(&func_label) {
-                            // Create a closure with empty upvalues for legacy function references
                             let closure = crate::value::ObjClosure {
                                 name: var_name.clone(),
                                 func_symbol: symbol.clone(),
                                 program: prog.clone(),
-                                upvalues: Vec::new(), // No upvalues for top-level functions
+                                upvalues: Vec::new(),
                             };
                             self.stack.push(Value::Fn(Rc::new(closure)));
                         } else {
@@ -535,7 +466,6 @@ impl VM {
 
             Instruction::Store(var_name) => {
                 if let Some(value) = self.stack.pop() {
-                    debug!("Storing value {:?} to variable {}", value, var_name);
                     self.variables.insert(var_name.clone(), value);
                 } else {
                     return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
@@ -688,6 +618,27 @@ impl VM {
                 self.stack.push(result);
             }
 
+            Instruction::Neg => {
+                let val = self.stack.pop().unwrap_or(Value::null());
+                let op_result = val.neg()?;
+
+                match op_result {
+                    OpResult::Value(value) => {
+                        self.stack.push(value);
+                    }
+                    OpResult::MetamethodCall(call_info) => {
+                        self.stack.push(call_info.metamethod);
+                        let argc = call_info.args.len();
+                        for arg in call_info.args {
+                            self.stack.push(arg);
+                        }
+
+                        let call_stack_instr = Instruction::CallStack(argc);
+                        return self.execute_instruction(&call_stack_instr, program);
+                    }
+                }
+            }
+
             Instruction::Jump(label) => {
                 return if let Some(target) = program.syms.get(label) {
                     self.pc = (target.location as usize) - 1;
@@ -753,9 +704,7 @@ impl VM {
                     _ => {
                         let func_label = format!("func_{}", func_name);
 
-                        // Try to find the function: either as a direct symbol or as a variable holding a closure
                         if let Some(sym) = program.syms.get(&func_label) {
-                            // Direct symbol call (e.g. top-level function)
                             if *arg_count != sym.narguments {
                                 return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
                                     operator: "call".to_string(),
@@ -774,11 +723,8 @@ impl VM {
                                 push_values_after_return: Vec::new(),
                             });
                             self.fp = self.stack.len() - *arg_count;
-                            self.current_this = None; // Top-level call doesn't bind this
+                            self.current_this = None;
 
-                            // For direct symbol calls, we should create a "base" closure if we want current_closure to be set,
-                            // but usually these are top-level and don't need it.
-                            // However, to be consistent with unified types, we should probably set it.
                             let closure = ObjClosure {
                                 name: func_name.clone(),
                                 func_symbol: sym.clone(),
@@ -791,7 +737,6 @@ impl VM {
                             self.pc = (sym.location as usize) - 1;
                             Ok(true)
                         } else if let Some(val) = self.variables.get(func_name).cloned() {
-                            // Variable lookup
                             match val {
                                 Value::Fn(closure) => {
                                     let sym = &closure.func_symbol;
@@ -815,7 +760,7 @@ impl VM {
                                     self.fp = self.stack.len() - *arg_count;
                                     self.program = Some(closure.program.clone());
                                     self.current_closure = Some(closure.clone());
-                                    self.current_this = None; // Variable call doesn't bind this
+                                    self.current_this = None;
 
                                     self.stack.resize(self.fp + sym.nlocals, Value::null());
                                     self.pc = (sym.location as usize) - 1;
@@ -855,10 +800,6 @@ impl VM {
                     if let Some(prog) = frame.program {
                         self.program = Some(prog);
                     }
-                    debug!(
-                        "[VM DEBUG] Return: restoring closure to {:?}",
-                        frame.closure.as_ref().map(|c| &c.name)
-                    );
                     self.current_closure = frame.closure;
                     self.current_this = frame.this_binding;
                     if !frame.discard_return {
@@ -910,10 +851,6 @@ impl VM {
 
             Instruction::GetUpvalue(index) => {
                 let closure = self.current_closure.as_ref().ok_or_else(|| {
-                    debug!(
-                        "[VM DEBUG] GetUpvalue failed: current_closure is None! PC: {}, FP: {}",
-                        self.pc, self.fp
-                    );
                     VMRuntimeError::ValueError(ValueError::InvalidOperation {
                         operator: "get_upvalue".into(),
                         left_type: ValueType::Null,
@@ -1350,61 +1287,5 @@ impl VM {
         }
 
         Ok(true)
-    }
-}
-
-fn pattern_matches(value: &Value, pattern: &Pattern, bindings: &mut IndexMap<String, Value>) -> bool {
-    match pattern {
-        Pattern::Wildcard(_) => true,
-        Pattern::Binding(name, _) => {
-            bindings.insert(name.clone(), value.clone());
-            true
-        }
-        Pattern::Literal(Literal::Value(expected), _) => value == expected,
-        Pattern::Struct { name, fields, .. } => {
-            let Value::Object(table_ref) = value else {
-                return false;
-            };
-            let table = table_ref.borrow();
-            if !matches!(table.data.get("__struct"), Some(Value::String(actual)) if actual.as_str() == name) {
-                return false;
-            }
-            for (field, field_pattern) in fields {
-                let Some(field_value) = table.data.get(field) else {
-                    return false;
-                };
-                if !pattern_matches(field_value, field_pattern, bindings) {
-                    return false;
-                }
-            }
-            true
-        }
-        Pattern::EnumVariant {
-            enum_name,
-            variant,
-            inner,
-            ..
-        } => {
-            let Value::Object(table_ref) = value else {
-                return false;
-            };
-            let table = table_ref.borrow();
-            if let Some(expected_enum) = enum_name
-                && !matches!(table.data.get("__enum"), Some(Value::String(actual)) if actual.as_str() == expected_enum)
-            {
-                return false;
-            }
-            if !matches!(table.data.get("__variant"), Some(Value::String(actual)) if actual.as_str() == variant) {
-                return false;
-            }
-            if let Some(inner_pattern) = inner {
-                let Some(payload) = table.data.get("value") else {
-                    return false;
-                };
-                pattern_matches(payload, inner_pattern, bindings)
-            } else {
-                true
-            }
-        }
     }
 }

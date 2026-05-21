@@ -21,111 +21,7 @@ impl Scope {
         Self { locals: HashMap::new() }
     }
 }
-///
-///
-///
-///
-/// Compiler 结构体的核心工作是将抽象语法树（AST）递归遍历并转换为线性的字节码指令序列（Program）。
-///
-/// 以下是它如何利用各个字段将 AST 编译为指令的详细解释：
-///
-/// 1. 结构体字段的作用
-///
-///   * `program: Program`:
-///       * 编译器的输出缓冲区。所有 Instruction（如 Push, Add, Jump）都会通过 emit 写入
-///         `program.instructions`。
-///       * `program.syms` 是符号表，用于记录函数入口地址和跳转标签的位置。
-///       * `program.lines` 记录指令索引到源码位置的映射，便于运行时报错定位。
-///   * `states: Vec<FunctionState>`:
-///       * 函数编译状态栈。进入函数时 push，退出函数时 pop。
-///       * 每个 FunctionState 代表一个函数边界，包含块级作用域、局部变量计数、循环栈、闭包 upvalue。
-///   * `offset: usize`:
-///       * 用于生成唯一 ID 的基数（配合 unique_id() 方法），防止不同编译单元生成的标签名冲突。
-///   * `_raw: &[char]`:
-///       * 当前源码字符切片，占位保留，便于未来与源码位置相关的优化或诊断。
-///
-/// FunctionState 里的关键字段：
-///   * `scopes: Vec<Scope>`:
-///       * 变量作用域栈。进入代码块（如 if/loop/函数体）时 begin_scope 推入 Scope。
-///       * Scope 内部维护 `HashMap<String, i32>`，把变量名映射到当前栈帧的偏移量（FP + offset）。
-///       * 变量解析顺序：本函数的内层 Scope -> 外层 Scope -> Upvalue -> Global。
-///   * `locals_count: usize`:
-///       * 记录当前函数内局部变量数量。每次 `let` 增加 1。
-///       * 编译完成后写入 `Symbol.nlocals`，VM 调用函数时按此预分配栈空间。
-///   * `loop_stack: Vec<LoopLabels>`:
-///       * 处理 break / continue。循环开始时压入 (start, end)，退出时弹出。
-///   * `upvalues: Vec<Upvalue>`:
-///       * 记录闭包捕获的变量（来自外层函数的局部或 upvalue）。
-///
-///   ---
-///
-///   2. 编译流程举例
-///
-///   A. 算术表达式 (1 + 2)
-///   编译器调用 compile_expression：
-///    1. 递归编译左子树 1 -> 发射 Push(1)。
-///    2. 递归编译右子树 2 -> 发射 Push(2)。
-///    3. 根据操作符 + -> 发射 Instruction::Add。
-///        * VM 执行时：弹出 2，弹出 1，相加，结果 3 入栈。
-///
-///   B. 变量声明与使用 (let x = 10; print(x))
-///    1. 声明 (`let x = 10`):
-///        * 编译右值 10 -> 发射 Push(10)。
-///        * 调用 define_variable("x")。
-///        * 如果是局部变量：scopes 记录 x -> offset (比如 0)。发射 MovePlusFP(0)（把栈顶的 10 移动到 FP+0
-///          的位置）。
-///        * 如果是全局变量：发射 Store("x")。
-///    2. 使用 (`print(x)`):
-///        * 编译参数 x -> 调用 resolve_variable("x")。
-///        * 局部：查表得到 offset，发射 DupPlusFP(offset)（把 FP+0 的值复制到栈顶）。
-///        * 全局：发射 Load("x")。
-///        * 发射 Call("print", 1)。
-///
-///   C. 控制流 (if true { ... } else { ... })
-///    1. 编译条件 true -> 发射 Push(true)。
-///    2. 生成两个标签：else_label 和 end_label。
-///    3. 发射 JumpIfFalse(else_label)（如果条件为假，跳去 else）。
-///    4. 编译 If 块的代码。
-///    5. 发射 Jump(end_label)（执行完 If 块，跳过 else 块）。
-///    6. 插入标签位置：在 program.syms 中记录 else_label 指向当前指令索引。
-///    7. 编译 Else 块的代码。
-///    8. 插入标签位置：在 program.syms 中记录 end_label 指向当前指令索引。
-///
-///   D. 函数定义 (def foo() { ... })
-///    1. 生成跳过函数体的指令 Jump(skip_label)，避免顺序执行进入函数体。
-///    2. 进入新的 FunctionState（函数边界），为参数/局部变量建立新作用域栈。
-///    3. 将参数名注册为局部变量（写入 Scope，并增加 locals_count）。
-///    4. 编译函数体语句，保证最后有返回值（无显式 return 时自动压入 null）。
-///    5. 发射 Return。
-///    6. 退出 FunctionState，并把 nlocals/upvalues 写入函数符号表 `func_foo`。
-///    7. 插入 skip_label 位置，使 Jump(skip_label) 落到函数定义之后。
-///
-///   E. 程序入口与函数定义顺序
-///    * 编译时会先把“非函数声明语句”作为主逻辑编译到前面。
-///    * 若存在函数声明，会插入 `Jump(program_end)` 跳过所有函数体定义。
-///    * 所有函数体被编译到指令末尾，并用符号表记录入口地址。
-///    * 最后在 `program_end` 处落地，确保主逻辑执行完后结束。
-///
-///   F. 闭包捕获（Upvalue）编译要点
-///    * 变量解析顺序：Local -> Upvalue -> Global。
-///    * 当内层函数引用外层变量时，`resolve_upvalue` 会先在外层函数的 local 中查找。
-///      - 若找到，则在当前函数的 upvalues 中记录 `(is_local=true, index=local_idx)`。
-///      - 若未找到，递归向更外层查找 upvalue，并记录 `(is_local=false, index=upvalue_idx)`。
-///    * 编译函数值时发射 `Instruction::Closure(func_name)`，VM 根据符号表里的 upvalues
-///      列表，捕获对应的栈槽或上层 upvalue，形成运行时闭包。
-///
-///   G. Block 表达式返回值规则
-///    * Block 是表达式：最后一个语句若是表达式，则其结果作为 Block 的值留在栈顶。
-///    * 最后一个语句若不是表达式，会自动 `Push Null` 作为 Block 值。
-///    * 空 Block 直接返回 `Null`。
-///    * `end_scope(loc, preserve_top=true)` 会关闭 upvalue 并保留栈顶返回值，
-///      确保 block 结果不被作用域清理掉。
-///
-///   总结
-///   编译器本质上是一个状态机，它一边遍历 AST，一边维护上下文（Scope, Loop Stack），将树状结构的逻辑“压平”成 VM
-///   可以线性执行的指令流。局部变量通过编译时计算的栈偏移量（Stack
-///   Offset）来访问，从而避免了运行时的哈希表查找（相比全局变量更快）。
-///
+
 struct Compiler<'a> {
     _raw: &'a [char],
     program: Program,
@@ -151,25 +47,6 @@ struct FunctionState {
     upvalues: Vec<Upvalue>,
 }
 
-fn pattern_bindings(pattern: &Pattern) -> Vec<String> {
-    let mut names = Vec::new();
-    collect_pattern_bindings(pattern, &mut names);
-    names
-}
-
-fn collect_pattern_bindings(pattern: &Pattern, names: &mut Vec<String>) {
-    match pattern {
-        Pattern::Binding(name, _) => names.push(name.clone()),
-        Pattern::Struct { fields, .. } => {
-            for (_, pattern) in fields {
-                collect_pattern_bindings(pattern, names);
-            }
-        }
-        Pattern::EnumVariant { inner: Some(inner), .. } => collect_pattern_bindings(inner, names),
-        _ => {}
-    }
-}
-
 impl FunctionState {
     fn new() -> Self {
         Self {
@@ -181,14 +58,6 @@ impl FunctionState {
     }
 
     fn resolve_local(&self, name: &str) -> Option<i32> {
-        // Search scopes from inside out, BUT STOP AT FUNCTION BOUNDARY
-        // Note: FunctionState represents ONE function context.
-        // Its scopes are blocks within that function.
-        // So we search all scopes in this state.
-        // The is_function_boundary flag in Scope is actually redundant if we have FunctionState,
-        // because FunctionState IS the boundary.
-        // But for compatibility with existing logic, let's keep it or simplify.
-
         for scope in self.scopes.iter().rev() {
             if let Some(index) = scope.locals.get(name) {
                 return Some(*index);
@@ -213,7 +82,6 @@ pub fn compile_with_offset(raw: &[char], ast: Ast, offset: usize) -> Program {
 
 impl<'a> Compiler<'a> {
     fn new(raw: &'a [char], offset: usize) -> Self {
-        // Start with one global state.
         let states = vec![FunctionState::new()];
 
         Self {
@@ -263,10 +131,7 @@ impl<'a> Compiler<'a> {
         }
     }
 
-    // Defines a variable in the current scope.
-    // Returns its location (offset for local, name for global).
     fn define_variable(&mut self, name: String) -> VarLocation {
-        // Check if we are in global scope (bottom of state stack, and bottom of scope stack)
         let is_global = self.states.len() == 1 && self.states[0].scopes.len() == 1;
 
         if is_global {
@@ -288,12 +153,10 @@ impl<'a> Compiler<'a> {
 
         let enclosing_idx = state_idx - 1;
 
-        // 1. Check local in enclosing function
         if let Some(local_idx) = self.states[enclosing_idx].resolve_local(name) {
             return Some(self.add_upvalue(state_idx, local_idx as usize, true));
         }
 
-        // 2. Recursive check upvalue in enclosing function
         if let Some(up_idx) = self.resolve_upvalue(enclosing_idx, name) {
             return Some(self.add_upvalue(state_idx, up_idx, false));
         }
@@ -312,30 +175,24 @@ impl<'a> Compiler<'a> {
         state.upvalues.len() - 1
     }
 
-    // Resolves a variable: Local -> Upvalue -> This -> Global
     fn resolve_variable(&mut self, name: &str) -> Option<VarLocation> {
         let state_idx = self.states.len() - 1;
 
-        // 1. Local
         if let Some(index) = self.states[state_idx].resolve_local(name) {
             return Some(VarLocation::Local(index));
         }
 
-        // 2. Upvalue
         if let Some(up_idx) = self.resolve_upvalue(state_idx, name) {
             return Some(VarLocation::Upvalue(up_idx));
         }
 
-        // 3. This
         if name == "this" {
             return Some(VarLocation::This);
         }
 
-        // 4. Global
         Some(VarLocation::Global(name.to_string()))
     }
 
-    // --- Helper for emitting instructions with loc numbers ---
     fn emit(&mut self, instr: Instruction, loc: Location) {
         let idx = self.program.instructions.len();
         self.program.instructions.push(instr);
@@ -355,10 +212,6 @@ impl<'a> Compiler<'a> {
         for stmt in ast {
             if let Statement::FunctionDeclaration(fd) = stmt {
                 function_declarations.push(fd);
-            } else if matches!(stmt, Statement::TypeAliasDeclaration(_)) {
-                continue;
-            } else if matches!(stmt, Statement::StructDeclaration(_) | Statement::EnumDeclaration(_)) {
-                main_statements.push(stmt);
             } else {
                 main_statements.push(stmt);
             }
@@ -370,7 +223,6 @@ impl<'a> Compiler<'a> {
 
         if !function_declarations.is_empty() {
             let end_label = "program_end".to_string();
-            // Use 0 as loc number for implicit jumps
             self.emit(Instruction::Jump(end_label.clone()), Self::loc_from_line(0));
 
             for fd in function_declarations {
@@ -392,22 +244,9 @@ impl<'a> Compiler<'a> {
     fn compile_statement(&mut self, stmt: Statement) {
         match stmt {
             Statement::FunctionDeclaration(fd) => self.compile_function_def(fd),
-            Statement::TypeAliasDeclaration(_) => {}
-            Statement::StructDeclaration(sd) => self.compile_struct_decl(sd),
-            Statement::EnumDeclaration(ed) => self.compile_enum_decl(ed),
-            Statement::ImplDeclaration(id) => self.compile_impl_decl(id),
             Statement::Return(r) => self.compile_return(r),
             Statement::Local(loc) => self.compile_local(loc),
             Statement::Expression(e) => {
-                // To access the loc number of expression 'e', we need to check its variant.
-                // But e is moved into compile_expression.
-                // We can't easily extract loc without matching.
-                // However, compile_expression handles emission.
-                // But we need to Pop the result.
-                // We need the loc number for Pop.
-                // We can extract loc number via a helper?
-                // Or just use 0/approx loc.
-                // Let's implement `get_line` for Expression.
                 let loc = self.get_expression_location(&e);
                 self.compile_expression(e);
                 self.emit(Instruction::Pop, loc);
@@ -475,14 +314,10 @@ impl<'a> Compiler<'a> {
             Expression::If(if_expr) => if_expr.loc,
             Expression::ObjectLiteral(_, loc) => *loc,
             Expression::ArrayLiteral(_, loc) => *loc,
-            Expression::StructLiteral(sl) => sl.loc,
-            Expression::Match(m) => m.loc,
             Expression::GetField { loc, .. } => *loc,
             Expression::Index { loc, .. } => *loc,
             Expression::Function(fd) => fd.loc,
-            // Await removed
             Expression::MethodCall(mc) => mc.loc,
-            Expression::Import { loc, .. } => *loc,
         }
     }
 
@@ -490,27 +325,22 @@ impl<'a> Compiler<'a> {
         let loc = fd.loc;
         let func_name = fd.name.clone().expect("Statement function must have a name");
 
-        if false { // Async removed
-            // removed
-        } else {
-            // Normal sync function
-            let unique_id = self.unique_id();
-            let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
+        let unique_id = self.unique_id();
+        let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
 
-            self.emit(Instruction::Jump(skip_label.clone()), loc);
+        self.emit(Instruction::Jump(skip_label.clone()), loc);
 
-            self.compile_declaration(fd);
+        self.compile_declaration(fd);
 
-            self.program.syms.insert(
-                skip_label,
-                Symbol {
-                    location: self.program.instructions.len() as i32,
-                    narguments: 0,
-                    nlocals: 0,
-                    upvalues: Vec::new(),
-                },
-            );
-        }
+        self.program.syms.insert(
+            skip_label,
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+                upvalues: Vec::new(),
+            },
+        );
 
         let var_location = self.define_variable(func_name.clone());
         self.emit(Instruction::Closure(format!("func_{}", func_name)), loc);
@@ -552,7 +382,8 @@ impl<'a> Compiler<'a> {
                 self.compile_expression(*unary.expr);
                 match unary.operator {
                     Operator::Not => self.emit(Instruction::Not, loc),
-                    _ => panic!("Unsupported unary operator"),
+                    Operator::Subtract => self.emit(Instruction::Neg, loc),
+                    _ => panic!("Unsupported unary operator: {:?}", unary.operator),
                 }
             }
             Expression::Block(stmts, loc) => self.compile_block_expression(stmts, loc),
@@ -572,8 +403,6 @@ impl<'a> Compiler<'a> {
                 }
                 self.emit(Instruction::BuildArray(count), loc);
             }
-            Expression::StructLiteral(struct_expr) => self.compile_struct_literal(struct_expr),
-            Expression::Match(match_expr) => self.compile_match_expression(match_expr),
             Expression::GetField { object, field, loc } => {
                 self.compile_expression(*object);
                 self.emit(Instruction::GetField(field), loc);
@@ -588,159 +417,25 @@ impl<'a> Compiler<'a> {
                 let func_name = fd.name.take().unwrap_or_else(|| format!("anon_{}", self.unique_id()));
                 fd.name = Some(func_name.clone());
 
-                // Async removed
-                if false {
-                } else {
-                    let unique_id = self.unique_id();
-                    let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
+                let unique_id = self.unique_id();
+                let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
 
-                    self.emit(Instruction::Jump(skip_label.clone()), loc);
-                    self.compile_declaration(fd);
+                self.emit(Instruction::Jump(skip_label.clone()), loc);
+                self.compile_declaration(fd);
 
-                    self.program.syms.insert(
-                        skip_label,
-                        Symbol {
-                            location: self.program.instructions.len() as i32,
-                            narguments: 0,
-                            nlocals: 0,
-                            upvalues: Vec::new(),
-                        },
-                    );
+                self.program.syms.insert(
+                    skip_label,
+                    Symbol {
+                        location: self.program.instructions.len() as i32,
+                        narguments: 0,
+                        nlocals: 0,
+                        upvalues: Vec::new(),
+                    },
+                );
 
-                    self.emit(Instruction::Closure(format!("func_{}", func_name)), loc);
-                }
-            }
-            // Await removed
-            Expression::Import { path, loc } => {
-                self.emit(Instruction::Import(path), loc);
+                self.emit(Instruction::Closure(format!("func_{}", func_name)), loc);
             }
         }
-    }
-
-    fn compile_struct_decl(&mut self, decl: StructDeclaration) {
-        let loc = decl.loc;
-        self.emit(Instruction::NewObject, loc);
-        self.emit(Instruction::Dup, loc);
-        self.emit(Instruction::Push(crate::value::Value::string(decl.name.clone())), loc);
-        self.emit(Instruction::SetField("__struct".to_string()), loc);
-        self.emit(Instruction::Dup, loc);
-        self.emit(Instruction::NewObject, loc);
-        self.emit(Instruction::SetField("__index".to_string()), loc);
-        self.emit(Instruction::Store(format!("{}$meta", decl.name)), loc);
-    }
-
-    fn compile_enum_decl(&mut self, decl: EnumDeclaration) {
-        let loc = decl.loc;
-        self.emit(Instruction::NewObject, loc);
-        for variant in decl.variants {
-            self.emit(Instruction::Dup, loc);
-            self.emit(Instruction::NewObject, loc);
-            self.emit(Instruction::Dup, loc);
-            self.emit(Instruction::Push(crate::value::Value::string(decl.name.clone())), loc);
-            self.emit(Instruction::SetField("__enum".to_string()), loc);
-            self.emit(Instruction::Dup, loc);
-            self.emit(
-                Instruction::Push(crate::value::Value::string(variant.name.clone())),
-                loc,
-            );
-            self.emit(Instruction::SetField("__variant".to_string()), loc);
-            self.emit(Instruction::SetField(variant.name), loc);
-        }
-        self.emit(Instruction::Store(decl.name), loc);
-    }
-
-    fn compile_impl_decl(&mut self, decl: ImplDeclaration) {
-        let loc = decl.loc;
-        for mut method in decl.methods {
-            let Some(method_name) = method.name.clone() else {
-                continue;
-            };
-            method.name = Some(format!("{}${}", decl.target, method_name));
-            self.compile_function_def(method);
-            self.emit(Instruction::Load(format!("{}$meta", decl.target)), loc);
-            self.emit(Instruction::GetField("__index".to_string()), loc);
-            self.emit(
-                Instruction::Closure(format!("func_{}${}", decl.target, method_name)),
-                loc,
-            );
-            self.emit(Instruction::SetField(method_name), loc);
-        }
-    }
-
-    fn compile_struct_literal(&mut self, struct_expr: StructExpression) {
-        let loc = struct_expr.loc;
-        self.emit(Instruction::NewObject, loc);
-        self.emit(Instruction::Dup, loc);
-        self.emit(
-            Instruction::Push(crate::value::Value::string(struct_expr.name.clone())),
-            loc,
-        );
-        self.emit(Instruction::SetField("__struct".to_string()), loc);
-        for (key, val) in struct_expr.fields {
-            self.emit(Instruction::Dup, loc);
-            self.compile_expression(val);
-            self.emit(Instruction::SetField(key), loc);
-        }
-        self.emit(Instruction::Dup, loc);
-        self.emit(Instruction::Load(format!("{}$meta", struct_expr.name)), loc);
-        self.emit(Instruction::Call("set_meta".to_string(), 2), loc);
-        self.emit(Instruction::Pop, loc);
-    }
-
-    fn compile_match_expression(&mut self, match_expr: MatchExpression) {
-        let loc = match_expr.loc;
-        let match_id = self.unique_id();
-        let match_value_name = format!("@match_value_{}", match_id);
-        let end_label = format!("match_end_{}", match_id);
-        self.begin_scope();
-        self.compile_expression(*match_expr.value);
-        let match_value_loc = self.define_variable(match_value_name);
-        let VarLocation::Local(match_value_offset) = match_value_loc else {
-            unreachable!("match temp must be local")
-        };
-        self.emit(Instruction::MovePlusFP(match_value_offset as usize), loc);
-
-        for (index, arm) in match_expr.arms.into_iter().enumerate() {
-            let next_label = format!("match_next_{}_{}", match_id, index);
-            let bindings = pattern_bindings(&arm.pattern);
-            self.emit(Instruction::DupPlusFP(match_value_offset), arm.loc);
-            self.emit(Instruction::MatchPattern(arm.pattern), arm.loc);
-            self.emit(Instruction::JumpIfFalse(next_label.clone()), arm.loc);
-            self.begin_scope();
-            let mut binding_slots = Vec::new();
-            for name in &bindings {
-                let var_location = self.define_variable(name.clone());
-                let VarLocation::Local(offset) = var_location else {
-                    unreachable!("pattern binding must be local")
-                };
-                binding_slots.push((name.clone(), offset as usize));
-            }
-            self.emit(Instruction::BindPatternLocals(binding_slots), arm.loc);
-            self.compile_expression(arm.expression);
-            self.end_scope(arm.loc, true);
-            self.emit(Instruction::Jump(end_label.clone()), arm.loc);
-            self.program.syms.insert(
-                next_label,
-                Symbol {
-                    location: self.program.instructions.len() as i32,
-                    narguments: 0,
-                    nlocals: 0,
-                    upvalues: Vec::new(),
-                },
-            );
-        }
-
-        self.emit(Instruction::Push(crate::value::Value::Null), loc);
-        self.program.syms.insert(
-            end_label,
-            Symbol {
-                location: self.program.instructions.len() as i32,
-                narguments: 0,
-                nlocals: 0,
-                upvalues: Vec::new(),
-            },
-        );
-        self.end_scope(loc, true);
     }
 
     fn compile_block_expression(&mut self, stmts: Vec<Statement>, loc: Location) {
@@ -752,7 +447,6 @@ impl<'a> Compiler<'a> {
                     Statement::Expression(e) => self.compile_expression(e),
                     _ => {
                         self.compile_statement(stmt);
-                        // Block must return a value
                         self.emit(Instruction::Push(crate::value::Value::Null), loc);
                     }
                 }
@@ -785,7 +479,7 @@ impl<'a> Compiler<'a> {
             VarLocation::Global(name) => {
                 self.emit(Instruction::Store(name), loc);
             }
-            _ => panic!("Cannot define local variable as Upvalue or This"),
+            _ => panic!("Cannot define local variable"),
         }
     }
 
@@ -826,7 +520,7 @@ impl<'a> Compiler<'a> {
             Operator::GtE => Instruction::GreaterThanOrEqual,
             Operator::And => Instruction::And,
             Operator::Or => Instruction::Or,
-            Operator::Assign | Operator::Not => panic!("Unable to compile binary operation: {:?}", bop.operator),
+            Operator::Assign | Operator::Not => panic!("Unable to compile binary operation"),
         };
         self.emit(instruction, loc);
     }
@@ -848,14 +542,10 @@ impl<'a> Compiler<'a> {
         }
 
         {
-            // Optimized call
             let is_optimized_call = if let Expression::Identifier(ref name, _) = callee {
                 match self.resolve_variable(name) {
                     Some(VarLocation::Local(_)) | Some(VarLocation::Upvalue(_)) => false,
-                    _ => {
-                        // Global or not found (function declaration)
-                        true
-                    }
+                    _ => true,
                 }
             } else {
                 false
@@ -904,7 +594,6 @@ impl<'a> Compiler<'a> {
         let function_index = self.program.instructions.len() as i32;
         let narguments = fd.parameters.len();
 
-        // Push new function state
         self.states.push(FunctionState::new());
 
         for param in fd.parameters {
@@ -933,9 +622,8 @@ impl<'a> Compiler<'a> {
         }
 
         self.emit(Instruction::Return, loc);
-        self.emit(Instruction::Return, loc); // Safety?
+        self.emit(Instruction::Return, loc);
 
-        // Pop state
         let state = self.states.pop().expect("Popped global state");
         let nlocals = state.locals_count;
         let upvalues: Vec<(bool, usize)> = state.upvalues.into_iter().map(|u| (u.is_local, u.index)).collect();
@@ -1045,19 +733,17 @@ impl<'a> Compiler<'a> {
 
         self.begin_scope();
 
-        // 1. Compile iterable, call .iter() on it, and store it in a hidden local variable
         self.compile_expression(for_in.iterable);
         self.emit(Instruction::GetMethod("iter".to_string()), loc);
-        self.emit(Instruction::CallMethodStack(0), loc); // [coroutine]
+        self.emit(Instruction::CallMethodStack(0), loc);
         let iter_loc = self.define_variable(iter_var);
         match iter_loc {
             VarLocation::Local(offset) => {
                 self.emit(Instruction::MovePlusFP(offset as usize), loc);
             }
-            _ => unreachable!("Hidden iterator variable must be local"),
+            _ => unreachable!(),
         }
 
-        // loop_start label
         self.program.syms.insert(
             loop_start.clone(),
             Symbol {
@@ -1068,45 +754,43 @@ impl<'a> Compiler<'a> {
             },
         );
 
-        // 2. Check status: coroutine.status(iterable)
-        self.emit(Instruction::Load("coroutine".to_string()), loc); // [coroutine]
-        self.emit(Instruction::GetField("status".to_string()), loc); // [status_fn]
+        self.emit(Instruction::Load("coroutine".to_string()), loc);
+        self.emit(Instruction::GetField("status".to_string()), loc);
         match iter_loc {
             VarLocation::Local(offset) => {
-                self.emit(Instruction::DupPlusFP(offset), loc); // [status_fn, iterable]
+                self.emit(Instruction::DupPlusFP(offset), loc);
             }
             _ => unreachable!(),
         }
-        self.emit(Instruction::CallStack(1), loc); // [status_val]
+        self.emit(Instruction::CallStack(1), loc);
         self.emit(Instruction::Push(crate::value::Value::string("dead".to_string())), loc);
         self.emit(Instruction::Equal, loc);
         self.emit(Instruction::JumpIfTrue(loop_end.clone()), loc);
 
-        self.emit(Instruction::Load("coroutine".to_string()), loc); // [resume_fn, iterable, coroutine]
-        self.emit(Instruction::GetField("resume".to_string()), loc); // [resume_fn, iterable, resume_fn]
+        self.emit(Instruction::Load("coroutine".to_string()), loc);
+        self.emit(Instruction::GetField("resume".to_string()), loc);
         match iter_loc {
             VarLocation::Local(offset) => {
-                self.emit(Instruction::DupPlusFP(offset), loc); // [resume_fn, iterable, resume_fn, iterable]
+                self.emit(Instruction::DupPlusFP(offset), loc);
             }
             _ => unreachable!(),
         }
-        self.emit(Instruction::CallStack(1), loc); // [resume_fn, iterable, yielded_val]
+        self.emit(Instruction::CallStack(1), loc);
 
-        // 3.5 Check status again after resume - if it just died, the returned value is the final result, not an iteration item.
-        self.emit(Instruction::Load("coroutine".to_string()), loc); // [resume_fn, iterable, yielded_val, coroutine]
-        self.emit(Instruction::GetField("status".to_string()), loc); // [resume_fn, iterable, yielded_val, status_fn]
+        self.emit(Instruction::Load("coroutine".to_string()), loc);
+        self.emit(Instruction::GetField("status".to_string()), loc);
         match iter_loc {
             VarLocation::Local(offset) => {
-                self.emit(Instruction::DupPlusFP(offset), loc); // [..., status_fn, iterable]
+                self.emit(Instruction::DupPlusFP(offset), loc);
             }
             _ => unreachable!(),
         }
-        self.emit(Instruction::CallStack(1), loc); // [resume_fn, iterable, yielded_val, status_val]
+        self.emit(Instruction::CallStack(1), loc);
         self.emit(Instruction::Push(crate::value::Value::string("dead".to_string())), loc);
         self.emit(Instruction::Equal, loc);
         let continue_label = format!("for_in_continue_{}", unique_id);
         self.emit(Instruction::JumpIfFalse(continue_label.clone()), loc);
-        self.emit(Instruction::Pop, loc); // Pop yielded_val since coroutine is dead
+        self.emit(Instruction::Pop, loc);
         self.emit(Instruction::Jump(loop_end.clone()), loc);
 
         self.program.syms.insert(
@@ -1119,7 +803,6 @@ impl<'a> Compiler<'a> {
             },
         );
 
-        // 4. Define loop variable and assign yielded value
         self.begin_scope();
         let var_loc = self.define_variable(for_in.var);
         match var_loc {
@@ -1129,7 +812,7 @@ impl<'a> Compiler<'a> {
             VarLocation::Global(name) => {
                 self.emit(Instruction::Store(name), loc);
             }
-            _ => unreachable!("Loop variable must be local or global"),
+            _ => unreachable!(),
         }
 
         self.current_state().loop_stack.push(LoopLabels {
@@ -1137,7 +820,6 @@ impl<'a> Compiler<'a> {
             end: loop_end.clone(),
         });
 
-        // 5. Body
         for stmt in for_in.body {
             self.compile_statement(stmt);
         }
@@ -1147,7 +829,6 @@ impl<'a> Compiler<'a> {
 
         self.emit(Instruction::Jump(loop_start.clone()), loc);
 
-        // loop_end label
         self.program.syms.insert(
             loop_end.clone(),
             Symbol {
@@ -1167,27 +848,22 @@ impl<'a> Compiler<'a> {
         let finally_label = format!("finally_{}", unique_id);
         let end_label = format!("end_try_{}", unique_id);
 
-        // Set up exception handler
         self.emit(Instruction::PushExceptionHandler(catch_label.clone()), loc);
 
-        // Compile try block
         self.begin_scope();
         for stmt in tc.try_body {
             self.compile_statement(stmt);
         }
         self.end_scope(loc, false);
 
-        // Pop exception handler if no exception occurred
         self.emit(Instruction::PopExceptionHandler, loc);
 
-        // Jump to finally or end
         if tc.finally_body.is_some() {
             self.emit(Instruction::Jump(finally_label.clone()), loc);
         } else {
             self.emit(Instruction::Jump(end_label.clone()), loc);
         }
 
-        // Catch block
         self.program.syms.insert(
             catch_label.clone(),
             Symbol {
@@ -1200,7 +876,6 @@ impl<'a> Compiler<'a> {
 
         self.begin_scope();
 
-        // Define error variable if provided
         if let Some(error_name) = tc.error_name {
             let var_location = self.define_variable(error_name);
             match var_location {
@@ -1210,28 +885,24 @@ impl<'a> Compiler<'a> {
                 VarLocation::Global(name) => {
                     self.emit(Instruction::Store(name), loc);
                 }
-                _ => panic!("Cannot define error variable as Upvalue or This"),
+                _ => panic!("Cannot define error variable"),
             }
         } else {
-            // Pop the error value if no variable to store it
             self.emit(Instruction::Pop, loc);
         }
 
-        // Compile catch block
         for stmt in tc.catch_body {
             self.compile_statement(stmt);
         }
 
         self.end_scope(loc, false);
 
-        // Jump to finally or end after catch
         if tc.finally_body.is_some() {
             self.emit(Instruction::Jump(finally_label.clone()), loc);
         } else {
             self.emit(Instruction::Jump(end_label.clone()), loc);
         }
 
-        // Finally block (if present)
         if let Some(finally_body) = tc.finally_body {
             self.program.syms.insert(
                 finally_label.clone(),
@@ -1250,7 +921,6 @@ impl<'a> Compiler<'a> {
             self.end_scope(loc, false);
         }
 
-        // End label
         self.program.syms.insert(
             end_label,
             Symbol {

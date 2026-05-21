@@ -1,4 +1,5 @@
 use std::num::ParseIntError;
+use std::rc::Rc;
 
 use rust_decimal::Decimal;
 use thiserror::Error;
@@ -29,8 +30,6 @@ pub enum Keyword {
     ELSE,
     /// for
     FOR,
-    /// def
-    DEF,
     /// function
     FUNCTION,
     /// while
@@ -49,20 +48,6 @@ pub enum Keyword {
     FINALLY,
     /// throw
     THROW,
-    /// import
-    IMPORT,
-    /// type
-    TYPE,
-    /// struct
-    STRUCT,
-    /// enum
-    ENUM,
-    /// match
-    MATCH,
-    /// impl
-    IMPL,
-    /// fn
-    FN,
     /// in
     IN,
     /// of
@@ -118,13 +103,6 @@ pub enum Operator {
     LtE,
 }
 
-/// 标准库函数
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum StdFunction {
-    /// print  bool表示是否换行
-    Print(bool),
-}
-
 /// token 类型
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
@@ -156,8 +134,6 @@ pub enum Token {
     Colon,
     /// ->
     Arrow,
-    /// =>
-    FatArrow,
     /// &
     Ampersand,
     /// |
@@ -274,7 +250,6 @@ pub mod winnow {
             )),
             alt((
                 alt((
-                    literal("=>").value(Token::FatArrow),
                     literal("->").value(Token::Arrow),
                     literal("+").value(Token::Operator(Operator::Add)),
                     literal("*").value(Token::Operator(Operator::Multiply)),
@@ -314,7 +289,6 @@ pub mod winnow {
                         "let" => Token::Keyword(Keyword::LET),
                         "return" => Token::Keyword(Keyword::RETURN),
                         "if" => Token::Keyword(Keyword::IF),
-                        "def" => Token::Keyword(Keyword::DEF),
                         "function" => Token::Keyword(Keyword::FUNCTION),
                         "else" => Token::Keyword(Keyword::ELSE),
                         "for" => Token::Keyword(Keyword::FOR),
@@ -325,13 +299,6 @@ pub mod winnow {
                         "catch" => Token::Keyword(Keyword::CATCH),
                         "finally" => Token::Keyword(Keyword::FINALLY),
                         "throw" => Token::Keyword(Keyword::THROW),
-                        "import" => Token::Keyword(Keyword::IMPORT),
-                        "type" => Token::Keyword(Keyword::TYPE),
-                        "struct" => Token::Keyword(Keyword::STRUCT),
-                        "enum" => Token::Keyword(Keyword::ENUM),
-                        "match" => Token::Keyword(Keyword::MATCH),
-                        "impl" => Token::Keyword(Keyword::IMPL),
-                        "fn" => Token::Keyword(Keyword::FN),
                         "in" => Token::Keyword(Keyword::IN),
                         "of" => Token::Keyword(Keyword::OF),
                         "this" => Token::Keyword(Keyword::THIS),
@@ -417,7 +384,6 @@ mod handwritten {
         let cur = *chars.get(loc.index).unwrap_or(&' ');
         let next = *chars.get(loc.index + 1).unwrap_or(&' ');
         let res = match cur {
-            '$' => return Err(TokenError::UnknownToken { token: cur }),
             '#' => {
                 return Err(TokenError::ParseErrorWithLocation {
                     msg: "Hash comments (#) are not supported. Use // instead.".to_string(),
@@ -436,7 +402,6 @@ mod handwritten {
             '.' => (Token::Dot, loc.incr()),
             ',' => (Token::COMMA, loc.incr()),
             '-' if next == '>' => (Token::Arrow, loc.incr2()),
-            '=' if next == '>' => (Token::FatArrow, loc.incr2()),
             '&' if next != '&' => (Token::Ampersand, loc.incr()),
             '|' if next != '|' => (Token::Pipe, loc.incr()),
             '+' => (Token::Operator(Operator::Add), loc.incr()),
@@ -488,18 +453,14 @@ mod handwritten {
                         l = l.incr();
                     } else if c == '.' {
                         if has_dot {
-                            break; // Second dot, stop
+                            break;
                         }
-                        // Lookahead for next digit to ensure it's a float, not method call like 1.toString()
-                        // But for simple float like 1.2, next must be digit.
-                        // If we have 1. , it is treated as float 1.0 in some langs, but let's see.
-                        // Winnow parser: (digit1, literal("."), opt(digit1))
                         let next_char = chars.get(l.index + 1).copied().unwrap_or(' ');
                         if next_char.is_numeric() {
                             has_dot = true;
                             l = l.incr();
                         } else {
-                            break; // Dot not followed by digit, likely method call or range
+                            break;
                         }
                     } else {
                         break;
@@ -532,7 +493,6 @@ mod handwritten {
                     "let" => Token::Keyword(Keyword::LET),
                     "return" => Token::Keyword(Keyword::RETURN),
                     "if" => Token::Keyword(Keyword::IF),
-                    "def" => Token::Keyword(Keyword::DEF),
                     "function" => Token::Keyword(Keyword::FUNCTION),
                     "else" => Token::Keyword(Keyword::ELSE),
                     "for" => Token::Keyword(Keyword::FOR),
@@ -543,13 +503,6 @@ mod handwritten {
                     "catch" => Token::Keyword(Keyword::CATCH),
                     "finally" => Token::Keyword(Keyword::FINALLY),
                     "throw" => Token::Keyword(Keyword::THROW),
-                    "import" => Token::Keyword(Keyword::IMPORT),
-                    "type" => Token::Keyword(Keyword::TYPE),
-                    "struct" => Token::Keyword(Keyword::STRUCT),
-                    "enum" => Token::Keyword(Keyword::ENUM),
-                    "match" => Token::Keyword(Keyword::MATCH),
-                    "impl" => Token::Keyword(Keyword::IMPL),
-                    "fn" => Token::Keyword(Keyword::FN),
                     "in" => Token::Keyword(Keyword::IN),
                     "of" => Token::Keyword(Keyword::OF),
                     "this" => Token::Keyword(Keyword::THIS),
@@ -576,15 +529,12 @@ mod handwritten {
     pub fn tokenizer(code: String) -> Result<Vec<(Token, Location)>, TokenError> {
         let mut loc = Location::default();
         let mut tokens = vec![];
-        let len = code.chars().count(); // Note: this is O(N) for UTF-8
+        let len = code.chars().count();
 
-        // Helper to check bounds
         while loc.index < len {
-            // debug!("Parsing at loc: {:?}", loc);
             let (token, new_loc) = parse_token(&code, &loc)?;
 
             if !matches!(token, Token::Comment | Token::Space) {
-                // Use the location from where the token *started*
                 tokens.push((token, loc));
             }
 
@@ -593,6 +543,4 @@ mod handwritten {
 
         Ok(tokens)
     }
-
-    // Location is defined in the parent module.
 }

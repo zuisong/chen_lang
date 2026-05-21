@@ -136,11 +136,7 @@ fn test_syntax_error_unexpected_token() {
 fn test_removed_old_syntax_is_rejected() {
     let removed_syntax = [
         r#"let user = ${ name: "Alice" }"#,
-        "def add(a, b) { return a + b }",
         "obj:method(1)",
-        r#"try { throw "x" } catch error { println(error) }"#,
-        "let i = 0\nfor i < 3 { i = i + 1 }",
-        r#"let fs = import("stdlib/fs")"#,
         "if true { 1 }", // Missing parentheses
     ];
 

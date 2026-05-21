@@ -1,15 +1,13 @@
 // 隐式规则：自动忽略空格和注释（但不包括换行）
 WHITESPACE = _{ " " | "\t" | "\r" }
 NEWLINE = _{ "\n" }
-// 注释：# 开头直到行尾
-// 注意：注释不吞掉换行符，留给 stmt_sep 处理
-COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
+// 注释：// 开头直到行尾
+COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* }
 
-// 关键字
 // 关键字
 LET = @{ "let" ~ !(ASCII_ALPHANUMERIC | "_") }
 FOR = @{ "for" ~ !(ASCII_ALPHANUMERIC | "_") }
-DEF = @{ "def" ~ !(ASCII_ALPHANUMERIC | "_") }
+FUNCTION = @{ "function" ~ !(ASCII_ALPHANUMERIC | "_") }
 RETURN = @{ "return" ~ !(ASCII_ALPHANUMERIC | "_") }
 IF = @{ "if" ~ !(ASCII_ALPHANUMERIC | "_") }
 ELSE = @{ "else" ~ !(ASCII_ALPHANUMERIC | "_") }
@@ -21,13 +19,13 @@ TRY = @{ "try" ~ !(ASCII_ALPHANUMERIC | "_") }
 CATCH = @{ "catch" ~ !(ASCII_ALPHANUMERIC | "_") }
 FINALLY = @{ "finally" ~ !(ASCII_ALPHANUMERIC | "_") }
 THROW = @{ "throw" ~ !(ASCII_ALPHANUMERIC | "_") }
-IMPORT = @{ "import" ~ !(ASCII_ALPHANUMERIC | "_") }
 IN = @{ "in" ~ !(ASCII_ALPHANUMERIC | "_") }
-// NULL removed
+OF = @{ "of" ~ !(ASCII_ALPHANUMERIC | "_") }
+WHILE = @{ "while" ~ !(ASCII_ALPHANUMERIC | "_") }
 
 // 标识符 (不能是关键字)
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
-keyword = { LET | FOR | DEF | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | THROW | IMPORT | IN }
+keyword = { LET | FOR | FUNCTION | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | THROW | IN | OF | WHILE }
 
 // 字面量
 integer = @{ "-"? ~ ASCII_DIGIT+ }
@@ -53,7 +51,6 @@ or = { "||" }
 not = { "!" }
 
 // 表达式优先级处理
-// 表达式优先级处理
 expression = { logical_or }
 
 logical_or = { logical_and ~ (or ~ NEWLINE* ~ logical_and)* }
@@ -74,30 +71,29 @@ atom = {
     identifier |
     "(" ~ NEWLINE* ~ expression ~ NEWLINE* ~ ")" |
     if_expr |
-    block |
     object_literal |
+    block |
     function_def |
-    array_literal |
-    import_expr
+    array_literal
 }
 
-postfix = { call_suffix | dot_suffix | method_suffix | index_suffix }
+postfix = { call_suffix | dot_suffix | index_suffix }
 call_suffix = { "(" ~ NEWLINE* ~ arguments? ~ NEWLINE* ~ ")" }
 dot_suffix = { "." ~ identifier }
-method_suffix = { ":" ~ identifier ~ call_suffix }
 index_suffix = { "[" ~ NEWLINE* ~ expression ~ NEWLINE* ~ "]" }
 
-object_literal = { "${" ~ NEWLINE* ~ (pair ~ ("," ~ NEWLINE* ~ pair)*)? ~ NEWLINE* ~ "}" }
+object_literal = { "{" ~ NEWLINE* ~ (pair ~ ("," ~ NEWLINE* ~ pair)*)? ~ NEWLINE* ~ "}" }
 array_literal = { "[" ~ NEWLINE* ~ (expression ~ ("," ~ NEWLINE* ~ expression)*)? ~ NEWLINE* ~ "]" }
-pair = { (identifier | integer) ~ ":" ~ NEWLINE* ~ expression }
+pair = { (identifier | integer | string) ~ ":" ~ NEWLINE* ~ expression }
 
 // 语句分隔符 - 使用换行
-stmt_sep = _{ NEWLINE+ }
+stmt_sep = _{ (NEWLINE | WHITESPACE)+ }
 
 // 语句
 statement = {
     declaration |
     for_loop |
+    while_loop |
     function_def |
     return_stmt |
     break_stmt |
@@ -108,26 +104,34 @@ statement = {
     expression
 }
 
-declaration = { LET ~ identifier ~ assign ~ NEWLINE* ~ expression }
+declaration = { LET ~ identifier ~ (":" ~ type_expr)? ~ assign ~ NEWLINE* ~ expression }
 assignment_target = { identifier ~ postfix* }
 assignment = { assignment_target ~ assign ~ NEWLINE* ~ expression }
 
-for_loop = { FOR ~ NEWLINE* (for_in_header | expression)? ~ block }
-for_in_header = { identifier ~ IN ~ expression }
-function_def = { DEF ~ identifier? ~ "(" ~ NEWLINE* ~ parameters? ~ NEWLINE* ~ ")" ~ block }
+for_loop = { FOR ~ NEWLINE* ~ "(" ~ NEWLINE* ~ LET ~ identifier ~ OF ~ expression ~ NEWLINE* ~ ")" ~ block }
+while_loop = { WHILE ~ NEWLINE* ~ "(" ~ NEWLINE* ~ expression ~ NEWLINE* ~ ")" ~ block }
+function_def = { FUNCTION ~ identifier? ~ "(" ~ NEWLINE* ~ parameters? ~ NEWLINE* ~ ")" ~ ("->" ~ type_expr)? ~ block }
 return_stmt = { RETURN ~ NEWLINE* ~ expression }
 break_stmt = { BREAK }
 continue_stmt = { CONTINUE }
-try_catch = { TRY ~ block ~ CATCH ~ identifier? ~ block ~ (FINALLY ~ block)? }
+try_catch = { TRY ~ block ~ CATCH ~ ("(" ~ identifier ~ ")")? ~ block ~ (FINALLY ~ block)? }
 throw_stmt = { THROW ~ NEWLINE* ~ expression }
-// await_expr removed
-import_expr = { IMPORT ~ NEWLINE* ~ "(" ~ NEWLINE* ~ string ~ NEWLINE* ~ ")" }
+
+// 类型表达式
+type_expr = { type_union }
+type_union = { type_primary ~ ("|" ~ type_primary)* }
+type_primary = {
+    "int" | "float" | "bool" | "string" | "object" | "null" |
+    type_generic | identifier
+}
+type_generic = { identifier ~ "<" ~ type_expr ~ ("," ~ type_expr)* ~ ">" }
 
 // 复合结构
 block = { "{" ~ NEWLINE* ~ (statement ~ stmt_sep)* ~ statement? ~ NEWLINE* ~ "}" }
-if_expr = { IF ~ NEWLINE* ~ expression ~ block ~ (ELSE ~ NEWLINE* ~ (if_expr | block))? }
-parameters = { identifier ~ ("," ~ NEWLINE* ~ identifier)* }
+if_expr = { IF ~ NEWLINE* ~ "(" ~ NEWLINE* ~ expression ~ NEWLINE* ~ ")" ~ block ~ (ELSE ~ NEWLINE* ~ (if_expr | block))? }
+parameters = { parameter ~ ("," ~ NEWLINE* ~ parameter)* }
+parameter = { identifier ~ (":" ~ type_expr)? }
 arguments = { expression ~ ("," ~ NEWLINE* ~ expression)* }
 
-// 程序入口 - 允许语句之间有换行
-program = { SOI ~ NEWLINE* ~ (statement ~ stmt_sep)* ~ statement? ~ NEWLINE* ~ EOI }
+// 程序入口 - 允许语句之间有换行和空格
+program = { SOI ~ (NEWLINE | WHITESPACE)* ~ (statement ~ stmt_sep)* ~ statement? ~ (NEWLINE | WHITESPACE)* ~ EOI }

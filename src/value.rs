@@ -448,6 +448,29 @@ impl Value {
         }
     }
 
+    pub fn neg(&self) -> Result<OpResult, ValueError> {
+        match self {
+            Value::Int(a) => Ok(OpResult::Value(Value::Int(-a))),
+            Value::Float(a) => Ok(OpResult::Value(Value::Float(-a))),
+            _ => {
+                let metamethod = self.get_metamethod_from_object("__unm");
+
+                if let Some(metamethod_func) = metamethod {
+                    Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                        metamethod: metamethod_func,
+                        args: vec![self.clone()],
+                    }))
+                } else {
+                    Err(ValueError::InvalidOperation {
+                        operator: "- (unary)".to_string(),
+                        left_type: self.get_type(),
+                        right_type: ValueType::Null,
+                    })
+                }
+            }
+        }
+    }
+
     pub fn divide(&self, other: &Value) -> Result<Value, ValueError> {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => {
