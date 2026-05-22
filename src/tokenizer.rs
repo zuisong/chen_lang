@@ -1,5 +1,4 @@
 use std::num::ParseIntError;
-use std::rc::Rc;
 
 use rust_decimal::Decimal;
 use thiserror::Error;
@@ -72,6 +71,8 @@ pub enum Keyword {
     AWAIT,
     /// new
     NEW,
+    /// yield
+    YIELD,
 }
 
 /// 操作符
@@ -318,12 +319,12 @@ pub mod winnow {
                         "async" => Token::Keyword(Keyword::ASYNC),
                         "await" => Token::Keyword(Keyword::AWAIT),
                         "new" => Token::Keyword(Keyword::NEW),
+                        "yield" => Token::Keyword(Keyword::YIELD),
                         "true" => Token::Bool(true),
                         "false" => Token::Bool(false),
                         _ => Token::Identifier(s.to_string()),
-                        }
-                        }),
-
+                    }
+                }),
             )),
         ))
         .parse_peek(chars)
@@ -527,6 +528,7 @@ mod handwritten {
                     "async" => Token::Keyword(Keyword::ASYNC),
                     "await" => Token::Keyword(Keyword::AWAIT),
                     "new" => Token::Keyword(Keyword::NEW),
+                    "yield" => Token::Keyword(Keyword::YIELD),
                     "true" => Token::Bool(true),
                     "false" => Token::Bool(false),
                     _ => Token::Identifier(s),

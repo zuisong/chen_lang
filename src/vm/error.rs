@@ -20,6 +20,8 @@ pub enum VMRuntimeError {
     UncaughtException(String),
     #[error("Yield")]
     Yield,
+    #[error("GeneratorYield")]
+    GeneratorYield,
 }
 
 /// 包含上下文信息的运行时错误

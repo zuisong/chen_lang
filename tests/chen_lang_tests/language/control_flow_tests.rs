@@ -166,8 +166,6 @@ for (let char of s) {
     assert!(output.contains("C"));
 }
 
-
-
 #[test]
 fn test_for_of_break() {
     let code = r#"

@@ -10,6 +10,7 @@ pub struct Symbol {
     pub nlocals: usize,
     pub upvalues: Vec<(bool, usize)>, // (is_local, index)
     pub is_async: bool,
+    pub is_generator: bool,
 }
 
 /// 指令集 - 简化后的统一指令
@@ -90,7 +91,8 @@ pub enum Instruction {
 
     // Async support
     AsyncCallStack(usize), // 异步调用栈：调用 async 函数（函数对象在 args 之下）
-    Yield,                 // 挂起：挂起当前执行并将控制权交还调度器
+    Yield,                 // 生成器挂起：挂起当前执行
+    Await,                 // 异步挂起：挂起当前执行并将控制权交还调度器（弹出 Promise）
 }
 
 /// 程序表示

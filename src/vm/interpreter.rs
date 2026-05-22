@@ -12,12 +12,24 @@ use super::native_io::create_io_object;
 use super::native_json::create_json_object;
 use super::native_process::create_process_object;
 use crate::compiler::compile;
-use crate::expression::Literal;
 use crate::parser::parse_from_source;
 use crate::tokenizer::Location;
 use crate::value::{ObjClosure, ObjUpvalue, OpResult, UpvalueState, Value, ValueError, ValueType};
 use crate::vm::fiber::{CallFrame, ExceptionHandler};
 use crate::vm::{Fiber, FiberState, Instruction, Program, RuntimeErrorWithContext, VM, VMResult, VMRuntimeError};
+
+#[derive(Clone)]
+struct RuntimeStateSnapshot {
+    stack: Vec<Value>,
+    pc: usize,
+    fp: usize,
+    call_stack: Vec<CallFrame>,
+    exception_handlers: Vec<ExceptionHandler>,
+    current_fiber: Option<Rc<RefCell<Fiber>>>,
+    current_closure: Option<Rc<ObjClosure>>,
+    current_this: Option<Value>,
+    program: Option<Rc<Program>>,
+}
 
 impl VM {
     /// 执行程序
@@ -33,11 +45,17 @@ impl VM {
             root_fiber.borrow_mut().state = FiberState::Running;
             self.current_fiber = Some(root_fiber);
         }
-        
+
         let mut last_res = self.execute_from(self.pc);
         if let Some(f) = &self.current_fiber {
             self.save_state_to_fiber(&mut f.borrow_mut());
-            if last_res.is_err() && !matches!(last_res.as_ref().unwrap_err().error, VMRuntimeError::Yield) {
+            if let Ok(ref val) = last_res {
+                f.borrow_mut().result = Some(val.clone());
+            }
+            if last_res.is_err()
+                && !matches!(last_res.as_ref().unwrap_err().error, VMRuntimeError::Yield)
+                && !matches!(last_res.as_ref().unwrap_err().error, VMRuntimeError::GeneratorYield)
+            {
                 f.borrow_mut().state = FiberState::Dead;
             }
         }
@@ -50,7 +68,10 @@ impl VM {
 
                 let current_fiber_done = if let Some(f) = &self.current_fiber {
                     let f_borrow = f.borrow();
-                    f_borrow.state == FiberState::Dead || (f_borrow.state == FiberState::Running && f_borrow.call_stack.is_empty())
+                    // Deadlock check: only care about fibers that ARE expected to run (Running or spawned/async)
+                    f_borrow.state == FiberState::Dead
+                        || (!f_borrow.is_spawned && f_borrow.state == FiberState::Suspended)
+                        || (f_borrow.state == FiberState::Running && f_borrow.call_stack.is_empty())
                 } else {
                     true
                 };
@@ -61,7 +82,9 @@ impl VM {
                     } else {
                         // Deadlock detection: all fibers suspended and no pending tasks
                         return Err(RuntimeErrorWithContext {
-                            error: VMRuntimeError::UncaughtException("Deadlock detected: all fibers suspended and no pending tasks".to_string()),
+                            error: VMRuntimeError::UncaughtException(
+                                "Deadlock detected: all fibers suspended and no pending tasks".to_string(),
+                            ),
                             loc: crate::tokenizer::Location::default(),
                             pc: self.pc,
                         });
@@ -107,6 +130,10 @@ impl VM {
                                             self.pc += 1;
                                         }
                                         Err(e) => {
+                                            if matches!(e, VMRuntimeError::GeneratorYield) {
+                                                // Should not happen here but safety first
+                                                continue;
+                                            }
                                             last_res = Err(RuntimeErrorWithContext {
                                                 error: e,
                                                 loc: crate::tokenizer::Location::default(),
@@ -123,7 +150,7 @@ impl VM {
                     }
 
                     last_res = self.execute_from(self.pc);
-                    
+
                     // CRITICAL: Save state immediately after execution
                     self.save_state_to_fiber(&mut fiber.borrow_mut());
 
@@ -155,7 +182,8 @@ impl VM {
                     }
 
                     if let Err(e) = &last_res {
-                        if matches!(e.error, VMRuntimeError::Yield) {
+                        if matches!(e.error, VMRuntimeError::Yield) || matches!(e.error, VMRuntimeError::GeneratorYield)
+                        {
                         } else {
                             // Error in fiber, handle it
                             let mut f = fiber.borrow_mut();
@@ -172,8 +200,8 @@ impl VM {
                                 let mut pt = self.async_state.pending_tasks.borrow_mut();
                                 *pt -= 1;
                             }
-                            
-                            // If it's a spawned fiber without a promise, or the root fiber, 
+
+                            // If it's a spawned fiber without a promise, or the root fiber,
                             // we should probably propagate the error.
                             if !f.is_spawned || f.associated_promise.is_none() {
                                 return last_res;
@@ -201,6 +229,13 @@ impl VM {
 
         let res = self.run_event_loop().await;
 
+        if let Err(ref e) = res {
+            if matches!(e.error, VMRuntimeError::GeneratorYield) {
+                // If the main thread somehow yielded as a generator, return successfully
+                return Ok(Value::Null);
+            }
+        }
+
         self.program = saved_program;
         res
     }
@@ -227,7 +262,33 @@ impl VM {
 
             let local = tokio::task::LocalSet::new();
 
-            local.block_on(&rt, self.run_event_loop())
+            let res = local.block_on(&rt, self.run_event_loop());
+
+            // Check if main fiber has a result first
+            if let Some(f) = &self.current_fiber {
+                let f_b = f.borrow();
+                if f_b.state == FiberState::Dead
+                    && let Some(ref val) = f_b.result
+                {
+                    return Ok(val.clone());
+                }
+            }
+
+            if let Err(ref e) = res {
+                if matches!(e.error, VMRuntimeError::GeneratorYield) {
+                    // Try to get result again after the yield error
+                    if let Some(f) = &self.current_fiber
+                        && let Some(ref val) = f.borrow().result
+                    {
+                        return Ok(val.clone());
+                    }
+                    Ok(Value::Null)
+                } else {
+                    res
+                }
+            } else {
+                res
+            }
         };
 
         #[cfg(target_arch = "wasm32")]
@@ -280,40 +341,252 @@ impl VM {
         }
     }
 
+    fn call_closure(
+        &mut self,
+        closure: Rc<ObjClosure>,
+        arg_count: usize,
+        receiver: Option<Value>,
+        _program: &Program,
+    ) -> Result<bool, VMRuntimeError> {
+        let sym = &closure.func_symbol;
+
+        if arg_count != sym.narguments {
+            return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
+                operator: "call".to_string(),
+                left_type: ValueType::Function,
+                right_type: ValueType::Null,
+            }));
+        }
+
+        if sym.is_generator {
+            // Collect arguments
+            let mut args = Vec::with_capacity(arg_count);
+            for _ in 0..arg_count {
+                args.push(self.stack.pop().unwrap());
+            }
+            args.reverse();
+
+            let mut fiber = Fiber::new();
+            fiber.program = Some(closure.program.clone());
+            fiber.current_closure = Some(closure.clone());
+            fiber.current_this = receiver.clone();
+            fiber.fp = 0;
+            fiber.pc = sym.location as usize;
+            fiber.stack.extend(args);
+            fiber.stack.resize(sym.nlocals, Value::null());
+            fiber.state = FiberState::Suspended;
+            fiber.is_spawned = false;
+            fiber.skip_push_on_resume = true;
+
+            let fiber_rc = Rc::new(RefCell::new(fiber));
+
+            // Create Generator Object
+            let gen_obj = Value::object();
+            if let Value::Object(ref table_rc) = gen_obj {
+                let mut table = table_rc.borrow_mut();
+
+                let fiber_clone = fiber_rc.clone();
+                let next_fn = move |vm: &mut VM, _ctx: crate::value::NativeContext| {
+                    let (is_async, is_dead) = {
+                        let f = fiber_clone.borrow();
+                        (
+                            f.current_closure
+                                .as_ref()
+                                .map(|c| c.func_symbol.is_async)
+                                .unwrap_or(false),
+                            f.state == FiberState::Dead,
+                        )
+                    };
+
+                    if is_dead {
+                        let mut res_data = IndexMap::new();
+                        res_data.insert("value".to_string(), Value::Null);
+                        res_data.insert("done".to_string(), Value::Bool(true));
+                        return Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table {
+                            data: res_data,
+                            metatable: None,
+                        }))));
+                    }
+
+                    if is_async {
+                        let promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+                        let promise_val = Value::Promise(promise.clone());
+
+                        fiber_clone.borrow_mut().associated_promise = Some(promise.clone());
+                        fiber_clone.borrow_mut().state = FiberState::Running;
+
+                        vm.async_state
+                            .ready_queue
+                            .borrow_mut()
+                            .push_back((fiber_clone.clone(), Ok(Value::null())));
+                        *vm.async_state.pending_tasks.borrow_mut() += 1;
+                        vm.async_state.notify.notify_one();
+
+                        return Ok(promise_val);
+                    }
+
+                    let saved_state = vm.capture_runtime_state();
+                    if let Some(ref f) = saved_state.current_fiber {
+                        vm.save_state_to_fiber(&mut f.borrow_mut());
+                    }
+
+                    vm.current_fiber = Some(fiber_clone.clone());
+                    vm.load_state_from_fiber(&fiber_clone.borrow());
+
+                    fiber_clone.borrow_mut().state = FiberState::Running;
+                    let res = vm.execute_from(vm.pc);
+                    vm.save_state_to_fiber(&mut fiber_clone.borrow_mut());
+
+                    let next_result = match res {
+                        Ok(val) => {
+                            let mut res_data = IndexMap::new();
+                            res_data.insert("value".to_string(), val);
+                            res_data.insert("done".to_string(), Value::Bool(true));
+                            Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table {
+                                data: res_data,
+                                metatable: None,
+                            }))))
+                        }
+                        Err(e) => {
+                            if matches!(e.error, VMRuntimeError::GeneratorYield) {
+                                let val = fiber_clone.borrow().stack.last().cloned().unwrap_or(Value::Null);
+
+                                let mut res_data = IndexMap::new();
+                                res_data.insert("value".to_string(), val);
+                                res_data.insert("done".to_string(), Value::Bool(false));
+                                Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table {
+                                    data: res_data,
+                                    metatable: None,
+                                }))))
+                            } else {
+                                Err(e.error)
+                            }
+                        }
+                    };
+
+                    vm.restore_runtime_state(saved_state);
+                    next_result
+                };
+
+                table
+                    .data
+                    .insert("next".to_string(), Value::NativeFunction(Rc::new(Box::new(next_fn))));
+                let gen_clone1 = gen_obj.clone();
+                let gen_clone2 = gen_obj.clone();
+                table.data.insert(
+                    "@@iterator".to_string(),
+                    Value::NativeFunction(Rc::new(Box::new(move |_, _| Ok(gen_clone1.clone())))),
+                );
+                table.data.insert(
+                    "@@asyncIterator".to_string(),
+                    Value::NativeFunction(Rc::new(Box::new(move |_, _| Ok(gen_clone2.clone())))),
+                );
+            }
+
+            self.stack.push(gen_obj);
+            return Ok(true);
+        }
+
+        if sym.is_async {
+            // Collect arguments
+            let mut args = Vec::with_capacity(arg_count);
+            for _ in 0..arg_count {
+                args.push(self.stack.pop().unwrap());
+            }
+            args.reverse();
+
+            let promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+            let promise_val = Value::Promise(promise.clone());
+
+            let mut fiber = Fiber::new();
+            fiber.program = Some(closure.program.clone());
+            fiber.current_closure = Some(closure.clone());
+            fiber.current_this = receiver;
+            fiber.fp = 0;
+            fiber.pc = sym.location as usize;
+            fiber.stack.extend(args);
+            fiber.stack.resize(sym.nlocals, Value::null());
+            fiber.state = FiberState::Running;
+            fiber.is_spawned = true;
+            fiber.skip_push_on_resume = true;
+            fiber.associated_promise = Some(promise.clone());
+
+            let fiber_rc = Rc::new(RefCell::new(fiber));
+            self.async_state
+                .ready_queue
+                .borrow_mut()
+                .push_back((fiber_rc, Ok(Value::null())));
+            *self.async_state.pending_tasks.borrow_mut() += 1;
+            self.async_state.notify.notify_one();
+
+            self.stack.push(promise_val);
+            return Ok(true);
+        }
+
+        // Standard function call
+        self.call_stack.push(CallFrame {
+            pc: self.pc,
+            fp: self.fp,
+            program: self.program.clone(),
+            closure: self.current_closure.clone(),
+            this_binding: self.current_this.clone(),
+            discard_return: false,
+            push_values_after_return: Vec::new(),
+        });
+
+        self.fp = self.stack.len() - arg_count;
+        self.program = Some(closure.program.clone());
+        self.current_closure = Some(closure.clone());
+        self.current_this = receiver;
+
+        self.stack.resize(self.fp + sym.nlocals, Value::null());
+        self.pc = (sym.location as usize) - 1;
+        Ok(true)
+    }
     pub fn execute_from(&mut self, start_pc: usize) -> VMResult {
         self.pc = start_pc;
 
         loop {
-            let (instruction_clone, program_clone) = {
-                let program = self.program.as_ref().ok_or_else(|| RuntimeErrorWithContext {
-                    error: VMRuntimeError::UndefinedVariable("No program loaded".into()),
-                    loc: Location {
-                        line: 0,
-                        col: 0,
-                        index: 0,
-                    },
-                    pc: self.pc,
-                })?;
+            let program = self.program.clone().ok_or_else(|| RuntimeErrorWithContext {
+                error: VMRuntimeError::UndefinedVariable("No program loaded".into()),
+                loc: Location {
+                    line: 0,
+                    col: 0,
+                    index: 0,
+                },
+                pc: self.pc,
+            })?;
 
-                if self.pc >= program.instructions.len() {
-                    break;
-                }
+            if self.pc >= program.instructions.len() {
+                break;
+            }
 
-                let instruction = program.instructions[self.pc].clone();
-                let program = program.clone();
-                (instruction, program)
-            };
+            let instruction_clone = program.instructions[self.pc].clone();
 
-            debug!("Executing instruction {}: {:?} (FP: {}, Stack: {:?})", self.pc, instruction_clone, self.fp, self.stack);
-
-            match self.execute_instruction(&instruction_clone, &program_clone) {
+            match self.execute_instruction(&instruction_clone, &program) {
                 Ok(continue_execution) => {
                     if !continue_execution {
                         break;
                     }
                 }
                 Err(error) => {
-                    let loc = *program_clone.lines.get(&self.pc).unwrap_or(&Location {
+                    if matches!(error, VMRuntimeError::GeneratorYield) {
+                        return Err(RuntimeErrorWithContext {
+                            error: VMRuntimeError::GeneratorYield,
+                            loc: program.lines.get(&self.pc).cloned().unwrap_or_default(),
+                            pc: self.pc,
+                        });
+                    }
+                    if matches!(error, VMRuntimeError::Yield) {
+                        // Async await suspension (PC already incremented in Instruction::Await)
+                        return Err(RuntimeErrorWithContext {
+                            error: VMRuntimeError::Yield,
+                            loc: program.lines.get(&self.pc).cloned().unwrap_or_default(),
+                            pc: self.pc,
+                        });
+                    }
+
+                    let loc = *program.lines.get(&self.pc).unwrap_or(&Location {
                         line: 0,
                         col: 0,
                         index: 0,
@@ -355,6 +628,32 @@ impl VM {
         self.current_closure = fiber.current_closure.clone();
         self.current_this = fiber.current_this.clone();
         self.program = fiber.program.clone();
+    }
+
+    fn capture_runtime_state(&self) -> RuntimeStateSnapshot {
+        RuntimeStateSnapshot {
+            stack: self.stack.clone(),
+            pc: self.pc,
+            fp: self.fp,
+            call_stack: self.call_stack.clone(),
+            exception_handlers: self.exception_handlers.clone(),
+            current_fiber: self.current_fiber.clone(),
+            current_closure: self.current_closure.clone(),
+            current_this: self.current_this.clone(),
+            program: self.program.clone(),
+        }
+    }
+
+    fn restore_runtime_state(&mut self, state: RuntimeStateSnapshot) {
+        self.stack = state.stack;
+        self.pc = state.pc;
+        self.fp = state.fp;
+        self.call_stack = state.call_stack;
+        self.exception_handlers = state.exception_handlers;
+        self.current_fiber = state.current_fiber;
+        self.current_closure = state.current_closure;
+        self.current_this = state.current_this;
+        self.program = state.program;
     }
 
     fn execute_instruction(&mut self, instruction: &Instruction, program: &Program) -> Result<bool, VMRuntimeError> {
@@ -789,124 +1088,16 @@ impl VM {
                                 }));
                             }
 
-                            if sym.is_async {
-                                let mut args = Vec::with_capacity(*arg_count);
-                                for _ in 0..*arg_count {
-                                    args.push(self.stack.pop().unwrap());
-                                }
-                                args.reverse();
-
-                                let promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
-                                let promise_val = Value::Promise(promise.clone());
-
-                                let mut fiber = Fiber::new();
-                                fiber.program = Some(self.program.clone().unwrap());
-                                fiber.current_closure = Some(Rc::new(ObjClosure {
-                                    name: func_name.clone(),
-                                    func_symbol: sym.clone(),
-                                    program: self.program.clone().unwrap(),
-                                    upvalues: Vec::new(),
-                                }));
-                                fiber.fp = 0;
-                                fiber.pc = sym.location as usize;
-                                fiber.stack.extend(args);
-                                fiber.state = FiberState::Running;
-                                fiber.is_spawned = true;
-                                fiber.skip_push_on_resume = true;
-                                fiber.associated_promise = Some(promise.clone());
-
-                                let fiber_rc = Rc::new(RefCell::new(fiber));
-                                self.async_state.ready_queue.borrow_mut().push_back((fiber_rc, Ok(Value::null())));
-                                *self.async_state.pending_tasks.borrow_mut() += 1;
-                                self.async_state.notify.notify_one();
-
-                                self.stack.push(promise_val);
-                                return Ok(true);
-                            }
-
-                            self.call_stack.push(CallFrame {
-                                pc: self.pc,
-                                fp: self.fp,
-                                program: self.program.clone(),
-                                closure: self.current_closure.clone(),
-                                this_binding: self.current_this.clone(),
-                                discard_return: false,
-                                push_values_after_return: Vec::new(),
-                            });
-                            self.fp = self.stack.len() - *arg_count;
-                            self.current_this = None;
-
-                            let closure = ObjClosure {
+                            let closure = Rc::new(ObjClosure {
                                 name: func_name.clone(),
                                 func_symbol: sym.clone(),
-                                program: self.program.clone().unwrap(),
                                 upvalues: Vec::new(),
-                            };
-                            self.current_closure = Some(Rc::new(closure));
-
-                            self.stack.resize(self.fp + sym.nlocals, Value::null());
-                            self.pc = (sym.location as usize) - 1;
-                            Ok(true)
+                                program: self.program.clone().expect("program should be set"),
+                            });
+                            self.call_closure(closure, *arg_count, None, program)
                         } else if let Some(val) = self.variables.get(func_name).cloned() {
                             match val {
-                                Value::Fn(closure) => {
-                                    let sym = &closure.func_symbol;
-                                    if *arg_count != sym.narguments {
-                                        return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                                            operator: "call".to_string(),
-                                            left_type: ValueType::Function,
-                                            right_type: ValueType::Null,
-                                        }));
-                                    }
-
-                                    if sym.is_async {
-                                        let mut args = Vec::with_capacity(*arg_count);
-                                        for _ in 0..*arg_count {
-                                            args.push(self.stack.pop().unwrap());
-                                        }
-                                        args.reverse();
-
-                                        let promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
-                                        let promise_val = Value::Promise(promise.clone());
-
-                                        let mut fiber = Fiber::new();
-                                        fiber.program = Some(closure.program.clone());
-                                        fiber.current_closure = Some(closure.clone());
-                                        fiber.fp = 0;
-                                        fiber.pc = sym.location as usize;
-                                        fiber.stack.extend(args);
-                                        fiber.state = FiberState::Running;
-                                        fiber.is_spawned = true;
-                                        fiber.skip_push_on_resume = true;
-                                        fiber.associated_promise = Some(promise.clone());
-
-                                        let fiber_rc = Rc::new(RefCell::new(fiber));
-                                        self.async_state.ready_queue.borrow_mut().push_back((fiber_rc, Ok(Value::null())));
-                                        *self.async_state.pending_tasks.borrow_mut() += 1;
-                                        self.async_state.notify.notify_one();
-
-                                        self.stack.push(promise_val);
-                                        return Ok(true);
-                                    }
-
-                                    self.call_stack.push(CallFrame {
-                                        pc: self.pc,
-                                        fp: self.fp,
-                                        program: self.program.clone(),
-                                        closure: self.current_closure.clone(),
-                                        this_binding: self.current_this.clone(),
-                                        discard_return: false,
-                                        push_values_after_return: Vec::new(),
-                                    });
-                                    self.fp = self.stack.len() - *arg_count;
-                                    self.program = Some(closure.program.clone());
-                                    self.current_closure = Some(closure.clone());
-                                    self.current_this = None;
-
-                                    self.stack.resize(self.fp + sym.nlocals, Value::null());
-                                    self.pc = (sym.location as usize) - 1;
-                                    Ok(true)
-                                }
+                                Value::Fn(closure) => self.call_closure(closure, *arg_count, None, program),
                                 Value::NativeFunction(native_fn) => {
                                     let start_index = self
                                         .stack
@@ -1259,73 +1450,11 @@ impl VM {
                     .stack
                     .len()
                     .checked_sub(*arg_count + 1)
-                    .ok_or(VMRuntimeError::StackUnderflow(
-                        "CallStack: missing function".to_string(),
-                    ))?;
-
+                    .ok_or(VMRuntimeError::StackUnderflow("CallStack: missing function".into()))?;
                 let func_val = self.stack.remove(func_idx);
 
                 return match func_val {
-                    Value::Fn(closure) => {
-                        let sym = &closure.func_symbol;
-
-                        if *arg_count != sym.narguments {
-                            return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                                operator: "call_stack".to_string(),
-                                left_type: ValueType::Function,
-                                right_type: ValueType::Null,
-                            }));
-                        }
-
-                        if sym.is_async {
-                            // Collect arguments
-                            let mut args = Vec::with_capacity(*arg_count);
-                            for _ in 0..*arg_count {
-                                args.push(self.stack.pop().unwrap());
-                            }
-                            args.reverse();
-
-                            let promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
-                            let promise_val = Value::Promise(promise.clone());
-
-                            let mut fiber = Fiber::new();
-                            fiber.program = Some(closure.program.clone());
-                            fiber.current_closure = Some(closure.clone());
-                            fiber.fp = 0;
-                            fiber.pc = sym.location as usize;
-                            fiber.stack.extend(args);
-                            fiber.state = FiberState::Running;
-                            fiber.is_spawned = true;
-                            fiber.skip_push_on_resume = true;
-                            fiber.associated_promise = Some(promise.clone());
-
-                            let fiber_rc = Rc::new(RefCell::new(fiber));
-                            self.async_state.ready_queue.borrow_mut().push_back((fiber_rc, Ok(Value::null())));
-                            *self.async_state.pending_tasks.borrow_mut() += 1;
-                            self.async_state.notify.notify_one();
-
-                            self.stack.push(promise_val);
-                            return Ok(true);
-                        }
-
-                        self.call_stack.push(CallFrame {
-                            pc: self.pc,
-                            fp: self.fp,
-                            program: self.program.clone(),
-                            closure: self.current_closure.clone(),
-                            this_binding: self.current_this.clone(),
-                            discard_return: false,
-                            push_values_after_return: Vec::new(),
-                        });
-                        self.fp = self.stack.len() - *arg_count;
-                        self.program = Some(closure.program.clone());
-                        self.current_closure = Some(closure.clone());
-                        self.current_this = None;
-
-                        self.stack.resize(self.fp + sym.nlocals, Value::null());
-                        self.pc = (sym.location as usize) - 1;
-                        Ok(true)
-                    }
+                    Value::Fn(closure) => self.call_closure(closure, *arg_count, None, program),
                     Value::NativeFunction(native_fn) => {
                         let start_index = self
                             .stack
@@ -1334,10 +1463,9 @@ impl VM {
                             .ok_or(VMRuntimeError::StackUnderflow("CallStack native: missing args".into()))?;
                         let args: Vec<Value> = self.stack.drain(start_index..).collect();
 
-                        let result = native_fn(self, crate::value::NativeContext { this: None, args });
-                        let val = result?;
+                        let result = native_fn(self, crate::value::NativeContext { this: None, args })?;
 
-                        self.stack.push(val);
+                        self.stack.push(result);
                         Ok(true)
                     }
                     _ => Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
@@ -1364,66 +1492,7 @@ impl VM {
                 let func_val = self.stack.remove(receiver_idx);
 
                 return match func_val {
-                    Value::Fn(closure) => {
-                        let sym = &closure.func_symbol;
-
-                        if *arg_count != sym.narguments {
-                            return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                                operator: "call_method_stack".to_string(),
-                                left_type: ValueType::Function,
-                                right_type: ValueType::Null,
-                            }));
-                        }
-
-                        if sym.is_async {
-                            let mut args = Vec::with_capacity(*arg_count);
-                            for _ in 0..*arg_count {
-                                args.push(self.stack.pop().unwrap());
-                            }
-                            args.reverse();
-
-                            let promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
-                            let promise_val = Value::Promise(promise.clone());
-
-                            let mut fiber = Fiber::new();
-                            fiber.program = Some(closure.program.clone());
-                            fiber.current_closure = Some(closure.clone());
-                            fiber.current_this = Some(receiver);
-                            fiber.fp = 0;
-                            fiber.pc = sym.location as usize;
-                            fiber.stack.extend(args);
-                            fiber.state = FiberState::Running;
-                            fiber.is_spawned = true;
-                            fiber.skip_push_on_resume = true;
-                            fiber.associated_promise = Some(promise.clone());
-
-                            let fiber_rc = Rc::new(RefCell::new(fiber));
-                            self.async_state.ready_queue.borrow_mut().push_back((fiber_rc, Ok(Value::null())));
-                            *self.async_state.pending_tasks.borrow_mut() += 1;
-                            self.async_state.notify.notify_one();
-
-                            self.stack.push(promise_val);
-                            return Ok(true);
-                        }
-
-                        self.call_stack.push(CallFrame {
-                            pc: self.pc,
-                            fp: self.fp,
-                            program: self.program.clone(),
-                            closure: self.current_closure.clone(),
-                            this_binding: self.current_this.clone(),
-                            discard_return: false,
-                            push_values_after_return: Vec::new(),
-                        });
-                        self.fp = self.stack.len() - *arg_count;
-                        self.program = Some(closure.program.clone());
-                        self.current_closure = Some(closure.clone());
-                        self.current_this = Some(receiver);
-
-                        self.stack.resize(self.fp + sym.nlocals, Value::null());
-                        self.pc = (sym.location as usize) - 1;
-                        Ok(true)
-                    }
+                    Value::Fn(closure) => self.call_closure(closure, *arg_count, Some(receiver), program),
                     Value::NativeFunction(native_fn) => {
                         let start_index =
                             self.stack
@@ -1434,10 +1503,15 @@ impl VM {
                                 ))?;
                         let args: Vec<Value> = self.stack.drain(start_index..).collect();
 
-                        let result = native_fn(self, crate::value::NativeContext { this: Some(receiver), args });
-                        let val = result?;
+                        let result = native_fn(
+                            self,
+                            crate::value::NativeContext {
+                                this: Some(receiver),
+                                args,
+                            },
+                        )?;
 
-                        self.stack.push(val);
+                        self.stack.push(result);
                         Ok(true)
                     }
                     _ => Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
@@ -1497,12 +1571,12 @@ impl VM {
                 args.reverse();
 
                 let callee = self.stack.pop().expect("Stack underflow for async call callee");
-                
+
                 match callee {
                     Value::Fn(closure) => {
                         let promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
                         let promise_val = Value::Promise(promise.clone());
-                        
+
                         let mut fiber = Fiber::new();
                         fiber.program = Some(closure.program.clone());
                         fiber.current_closure = Some(closure.clone());
@@ -1511,18 +1585,33 @@ impl VM {
                         fiber.state = FiberState::Running;
                         fiber.is_spawned = true;
                         fiber.associated_promise = Some(promise.clone());
-                        
+
                         let fiber_rc = Rc::new(RefCell::new(fiber));
-                        self.async_state.ready_queue.borrow_mut().push_back((fiber_rc, Ok(Value::null())));
+                        self.async_state
+                            .ready_queue
+                            .borrow_mut()
+                            .push_back((fiber_rc, Ok(Value::null())));
                         *self.async_state.pending_tasks.borrow_mut() += 1;
-                        
+
                         self.stack.push(promise_val);
                     }
-                    _ => return Err(VMRuntimeError::ValueError(ValueError::CallNonFunction(callee.get_type()))),
+                    _ => {
+                        return Err(VMRuntimeError::ValueError(ValueError::CallNonFunction(
+                            callee.get_type(),
+                        )));
+                    }
                 }
             }
             Instruction::Yield => {
-                let promise_val = self.stack.pop().expect("Stack underflow for yield");
+                if let Some(f) = &self.current_fiber {
+                    f.borrow_mut().state = FiberState::Suspended;
+                }
+                self.pc += 1;
+                return Err(VMRuntimeError::GeneratorYield);
+            }
+
+            Instruction::Await => {
+                let promise_val = self.stack.pop().expect("Stack underflow for await");
 
                 if let Value::Promise(promise_rc) = promise_val {
                     let state = promise_rc.borrow().state.clone();
@@ -1553,16 +1642,17 @@ impl VM {
                             return Err(VMRuntimeError::UncaughtException(reason.to_string()));
                         }
                         crate::promise::PromiseState::Pending => {
-                            let current_fiber_rc = self.current_fiber.clone().expect("Yield outside of fiber");
+                            let current_fiber_rc = self.current_fiber.clone().expect("Await outside of fiber");
                             let mut current_fiber = current_fiber_rc.borrow_mut();
 
-                            // Save state BEFORE yielding
-                            // Increment PC so we resume at the NEXT instruction
-                            self.pc += 1;
+                            // Save state BEFORE awaiting
+                            // execute_from loop will increment PC after this call
                             self.save_state_to_fiber(&mut current_fiber);
                             current_fiber.state = FiberState::Suspended;
 
-                            promise_rc.borrow_mut().add_reaction(crate::promise::Reaction::ResumeFiber(current_fiber_rc.clone()));
+                            promise_rc
+                                .borrow_mut()
+                                .add_reaction(crate::promise::Reaction::ResumeFiber(current_fiber_rc.clone()));
                             return Err(VMRuntimeError::Yield);
                         }
                     }

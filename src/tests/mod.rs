@@ -1,5 +1,7 @@
 mod async_http_test;
+mod async_parse_test;
 mod async_timer_test;
+mod generator_test;
 mod iterator_test;
 mod object_test;
 mod parse_test;
@@ -7,7 +9,6 @@ mod parser_comprehensive_test;
 mod sync_io_test;
 mod token_test;
 mod value_tests;
-mod async_parse_test;
 
 #[cfg(test)]
 mod tests_1 {

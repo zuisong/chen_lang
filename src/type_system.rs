@@ -4,8 +4,7 @@ use codespan_reporting::diagnostic::{Diagnostic, Label};
 use thiserror::Error;
 
 use crate::expression::{
-    Ast, BinaryOperation, Expression, FunctionDeclaration, Literal, Local,
-    Return, Statement, TypeAnnotation, Unary,
+    Ast, BinaryOperation, Expression, FunctionDeclaration, Literal, Local, Return, Statement, TypeAnnotation, Unary,
 };
 use crate::tokenizer::{Location, Operator};
 use crate::value::Value;
@@ -177,7 +176,8 @@ impl TypeChecker {
 
     pub fn check(&mut self, ast: &Ast) -> Result<(), TypeError> {
         for statement in ast {
-            if (matches!(statement, Statement::FunctionDeclaration(_)) || matches!(statement, Statement::AsyncFunctionDeclaration(_)))
+            if (matches!(statement, Statement::FunctionDeclaration(_))
+                || matches!(statement, Statement::AsyncFunctionDeclaration(_)))
                 && let Some(name) = match statement {
                     Statement::FunctionDeclaration(f) => &f.name,
                     Statement::AsyncFunctionDeclaration(f) => &f.name,
@@ -188,8 +188,15 @@ impl TypeChecker {
                     Statement::FunctionDeclaration(f) => self.function_signature(f),
                     Statement::AsyncFunctionDeclaration(f) => {
                         let sig = self.function_signature(f);
-                        if let Type::Function { parameters, return_type } = sig {
-                            Type::Function { parameters, return_type: Box::new(Type::Promise(return_type)) }
+                        if let Type::Function {
+                            parameters,
+                            return_type,
+                        } = sig
+                        {
+                            Type::Function {
+                                parameters,
+                                return_type: Box::new(Type::Promise(return_type)),
+                            }
                         } else {
                             sig
                         }
@@ -467,15 +474,8 @@ impl TypeChecker {
                     Ok(inner)
                 }
             }
-            Expression::New {
-                constructor,
-                arguments,
-                ..
-            } => {
-                self.check_expression(constructor)?;
-                for argument in arguments {
-                    self.check_expression(argument)?;
-                }
+            Expression::Yield { expression, .. } => {
+                self.check_expression(expression)?;
                 Ok(Type::Unknown)
             }
         }
@@ -753,16 +753,14 @@ fn get_line_range(code: &str, line: u32) -> std::ops::Range<usize> {
         return 0..code.len();
     }
 
-    let mut current_line = 1;
     let mut start_byte = 0;
-    for line_str in code.split_inclusive('\n') {
+    for (current_line, line_str) in (1..).zip(code.split_inclusive('\n')) {
         if current_line == line {
             let len = line_str.trim_end().len();
             let end_byte = if len == 0 { start_byte + 1 } else { start_byte + len };
             return start_byte..std::cmp::min(end_byte, code.len());
         }
         start_byte += line_str.len();
-        current_line += 1;
     }
 
     let len = code.len();

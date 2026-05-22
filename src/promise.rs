@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+
 use crate::value::Value;
 use crate::vm::Fiber;
 
@@ -31,6 +32,12 @@ pub struct Promise {
     pub state: PromiseState,
     pub reactions: Vec<Reaction>,
     pub is_handled: bool,
+}
+
+impl Default for Promise {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Promise {
@@ -123,7 +130,7 @@ mod tests {
     fn test_promise_basic_state() {
         let mut p = Promise::new();
         assert_eq!(p.state, PromiseState::Pending);
-        
+
         let reactions = p.resolve(Value::int(42));
         assert_eq!(p.state, PromiseState::Fulfilled(Value::int(42)));
         assert_eq!(reactions.len(), 0);

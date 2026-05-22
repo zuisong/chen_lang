@@ -36,7 +36,6 @@ mod vm_tests;
 pub use error::{RuntimeErrorWithContext, VMResult, VMRuntimeError};
 pub use fiber::{ExceptionHandler, Fiber, FiberState};
 use native_array_prototype::create_array_prototype;
-
 use native_date::create_date_object;
 use native_fs::create_fs_object;
 #[cfg(feature = "http")]
@@ -128,34 +127,30 @@ impl VM {
             let mut console_obj = console_obj.borrow_mut();
             console_obj.data.insert(
                 "print".to_string(),
-                Value::NativeFunction(Rc::new(
-                    Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
-                        for (i, val) in ctx.args.iter().enumerate() {
-                            if i > 0 {
-                                write!(vm.stdout, " ").unwrap();
-                            }
-                            write!(vm.stdout, "{}", val).unwrap();
+                Value::NativeFunction(Rc::new(Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
+                    for (i, val) in ctx.args.iter().enumerate() {
+                        if i > 0 {
+                            write!(vm.stdout, " ").unwrap();
                         }
-                        vm.stdout.flush().unwrap();
-                        Ok(Value::null())
-                    }) as Box<NativeFnType>,
-                )),
+                        write!(vm.stdout, "{}", val).unwrap();
+                    }
+                    vm.stdout.flush().unwrap();
+                    Ok(Value::null())
+                }) as Box<NativeFnType>)),
             );
             console_obj.data.insert(
                 "log".to_string(),
-                Value::NativeFunction(Rc::new(
-                    Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
-                        for (i, val) in ctx.args.iter().enumerate() {
-                            if i > 0 {
-                                write!(vm.stdout, " ").unwrap();
-                            }
-                            write!(vm.stdout, "{}", val).unwrap();
+                Value::NativeFunction(Rc::new(Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
+                    for (i, val) in ctx.args.iter().enumerate() {
+                        if i > 0 {
+                            write!(vm.stdout, " ").unwrap();
                         }
-                        writeln!(vm.stdout).unwrap();
-                        vm.stdout.flush().unwrap();
-                        Ok(Value::null())
-                    }) as Box<NativeFnType>,
-                )),
+                        write!(vm.stdout, "{}", val).unwrap();
+                    }
+                    writeln!(vm.stdout).unwrap();
+                    vm.stdout.flush().unwrap();
+                    Ok(Value::null())
+                }) as Box<NativeFnType>)),
             );
             // Aliases for standard JS console methods
             let log_fn = console_obj.data.get("log").unwrap().clone();
@@ -166,25 +161,23 @@ impl VM {
 
             console_obj.data.insert(
                 "readLine".to_string(),
-                Value::NativeFunction(Rc::new(
-                    Box::new(|_vm: &mut VM, _ctx: crate::value::NativeContext| {
-                        use std::io::BufRead;
+                Value::NativeFunction(Rc::new(Box::new(|_vm: &mut VM, _ctx: crate::value::NativeContext| {
+                    use std::io::BufRead;
 
-                        let stdin = std::io::stdin();
-                        let mut line = String::new();
-                        stdin
-                            .lock()
-                            .read_line(&mut line)
-                            .map_err(|e| VMRuntimeError::UncaughtException(e.to_string()))?;
-                        if line.ends_with('\n') {
+                    let stdin = std::io::stdin();
+                    let mut line = String::new();
+                    stdin
+                        .lock()
+                        .read_line(&mut line)
+                        .map_err(|e| VMRuntimeError::UncaughtException(e.to_string()))?;
+                    if line.ends_with('\n') {
+                        line.pop();
+                        if line.ends_with('\r') {
                             line.pop();
-                            if line.ends_with('\r') {
-                                line.pop();
-                            }
                         }
-                        Ok(Value::string(line))
-                    }) as Box<NativeFnType>,
-                )),
+                    }
+                    Ok(Value::string(line))
+                }) as Box<NativeFnType>)),
             );
         }
         console
@@ -211,64 +204,58 @@ impl VM {
             chen_obj.data.insert("io".to_string(), create_io_object());
             chen_obj.data.insert(
                 "setMeta".to_string(),
-                Value::NativeFunction(Rc::new(
-                    Box::new(|_vm: &mut VM, ctx: crate::value::NativeContext| {
-                        let args = ctx.args;
-                        if args.len() < 2 {
-                            return Err(ValueError::InvalidOperation {
-                                operator: "Chen.setMeta".to_string(),
-                                left_type: ValueType::Null,
-                                right_type: ValueType::Null,
-                            }
-                            .into());
+                Value::NativeFunction(Rc::new(Box::new(|_vm: &mut VM, ctx: crate::value::NativeContext| {
+                    let args = ctx.args;
+                    if args.len() < 2 {
+                        return Err(ValueError::InvalidOperation {
+                            operator: "Chen.setMeta".to_string(),
+                            left_type: ValueType::Null,
+                            right_type: ValueType::Null,
                         }
-                        let obj = &args[0];
-                        let meta = args[1].clone();
-                        obj.set_metatable(meta)?;
-                        Ok(Value::null())
-                    }) as Box<NativeFnType>,
-                )),
+                        .into());
+                    }
+                    let obj = &args[0];
+                    let meta = args[1].clone();
+                    obj.set_metatable(meta)?;
+                    Ok(Value::null())
+                }) as Box<NativeFnType>)),
             );
             chen_obj.data.insert(
                 "getMeta".to_string(),
-                Value::NativeFunction(Rc::new(
-                    Box::new(|_vm: &mut VM, ctx: crate::value::NativeContext| {
-                        let args = ctx.args;
-                        let Some(obj) = args.first() else {
-                            return Err(ValueError::InvalidOperation {
-                                operator: "Chen.getMeta".to_string(),
-                                left_type: ValueType::Null,
-                                right_type: ValueType::Null,
-                            }
-                            .into());
-                        };
-                        Ok(obj.get_metatable())
-                    }) as Box<NativeFnType>,
-                )),
+                Value::NativeFunction(Rc::new(Box::new(|_vm: &mut VM, ctx: crate::value::NativeContext| {
+                    let args = ctx.args;
+                    let Some(obj) = args.first() else {
+                        return Err(ValueError::InvalidOperation {
+                            operator: "Chen.getMeta".to_string(),
+                            left_type: ValueType::Null,
+                            right_type: ValueType::Null,
+                        }
+                        .into());
+                    };
+                    Ok(obj.get_metatable())
+                }) as Box<NativeFnType>)),
             );
             chen_obj.data.insert(
                 "load".to_string(),
-                Value::NativeFunction(Rc::new(
-                    Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
-                        let args = ctx.args;
-                        let Some(path_arg) = args.first() else {
-                            return Err(ValueError::TypeMismatch {
-                                expected: ValueType::String,
-                                found: ValueType::Null,
-                                operation: "Chen.load".to_string(),
-                            }
-                            .into());
-                        };
-                        let path = path_arg.as_string().ok_or_else(|| {
-                            VMRuntimeError::ValueError(ValueError::TypeMismatch {
-                                expected: ValueType::String,
-                                found: path_arg.get_type(),
-                                operation: "Chen.load".to_string(),
-                            })
-                        })?;
-                        vm.load_user_module(path)
-                    }) as Box<NativeFnType>,
-                )),
+                Value::NativeFunction(Rc::new(Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
+                    let args = ctx.args;
+                    let Some(path_arg) = args.first() else {
+                        return Err(ValueError::TypeMismatch {
+                            expected: ValueType::String,
+                            found: ValueType::Null,
+                            operation: "Chen.load".to_string(),
+                        }
+                        .into());
+                    };
+                    let path = path_arg.as_string().ok_or_else(|| {
+                        VMRuntimeError::ValueError(ValueError::TypeMismatch {
+                            expected: ValueType::String,
+                            found: path_arg.get_type(),
+                            operation: "Chen.load".to_string(),
+                        })
+                    })?;
+                    vm.load_user_module(path)
+                }) as Box<NativeFnType>)),
             );
         }
         variables.insert("Chen".to_string(), chen);
@@ -278,144 +265,162 @@ impl VM {
             let mut obj = obj.borrow_mut();
             obj.data.insert(
                 "resolve".to_string(),
-                Value::NativeFunction(Rc::new(
-                    Box::new(|_vm: &mut VM, ctx: crate::value::NativeContext| {
-                        let val = ctx.args.first().cloned().unwrap_or(Value::null());
-                        Ok(crate::promise::Promise::resolve_static(val))
-                    }) as Box<NativeFnType>,
-                )),
+                Value::NativeFunction(Rc::new(Box::new(|_vm: &mut VM, ctx: crate::value::NativeContext| {
+                    let val = ctx.args.first().cloned().unwrap_or(Value::null());
+                    Ok(crate::promise::Promise::resolve_static(val))
+                }) as Box<NativeFnType>)),
             );
             obj.data.insert(
                 "reject".to_string(),
-                Value::NativeFunction(Rc::new(
-                    Box::new(|_vm: &mut VM, ctx: crate::value::NativeContext| {
-                        let val = ctx.args.first().cloned().unwrap_or(Value::null());
-                        Ok(crate::promise::Promise::reject_static(val))
-                    }) as Box<NativeFnType>,
-                )),
+                Value::NativeFunction(Rc::new(Box::new(|_vm: &mut VM, ctx: crate::value::NativeContext| {
+                    let val = ctx.args.first().cloned().unwrap_or(Value::null());
+                    Ok(crate::promise::Promise::reject_static(val))
+                }) as Box<NativeFnType>)),
             );
             obj.data.insert(
                 "new".to_string(),
-                Value::NativeFunction(Rc::new(
-                    Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
-                        let executor = ctx.args.first().cloned().unwrap_or(Value::Null);
-                        let pending_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
-                        
-                        let p_resolve = pending_promise.clone();
-                        let resolve_cb = Value::NativeFunction(Rc::new(Box::new(move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
+                Value::NativeFunction(Rc::new(Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
+                    let executor = ctx.args.first().cloned().unwrap_or(Value::Null);
+                    let pending_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+
+                    let p_resolve = pending_promise.clone();
+                    let resolve_cb = Value::NativeFunction(Rc::new(Box::new(
+                        move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
                             let val = ctx_inner.args.first().cloned().unwrap_or(Value::Null);
                             vm_inner.settle_promise(p_resolve.clone(), crate::promise::PromiseState::Fulfilled(val));
                             Ok(Value::Null)
-                        }) as Box<NativeFnType>));
+                        },
+                    ) as Box<NativeFnType>));
 
-                        let p_reject = pending_promise.clone();
-                        let reject_cb = Value::NativeFunction(Rc::new(Box::new(move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
+                    let p_reject = pending_promise.clone();
+                    let reject_cb = Value::NativeFunction(Rc::new(Box::new(
+                        move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
                             let val = ctx_inner.args.first().cloned().unwrap_or(Value::Null);
                             vm_inner.settle_promise(p_reject.clone(), crate::promise::PromiseState::Rejected(val));
                             Ok(Value::Null)
-                        }) as Box<NativeFnType>));
+                        },
+                    ) as Box<NativeFnType>));
 
-                        match executor {
-                            Value::Fn(closure) => {
-                                let sym = &closure.func_symbol;
-                                let mut fiber = Fiber::new();
-                                fiber.program = Some(closure.program.clone());
-                                fiber.current_closure = Some(closure.clone());
-                                fiber.current_this = None;
-                                fiber.fp = 0;
-                                fiber.pc = sym.location as usize;
-                                
-                                fiber.stack.push(resolve_cb);
-                                fiber.stack.push(reject_cb);
-                                let nlocals = sym.nlocals;
-                                let total_slots = std::cmp::max(2, sym.narguments) + nlocals;
-                                fiber.stack.resize(total_slots, Value::null());
-                                
-                                fiber.state = FiberState::Running;
-                                fiber.is_spawned = true;
-                                fiber.skip_push_on_resume = true;
-                                fiber.reject_on_error_promise = Some(pending_promise.clone());
+                    match executor {
+                        Value::Fn(closure) => {
+                            let sym = &closure.func_symbol;
+                            let mut fiber = Fiber::new();
+                            fiber.program = Some(closure.program.clone());
+                            fiber.current_closure = Some(closure.clone());
+                            fiber.current_this = None;
+                            fiber.fp = 0;
+                            fiber.pc = sym.location as usize;
 
-                                let fiber_rc = Rc::new(RefCell::new(fiber));
-                                vm.async_state.ready_queue.borrow_mut().push_back((fiber_rc, Ok(Value::null())));
-                                *vm.async_state.pending_tasks.borrow_mut() += 1;
-                                vm.async_state.notify.notify_one();
-                            }
-                            Value::NativeFunction(native_fn) => {
-                                let native_ctx = NativeContext {
-                                    this: None,
-                                    args: vec![resolve_cb, reject_cb],
-                                };
-                                if let Err(e) = native_fn(vm, native_ctx) {
-                                    vm.settle_promise(pending_promise.clone(), crate::promise::PromiseState::Rejected(Value::string(e.to_string())));
-                                }
-                            }
-                            _ => {
-                                vm.settle_promise(pending_promise.clone(), crate::promise::PromiseState::Rejected(Value::string("Promise executor must be a function".to_string())));
+                            fiber.stack.push(resolve_cb);
+                            fiber.stack.push(reject_cb);
+                            let nlocals = sym.nlocals;
+                            let total_slots = std::cmp::max(2, sym.narguments) + nlocals;
+                            fiber.stack.resize(total_slots, Value::null());
+
+                            fiber.state = FiberState::Running;
+                            fiber.is_spawned = true;
+                            fiber.skip_push_on_resume = true;
+                            fiber.reject_on_error_promise = Some(pending_promise.clone());
+
+                            let fiber_rc = Rc::new(RefCell::new(fiber));
+                            vm.async_state
+                                .ready_queue
+                                .borrow_mut()
+                                .push_back((fiber_rc, Ok(Value::null())));
+                            *vm.async_state.pending_tasks.borrow_mut() += 1;
+                            vm.async_state.notify.notify_one();
+                        }
+                        Value::NativeFunction(native_fn) => {
+                            let native_ctx = NativeContext {
+                                this: None,
+                                args: vec![resolve_cb, reject_cb],
+                            };
+                            if let Err(e) = native_fn(vm, native_ctx) {
+                                vm.settle_promise(
+                                    pending_promise.clone(),
+                                    crate::promise::PromiseState::Rejected(Value::string(e.to_string())),
+                                );
                             }
                         }
-                        
-                        Ok(Value::Promise(pending_promise))
-                    }) as Box<NativeFnType>,
-                )),
+                        _ => {
+                            vm.settle_promise(
+                                pending_promise.clone(),
+                                crate::promise::PromiseState::Rejected(Value::string(
+                                    "Promise executor must be a function".to_string(),
+                                )),
+                            );
+                        }
+                    }
+
+                    Ok(Value::Promise(pending_promise))
+                }) as Box<NativeFnType>)),
             );
             obj.data.insert(
                 "all".to_string(),
-                Value::NativeFunction(Rc::new(
-                    Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
-                        let iterable = ctx.args.first().cloned().unwrap_or(Value::Null);
-                        let elements = {
-                            let mut elems = Vec::new();
-                            if let Value::Object(table_rc) = &iterable {
-                                let table = table_rc.borrow();
-                                let mut i = 0;
-                                while let Some(elem) = table.data.get(&i.to_string()) {
-                                    elems.push(elem.clone());
-                                    i += 1;
-                                }
-                                if i == 0 {
-                                    if let Some(Value::String(s)) = table.data.get("__type") {
-                                        if s.as_ref() == "Array" {
-                                            // Empty Array
-                                        } else {
-                                            return Ok(crate::promise::Promise::reject_static(Value::string("Iterable must be an array".to_string())));
-                                        }
-                                    } else {
-                                        return Ok(crate::promise::Promise::reject_static(Value::string("Iterable must be an array".to_string())));
-                                    }
-                                }
-                            } else {
-                                return Ok(crate::promise::Promise::reject_static(Value::string("Iterable must be an object/array".to_string())));
+                Value::NativeFunction(Rc::new(Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
+                    let iterable = ctx.args.first().cloned().unwrap_or(Value::Null);
+                    let elements = {
+                        let mut elems = Vec::new();
+                        if let Value::Object(table_rc) = &iterable {
+                            let table = table_rc.borrow();
+                            let mut i = 0;
+                            while let Some(elem) = table.data.get(&i.to_string()) {
+                                elems.push(elem.clone());
+                                i += 1;
                             }
-                            elems
-                        };
-                        
-                        let n = elements.len();
-                        let result_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
-                        
-                        if n == 0 {
-                            let empty_arr = vm.create_array(vec![]);
-                            vm.settle_promise(result_promise.clone(), crate::promise::PromiseState::Fulfilled(empty_arr));
-                            return Ok(Value::Promise(result_promise));
+                            if i == 0 {
+                                if let Some(Value::String(s)) = table.data.get("__type") {
+                                    if s.as_ref() == "Array" {
+                                        // Empty Array
+                                    } else {
+                                        return Ok(crate::promise::Promise::reject_static(Value::string(
+                                            "Iterable must be an array".to_string(),
+                                        )));
+                                    }
+                                } else {
+                                    return Ok(crate::promise::Promise::reject_static(Value::string(
+                                        "Iterable must be an array".to_string(),
+                                    )));
+                                }
+                            }
+                        } else {
+                            return Ok(crate::promise::Promise::reject_static(Value::string(
+                                "Iterable must be an object/array".to_string(),
+                            )));
                         }
-                        
-                        struct AllState {
-                            remaining: usize,
-                            values: Vec<Value>,
-                            result_promise: Rc<RefCell<crate::promise::Promise>>,
-                        }
-                        
-                        let state = Rc::new(RefCell::new(AllState {
-                            remaining: n,
-                            values: vec![Value::Null; n],
-                            result_promise: result_promise.clone(),
-                        }));
-                        
-                        for (idx, elem) in elements.into_iter().enumerate() {
-                            match elem {
-                                Value::Promise(p_rc) => {
-                                    let state_resolve = state.clone();
-                                    let on_fulfilled = Value::NativeFunction(Rc::new(Box::new(move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
+                        elems
+                    };
+
+                    let n = elements.len();
+                    let result_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+
+                    if n == 0 {
+                        let empty_arr = vm.create_array(vec![]);
+                        vm.settle_promise(
+                            result_promise.clone(),
+                            crate::promise::PromiseState::Fulfilled(empty_arr),
+                        );
+                        return Ok(Value::Promise(result_promise));
+                    }
+
+                    struct AllState {
+                        remaining: usize,
+                        values: Vec<Value>,
+                        result_promise: Rc<RefCell<crate::promise::Promise>>,
+                    }
+
+                    let state = Rc::new(RefCell::new(AllState {
+                        remaining: n,
+                        values: vec![Value::Null; n],
+                        result_promise: result_promise.clone(),
+                    }));
+
+                    for (idx, elem) in elements.into_iter().enumerate() {
+                        match elem {
+                            Value::Promise(p_rc) => {
+                                let state_resolve = state.clone();
+                                let on_fulfilled = Value::NativeFunction(Rc::new(Box::new(
+                                    move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
                                         let val = ctx_inner.args.first().cloned().unwrap_or(Value::Null);
                                         let mut s = state_resolve.borrow_mut();
                                         if s.remaining > 0 {
@@ -423,202 +428,245 @@ impl VM {
                                             s.remaining -= 1;
                                             if s.remaining == 0 {
                                                 let arr = vm_inner.create_array(s.values.clone());
-                                                vm_inner.settle_promise(s.result_promise.clone(), crate::promise::PromiseState::Fulfilled(arr));
+                                                vm_inner.settle_promise(
+                                                    s.result_promise.clone(),
+                                                    crate::promise::PromiseState::Fulfilled(arr),
+                                                );
                                             }
                                         }
                                         Ok(Value::Null)
-                                    }) as Box<NativeFnType>));
-                                    
-                                    let state_reject = state.clone();
-                                    let on_rejected = Value::NativeFunction(Rc::new(Box::new(move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
+                                    },
+                                )
+                                    as Box<NativeFnType>));
+
+                                let state_reject = state.clone();
+                                let on_rejected = Value::NativeFunction(Rc::new(Box::new(
+                                    move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
                                         let reason = ctx_inner.args.first().cloned().unwrap_or(Value::Null);
                                         let mut s = state_reject.borrow_mut();
                                         if s.remaining > 0 {
                                             s.remaining = 0;
-                                            vm_inner.settle_promise(s.result_promise.clone(), crate::promise::PromiseState::Rejected(reason));
+                                            vm_inner.settle_promise(
+                                                s.result_promise.clone(),
+                                                crate::promise::PromiseState::Rejected(reason),
+                                            );
                                         }
                                         Ok(Value::Null)
-                                    }) as Box<NativeFnType>));
-                                    
-                                    let next_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
-                                    let reaction = crate::promise::Reaction::Callback {
-                                        on_fulfilled: Some(on_fulfilled),
-                                        on_rejected: Some(on_rejected),
-                                        next_promise,
-                                    };
-                                    
-                                    let p_state = p_rc.borrow().state.clone();
-                                    match p_state {
-                                        crate::promise::PromiseState::Pending => {
-                                            p_rc.borrow_mut().reactions.push(reaction);
-                                        }
-                                        _ => {
-                                            vm.schedule_reaction(reaction, &p_state);
-                                        }
+                                    },
+                                )
+                                    as Box<NativeFnType>));
+
+                                let next_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+                                let reaction = crate::promise::Reaction::Callback {
+                                    on_fulfilled: Some(on_fulfilled),
+                                    on_rejected: Some(on_rejected),
+                                    next_promise,
+                                };
+
+                                let p_state = p_rc.borrow().state.clone();
+                                match p_state {
+                                    crate::promise::PromiseState::Pending => {
+                                        p_rc.borrow_mut().reactions.push(reaction);
+                                    }
+                                    _ => {
+                                        vm.schedule_reaction(reaction, &p_state);
                                     }
                                 }
-                                non_promise => {
-                                    let mut s = state.borrow_mut();
-                                    if s.remaining > 0 {
-                                        s.values[idx] = non_promise;
-                                        s.remaining -= 1;
-                                        if s.remaining == 0 {
-                                            let arr = vm.create_array(s.values.clone());
-                                            vm.settle_promise(s.result_promise.clone(), crate::promise::PromiseState::Fulfilled(arr));
-                                        }
+                            }
+                            non_promise => {
+                                let mut s = state.borrow_mut();
+                                if s.remaining > 0 {
+                                    s.values[idx] = non_promise;
+                                    s.remaining -= 1;
+                                    if s.remaining == 0 {
+                                        let arr = vm.create_array(s.values.clone());
+                                        vm.settle_promise(
+                                            s.result_promise.clone(),
+                                            crate::promise::PromiseState::Fulfilled(arr),
+                                        );
                                     }
                                 }
                             }
                         }
-                        
-                        Ok(Value::Promise(result_promise))
-                    }) as Box<NativeFnType>,
-                )),
+                    }
+
+                    Ok(Value::Promise(result_promise))
+                }) as Box<NativeFnType>)),
             );
             obj.data.insert(
                 "race".to_string(),
-                Value::NativeFunction(Rc::new(
-                    Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
-                        let iterable = ctx.args.first().cloned().unwrap_or(Value::Null);
-                        let elements = {
-                            let mut elems = Vec::new();
-                            if let Value::Object(table_rc) = &iterable {
-                                let table = table_rc.borrow();
-                                let mut i = 0;
-                                while let Some(elem) = table.data.get(&i.to_string()) {
-                                    elems.push(elem.clone());
-                                    i += 1;
-                                }
-                                if i == 0 {
-                                    if let Some(Value::String(s)) = table.data.get("__type") {
-                                        if s.as_ref() == "Array" {
-                                            // OK
-                                        } else {
-                                            return Ok(crate::promise::Promise::reject_static(Value::string("Iterable must be an array".to_string())));
-                                        }
-                                    } else {
-                                        return Ok(crate::promise::Promise::reject_static(Value::string("Iterable must be an array".to_string())));
-                                    }
-                                }
-                            } else {
-                                return Ok(crate::promise::Promise::reject_static(Value::string("Iterable must be an object/array".to_string())));
+                Value::NativeFunction(Rc::new(Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
+                    let iterable = ctx.args.first().cloned().unwrap_or(Value::Null);
+                    let elements = {
+                        let mut elems = Vec::new();
+                        if let Value::Object(table_rc) = &iterable {
+                            let table = table_rc.borrow();
+                            let mut i = 0;
+                            while let Some(elem) = table.data.get(&i.to_string()) {
+                                elems.push(elem.clone());
+                                i += 1;
                             }
-                            elems
-                        };
-                        
-                        let result_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
-                        
-                        for elem in elements {
-                            match elem {
-                                Value::Promise(p_rc) => {
-                                    let p_res = result_promise.clone();
-                                    let on_fulfilled = Value::NativeFunction(Rc::new(Box::new(move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
+                            if i == 0 {
+                                if let Some(Value::String(s)) = table.data.get("__type") {
+                                    if s.as_ref() == "Array" {
+                                        // OK
+                                    } else {
+                                        return Ok(crate::promise::Promise::reject_static(Value::string(
+                                            "Iterable must be an array".to_string(),
+                                        )));
+                                    }
+                                } else {
+                                    return Ok(crate::promise::Promise::reject_static(Value::string(
+                                        "Iterable must be an array".to_string(),
+                                    )));
+                                }
+                            }
+                        } else {
+                            return Ok(crate::promise::Promise::reject_static(Value::string(
+                                "Iterable must be an object/array".to_string(),
+                            )));
+                        }
+                        elems
+                    };
+
+                    let result_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+
+                    for elem in elements {
+                        match elem {
+                            Value::Promise(p_rc) => {
+                                let p_res = result_promise.clone();
+                                let on_fulfilled = Value::NativeFunction(Rc::new(Box::new(
+                                    move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
                                         let val = ctx_inner.args.first().cloned().unwrap_or(Value::Null);
-                                        vm_inner.settle_promise(p_res.clone(), crate::promise::PromiseState::Fulfilled(val));
+                                        vm_inner.settle_promise(
+                                            p_res.clone(),
+                                            crate::promise::PromiseState::Fulfilled(val),
+                                        );
                                         Ok(Value::Null)
-                                    }) as Box<NativeFnType>));
-                                    
-                                    let p_rej = result_promise.clone();
-                                    let on_rejected = Value::NativeFunction(Rc::new(Box::new(move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
+                                    },
+                                )
+                                    as Box<NativeFnType>));
+
+                                let p_rej = result_promise.clone();
+                                let on_rejected = Value::NativeFunction(Rc::new(Box::new(
+                                    move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
                                         let reason = ctx_inner.args.first().cloned().unwrap_or(Value::Null);
-                                        vm_inner.settle_promise(p_rej.clone(), crate::promise::PromiseState::Rejected(reason));
+                                        vm_inner.settle_promise(
+                                            p_rej.clone(),
+                                            crate::promise::PromiseState::Rejected(reason),
+                                        );
                                         Ok(Value::Null)
-                                    }) as Box<NativeFnType>));
-                                    
-                                    let next_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
-                                    let reaction = crate::promise::Reaction::Callback {
-                                        on_fulfilled: Some(on_fulfilled),
-                                        on_rejected: Some(on_rejected),
-                                        next_promise,
-                                    };
-                                    
-                                    let p_state = p_rc.borrow().state.clone();
-                                    match p_state {
-                                        crate::promise::PromiseState::Pending => {
-                                            p_rc.borrow_mut().reactions.push(reaction);
-                                        }
-                                        _ => {
-                                            vm.schedule_reaction(reaction, &p_state);
-                                        }
+                                    },
+                                )
+                                    as Box<NativeFnType>));
+
+                                let next_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+                                let reaction = crate::promise::Reaction::Callback {
+                                    on_fulfilled: Some(on_fulfilled),
+                                    on_rejected: Some(on_rejected),
+                                    next_promise,
+                                };
+
+                                let p_state = p_rc.borrow().state.clone();
+                                match p_state {
+                                    crate::promise::PromiseState::Pending => {
+                                        p_rc.borrow_mut().reactions.push(reaction);
+                                    }
+                                    _ => {
+                                        vm.schedule_reaction(reaction, &p_state);
                                     }
                                 }
-                                non_promise => {
-                                    vm.settle_promise(result_promise.clone(), crate::promise::PromiseState::Fulfilled(non_promise));
-                                }
+                            }
+                            non_promise => {
+                                vm.settle_promise(
+                                    result_promise.clone(),
+                                    crate::promise::PromiseState::Fulfilled(non_promise),
+                                );
                             }
                         }
-                        
-                        Ok(Value::Promise(result_promise))
-                    }) as Box<NativeFnType>,
-                )),
+                    }
+
+                    Ok(Value::Promise(result_promise))
+                }) as Box<NativeFnType>)),
             );
             obj.data.insert(
                 "allSettled".to_string(),
-                Value::NativeFunction(Rc::new(
-                    Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
-                        let iterable = ctx.args.first().cloned().unwrap_or(Value::Null);
-                        let elements = {
-                            let mut elems = Vec::new();
-                            if let Value::Object(table_rc) = &iterable {
-                                let table = table_rc.borrow();
-                                let mut i = 0;
-                                while let Some(elem) = table.data.get(&i.to_string()) {
-                                    elems.push(elem.clone());
-                                    i += 1;
-                                }
-                                if i == 0 {
-                                    if let Some(Value::String(s)) = table.data.get("__type") {
-                                        if s.as_ref() == "Array" {
-                                            // OK
-                                        } else {
-                                            return Ok(crate::promise::Promise::reject_static(Value::string("Iterable must be an array".to_string())));
-                                        }
-                                    } else {
-                                        return Ok(crate::promise::Promise::reject_static(Value::string("Iterable must be an array".to_string())));
-                                    }
-                                }
-                            } else {
-                                return Ok(crate::promise::Promise::reject_static(Value::string("Iterable must be an object/array".to_string())));
+                Value::NativeFunction(Rc::new(Box::new(|vm: &mut VM, ctx: crate::value::NativeContext| {
+                    let iterable = ctx.args.first().cloned().unwrap_or(Value::Null);
+                    let elements = {
+                        let mut elems = Vec::new();
+                        if let Value::Object(table_rc) = &iterable {
+                            let table = table_rc.borrow();
+                            let mut i = 0;
+                            while let Some(elem) = table.data.get(&i.to_string()) {
+                                elems.push(elem.clone());
+                                i += 1;
                             }
-                            elems
-                        };
-                        
-                        let n = elements.len();
-                        let result_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
-                        
-                        if n == 0 {
-                            let empty_arr = vm.create_array(vec![]);
-                            vm.settle_promise(result_promise.clone(), crate::promise::PromiseState::Fulfilled(empty_arr));
-                            return Ok(Value::Promise(result_promise));
+                            if i == 0 {
+                                if let Some(Value::String(s)) = table.data.get("__type") {
+                                    if s.as_ref() == "Array" {
+                                        // OK
+                                    } else {
+                                        return Ok(crate::promise::Promise::reject_static(Value::string(
+                                            "Iterable must be an array".to_string(),
+                                        )));
+                                    }
+                                } else {
+                                    return Ok(crate::promise::Promise::reject_static(Value::string(
+                                        "Iterable must be an array".to_string(),
+                                    )));
+                                }
+                            }
+                        } else {
+                            return Ok(crate::promise::Promise::reject_static(Value::string(
+                                "Iterable must be an object/array".to_string(),
+                            )));
                         }
-                        
-                        struct AllSettledState {
-                            remaining: usize,
-                            results: Vec<Value>,
-                            result_promise: Rc<RefCell<crate::promise::Promise>>,
-                        }
-                        
-                        let state = Rc::new(RefCell::new(AllSettledState {
-                            remaining: n,
-                            results: vec![Value::Null; n],
-                            result_promise: result_promise.clone(),
-                        }));
-                        
-                        for (idx, elem) in elements.into_iter().enumerate() {
-                            let make_res = |status: &str, k: &str, v: Value| -> Value {
-                                let mut table = crate::value::Table {
-                                    data: IndexMap::new(),
-                                    metatable: None,
-                                };
-                                table.data.insert("status".to_string(), Value::string(status.to_string()));
-                                table.data.insert(k.to_string(), v);
-                                Value::Object(Rc::new(RefCell::new(table)))
+                        elems
+                    };
+
+                    let n = elements.len();
+                    let result_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+
+                    if n == 0 {
+                        let empty_arr = vm.create_array(vec![]);
+                        vm.settle_promise(
+                            result_promise.clone(),
+                            crate::promise::PromiseState::Fulfilled(empty_arr),
+                        );
+                        return Ok(Value::Promise(result_promise));
+                    }
+
+                    struct AllSettledState {
+                        remaining: usize,
+                        results: Vec<Value>,
+                        result_promise: Rc<RefCell<crate::promise::Promise>>,
+                    }
+
+                    let state = Rc::new(RefCell::new(AllSettledState {
+                        remaining: n,
+                        results: vec![Value::Null; n],
+                        result_promise: result_promise.clone(),
+                    }));
+
+                    for (idx, elem) in elements.into_iter().enumerate() {
+                        let make_res = |status: &str, k: &str, v: Value| -> Value {
+                            let mut table = crate::value::Table {
+                                data: IndexMap::new(),
+                                metatable: None,
                             };
-                            
-                            match elem {
-                                Value::Promise(p_rc) => {
-                                    let state_resolve = state.clone();
-                                    let on_fulfilled = Value::NativeFunction(Rc::new(Box::new(move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
+                            table
+                                .data
+                                .insert("status".to_string(), Value::string(status.to_string()));
+                            table.data.insert(k.to_string(), v);
+                            Value::Object(Rc::new(RefCell::new(table)))
+                        };
+
+                        match elem {
+                            Value::Promise(p_rc) => {
+                                let state_resolve = state.clone();
+                                let on_fulfilled = Value::NativeFunction(Rc::new(Box::new(
+                                    move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
                                         let val = ctx_inner.args.first().cloned().unwrap_or(Value::Null);
                                         let mut s = state_resolve.borrow_mut();
                                         if s.remaining > 0 {
@@ -626,14 +674,20 @@ impl VM {
                                             s.remaining -= 1;
                                             if s.remaining == 0 {
                                                 let arr = vm_inner.create_array(s.results.clone());
-                                                vm_inner.settle_promise(s.result_promise.clone(), crate::promise::PromiseState::Fulfilled(arr));
+                                                vm_inner.settle_promise(
+                                                    s.result_promise.clone(),
+                                                    crate::promise::PromiseState::Fulfilled(arr),
+                                                );
                                             }
                                         }
                                         Ok(Value::Null)
-                                    }) as Box<NativeFnType>));
-                                    
-                                    let state_reject = state.clone();
-                                    let on_rejected = Value::NativeFunction(Rc::new(Box::new(move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
+                                    },
+                                )
+                                    as Box<NativeFnType>));
+
+                                let state_reject = state.clone();
+                                let on_rejected = Value::NativeFunction(Rc::new(Box::new(
+                                    move |vm_inner: &mut VM, ctx_inner: crate::value::NativeContext| {
                                         let reason = ctx_inner.args.first().cloned().unwrap_or(Value::Null);
                                         let mut s = state_reject.borrow_mut();
                                         if s.remaining > 0 {
@@ -641,46 +695,53 @@ impl VM {
                                             s.remaining -= 1;
                                             if s.remaining == 0 {
                                                 let arr = vm_inner.create_array(s.results.clone());
-                                                vm_inner.settle_promise(s.result_promise.clone(), crate::promise::PromiseState::Fulfilled(arr));
+                                                vm_inner.settle_promise(
+                                                    s.result_promise.clone(),
+                                                    crate::promise::PromiseState::Fulfilled(arr),
+                                                );
                                             }
                                         }
                                         Ok(Value::Null)
-                                    }) as Box<NativeFnType>));
-                                    
-                                    let next_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
-                                    let reaction = crate::promise::Reaction::Callback {
-                                        on_fulfilled: Some(on_fulfilled),
-                                        on_rejected: Some(on_rejected),
-                                        next_promise,
-                                    };
-                                    
-                                    let p_state = p_rc.borrow().state.clone();
-                                    match p_state {
-                                        crate::promise::PromiseState::Pending => {
-                                            p_rc.borrow_mut().reactions.push(reaction);
-                                        }
-                                        _ => {
-                                            vm.schedule_reaction(reaction, &p_state);
-                                        }
+                                    },
+                                )
+                                    as Box<NativeFnType>));
+
+                                let next_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+                                let reaction = crate::promise::Reaction::Callback {
+                                    on_fulfilled: Some(on_fulfilled),
+                                    on_rejected: Some(on_rejected),
+                                    next_promise,
+                                };
+
+                                let p_state = p_rc.borrow().state.clone();
+                                match p_state {
+                                    crate::promise::PromiseState::Pending => {
+                                        p_rc.borrow_mut().reactions.push(reaction);
+                                    }
+                                    _ => {
+                                        vm.schedule_reaction(reaction, &p_state);
                                     }
                                 }
-                                non_promise => {
-                                    let mut s = state.borrow_mut();
-                                    if s.remaining > 0 {
-                                        s.results[idx] = make_res("fulfilled", "value", non_promise);
-                                        s.remaining -= 1;
-                                        if s.remaining == 0 {
-                                            let arr = vm.create_array(s.results.clone());
-                                            vm.settle_promise(s.result_promise.clone(), crate::promise::PromiseState::Fulfilled(arr));
-                                        }
+                            }
+                            non_promise => {
+                                let mut s = state.borrow_mut();
+                                if s.remaining > 0 {
+                                    s.results[idx] = make_res("fulfilled", "value", non_promise);
+                                    s.remaining -= 1;
+                                    if s.remaining == 0 {
+                                        let arr = vm.create_array(s.results.clone());
+                                        vm.settle_promise(
+                                            s.result_promise.clone(),
+                                            crate::promise::PromiseState::Fulfilled(arr),
+                                        );
                                     }
                                 }
                             }
                         }
-                        
-                        Ok(Value::Promise(result_promise))
-                    }) as Box<NativeFnType>,
-                )),
+                    }
+
+                    Ok(Value::Promise(result_promise))
+                }) as Box<NativeFnType>)),
             );
         }
         variables.insert("Promise".to_string(), promise_obj);
@@ -746,14 +807,22 @@ impl VM {
         Err(VMRuntimeError::UncaughtException(msg.into()))
     }
 
-    pub fn settle_promise(&mut self, promise_rc: Rc<RefCell<crate::promise::Promise>>, state: crate::promise::PromiseState) {
+    pub fn settle_promise(
+        &mut self,
+        promise_rc: Rc<RefCell<crate::promise::Promise>>,
+        state: crate::promise::PromiseState,
+    ) {
         let reactions = promise_rc.borrow_mut().settle(state);
         for reaction in reactions {
             self.schedule_reaction(reaction, &promise_rc.borrow().state);
         }
     }
 
-    pub fn schedule_reaction(&mut self, reaction: crate::promise::Reaction, settled_state: &crate::promise::PromiseState) {
+    pub fn schedule_reaction(
+        &mut self,
+        reaction: crate::promise::Reaction,
+        settled_state: &crate::promise::PromiseState,
+    ) {
         match reaction {
             crate::promise::Reaction::ResumeFiber(fiber) => {
                 let res = match settled_state {
@@ -774,42 +843,54 @@ impl VM {
                 on_fulfilled,
                 on_rejected,
                 next_promise,
-            } => {
-                match settled_state {
-                    crate::promise::PromiseState::Fulfilled(val) => {
-                        if let Some(callback) = on_fulfilled {
-                            if matches!(callback, Value::Fn(_) | Value::NativeFunction(_)) {
-                                if let Err(e) = self.spawn_callback_fiber(callback, val.clone(), next_promise.clone(), None) {
-                                    self.settle_promise(next_promise, crate::promise::PromiseState::Rejected(Value::string(e)));
-                                }
-                            } else {
-                                self.settle_promise(next_promise, crate::promise::PromiseState::Fulfilled(val.clone()));
+            } => match settled_state {
+                crate::promise::PromiseState::Fulfilled(val) => {
+                    if let Some(callback) = on_fulfilled {
+                        if matches!(callback, Value::Fn(_) | Value::NativeFunction(_)) {
+                            if let Err(e) = self.spawn_callback_fiber(callback, val.clone(), next_promise.clone(), None)
+                            {
+                                self.settle_promise(
+                                    next_promise,
+                                    crate::promise::PromiseState::Rejected(Value::string(e)),
+                                );
                             }
                         } else {
                             self.settle_promise(next_promise, crate::promise::PromiseState::Fulfilled(val.clone()));
                         }
+                    } else {
+                        self.settle_promise(next_promise, crate::promise::PromiseState::Fulfilled(val.clone()));
                     }
-                    crate::promise::PromiseState::Rejected(reason) => {
-                        if let Some(callback) = on_rejected {
-                            if matches!(callback, Value::Fn(_) | Value::NativeFunction(_)) {
-                                if let Err(e) = self.spawn_callback_fiber(callback, reason.clone(), next_promise.clone(), None) {
-                                    self.settle_promise(next_promise, crate::promise::PromiseState::Rejected(Value::string(e)));
-                                }
-                            } else {
-                                self.settle_promise(next_promise, crate::promise::PromiseState::Rejected(reason.clone()));
+                }
+                crate::promise::PromiseState::Rejected(reason) => {
+                    if let Some(callback) = on_rejected {
+                        if matches!(callback, Value::Fn(_) | Value::NativeFunction(_)) {
+                            if let Err(e) =
+                                self.spawn_callback_fiber(callback, reason.clone(), next_promise.clone(), None)
+                            {
+                                self.settle_promise(
+                                    next_promise,
+                                    crate::promise::PromiseState::Rejected(Value::string(e)),
+                                );
                             }
                         } else {
                             self.settle_promise(next_promise, crate::promise::PromiseState::Rejected(reason.clone()));
                         }
+                    } else {
+                        self.settle_promise(next_promise, crate::promise::PromiseState::Rejected(reason.clone()));
                     }
-                    _ => unreachable!(),
                 }
-            }
+                _ => unreachable!(),
+            },
             crate::promise::Reaction::Finally {
                 on_finally,
                 next_promise,
             } => {
-                if let Err(e) = self.spawn_callback_fiber(on_finally, Value::null(), next_promise.clone(), Some(settled_state.clone())) {
+                if let Err(e) = self.spawn_callback_fiber(
+                    on_finally,
+                    Value::null(),
+                    next_promise.clone(),
+                    Some(settled_state.clone()),
+                ) {
                     self.settle_promise(next_promise, crate::promise::PromiseState::Rejected(Value::string(e)));
                 }
             }
@@ -832,12 +913,12 @@ impl VM {
                 fiber.current_this = None;
                 fiber.fp = 0;
                 fiber.pc = sym.location as usize;
-                
+
                 fiber.stack.push(arg);
                 let nlocals = sym.nlocals;
                 let total_slots = std::cmp::max(1, sym.narguments) + nlocals;
                 fiber.stack.resize(total_slots, Value::null());
-                
+
                 fiber.state = FiberState::Running;
                 fiber.is_spawned = true;
                 fiber.skip_push_on_resume = true;
@@ -845,7 +926,10 @@ impl VM {
                 fiber.finally_initial_state = finally_initial_state;
 
                 let fiber_rc = Rc::new(RefCell::new(fiber));
-                self.async_state.ready_queue.borrow_mut().push_back((fiber_rc, Ok(Value::null())));
+                self.async_state
+                    .ready_queue
+                    .borrow_mut()
+                    .push_back((fiber_rc, Ok(Value::null())));
                 *self.async_state.pending_tasks.borrow_mut() += 1;
                 self.async_state.notify.notify_one();
                 Ok(())
@@ -865,7 +949,10 @@ impl VM {
                         self.settle_promise(next_promise, final_state);
                     }
                     Err(e) => {
-                        self.settle_promise(next_promise, crate::promise::PromiseState::Rejected(Value::string(e.to_string())));
+                        self.settle_promise(
+                            next_promise,
+                            crate::promise::PromiseState::Rejected(Value::string(e.to_string())),
+                        );
                     }
                 }
                 Ok(())
@@ -885,7 +972,9 @@ impl VM {
                 None
             },
         };
-        table.data.insert("__type".to_string(), Value::string("Array".to_string()));
+        table
+            .data
+            .insert("__type".to_string(), Value::string("Array".to_string()));
         for (i, val) in elements.into_iter().enumerate() {
             table.data.insert(i.to_string(), val);
         }
@@ -896,4 +985,3 @@ impl VM {
 pub fn native_iter_self(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
     Ok(ctx.this.clone().unwrap_or(Value::Null))
 }
-

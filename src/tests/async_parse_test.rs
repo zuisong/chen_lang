@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
+    use crate::expression::{Expression, Statement, TypeAnnotation};
     use crate::parser::handwritten::parse;
     use crate::tokenizer::tokenizer;
-    use crate::expression::{Statement, Expression, TypeAnnotation};
 
     #[test]
     fn test_parse_async_await() {
@@ -14,7 +14,7 @@ mod tests {
 
             let main = async function() {
                 let data = await fetchData("https://example.com")
-                let p = new Promise(function(resolve) {
+                let p = Promise.new(function(resolve) {
                     resolve(data)
                 })
             }
@@ -30,7 +30,7 @@ mod tests {
             assert_eq!(decl.name.as_deref(), Some("fetchData"));
             assert_eq!(decl.parameters.len(), 1);
             assert_eq!(decl.parameters[0].name, "url");
-            
+
             if let Some(TypeAnnotation::Promise(inner)) = &decl.return_type {
                 if let TypeAnnotation::String = **inner {
                     // OK
@@ -63,19 +63,24 @@ mod tests {
             assert_eq!(local.name, "main");
             if let Expression::AsyncFunction(decl) = &local.expression {
                 assert_eq!(decl.name, None);
-                
-                // Check new Promise
+
+                // Check Promise.new static constructor call
                 if let Statement::Local(p_local) = &decl.body[1] {
                     assert_eq!(p_local.name, "p");
-                    if let Expression::New { constructor, arguments, .. } = &p_local.expression {
-                        if let Expression::Identifier(name, _) = &**constructor {
-                            assert_eq!(name, "Promise");
+                    if let Expression::FunctionCall(call) = &p_local.expression {
+                        if let Expression::GetField { object, field, .. } = &*call.callee {
+                            assert_eq!(field, "new");
+                            if let Expression::Identifier(name, _) = &**object {
+                                assert_eq!(name, "Promise");
+                            } else {
+                                panic!("Expected Promise identifier");
+                            }
                         } else {
-                            panic!("Expected Promise identifier");
+                            panic!("Expected Promise.new callee");
                         }
-                        assert_eq!(arguments.len(), 1);
+                        assert_eq!(call.arguments.len(), 1);
                     } else {
-                        panic!("Expected New expression");
+                        panic!("Expected FunctionCall expression");
                     }
                 }
             } else {

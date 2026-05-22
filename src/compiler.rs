@@ -206,6 +206,7 @@ impl<'a> Compiler<'a> {
     // --- Compilation Methods ---
 
     fn compile_program(&mut self, ast: Ast) {
+        eprintln!("DEBUG: compile_program called with {} statements", ast.len());
         let mut function_declarations = Vec::new();
         let mut main_statements = Vec::new();
 
@@ -235,7 +236,9 @@ impl<'a> Compiler<'a> {
                     location: self.program.instructions.len() as i32,
                     narguments: 0,
                     nlocals: 0,
-                    upvalues: Vec::new(), is_async: false
+                    upvalues: Vec::new(),
+                    is_async: false,
+                    is_generator: false,
                 },
             );
         }
@@ -320,8 +323,8 @@ impl<'a> Compiler<'a> {
             Expression::Function(fd) => fd.loc,
             Expression::AsyncFunction(fd) => fd.loc,
             Expression::Await { loc, .. } => *loc,
-            Expression::New { loc, .. } => *loc,
             Expression::MethodCall(mc) => mc.loc,
+            Expression::Yield { loc, .. } => *loc,
         }
     }
 
@@ -342,7 +345,9 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
-                upvalues: Vec::new(), is_async: false
+                upvalues: Vec::new(),
+                is_async: false,
+                is_generator: false,
             },
         );
 
@@ -372,7 +377,9 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
-                upvalues: Vec::new(), is_async: false
+                upvalues: Vec::new(),
+                is_async: false,
+                is_generator: false,
             },
         );
 
@@ -457,6 +464,7 @@ impl<'a> Compiler<'a> {
                 let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
 
                 self.emit(Instruction::Jump(skip_label.clone()), loc);
+                let _is_generator = fd.is_generator;
                 self.compile_declaration(fd, false);
 
                 self.program.syms.insert(
@@ -465,7 +473,9 @@ impl<'a> Compiler<'a> {
                         location: self.program.instructions.len() as i32,
                         narguments: 0,
                         nlocals: 0,
-                        upvalues: Vec::new(), is_async: false
+                        upvalues: Vec::new(),
+                        is_async: false,
+                        is_generator: false,
                     },
                 );
 
@@ -473,13 +483,17 @@ impl<'a> Compiler<'a> {
             }
             Expression::AsyncFunction(mut fd) => {
                 let loc = fd.loc;
-                let func_name = fd.name.take().unwrap_or_else(|| format!("async_anon_{}", self.unique_id()));
+                let func_name = fd
+                    .name
+                    .take()
+                    .unwrap_or_else(|| format!("async_anon_{}", self.unique_id()));
                 fd.name = Some(func_name.clone());
 
                 let unique_id = self.unique_id();
                 let skip_label = format!("skip_async_func_{}_{}", func_name, unique_id);
 
                 self.emit(Instruction::Jump(skip_label.clone()), loc);
+                let _is_generator = fd.is_generator;
                 self.compile_declaration(fd, true);
 
                 self.program.syms.insert(
@@ -488,30 +502,34 @@ impl<'a> Compiler<'a> {
                         location: self.program.instructions.len() as i32,
                         narguments: 0,
                         nlocals: 0,
-                        upvalues: Vec::new(), is_async: false
+                        upvalues: Vec::new(),
+                        is_async: false,
+                        is_generator: false,
                     },
                 );
 
                 self.emit(Instruction::Closure(format!("func_{}", func_name)), loc);
                 // Wrap closure with an instruction that makes it return a Promise when called
             }
+            Expression::Yield {
+                expression,
+                is_delegate,
+                loc,
+            } => {
+                if is_delegate {
+                    // TODO: Implement yield* (delegate yield)
+                    // For now, let's just compile the expression and yield
+                    self.compile_expression(*expression);
+                    self.emit(Instruction::Yield, loc);
+                } else {
+                    self.compile_expression(*expression);
+                    self.emit(Instruction::Yield, loc);
+                }
+            }
             Expression::Await { expression, loc } => {
                 self.compile_expression(*expression);
                 // Await expects a Promise on stack, then yields control
-                self.emit(Instruction::Yield, loc);
-            }
-            Expression::New {
-                constructor,
-                arguments,
-                loc,
-            } => {
-                let len = arguments.len();
-                self.compile_expression(*constructor);
-                for arg in arguments {
-                    self.compile_expression(arg);
-                }
-                // We use CallStack for now, VM should handle 'new' if it's a native class or object
-                self.emit(Instruction::CallStack(len), loc);
+                self.emit(Instruction::Await, loc);
             }
         }
     }
@@ -621,10 +639,10 @@ impl<'a> Compiler<'a> {
 
         {
             let is_optimized_call = if let Expression::Identifier(ref name, _) = callee {
-                match self.resolve_variable(name) {
-                    Some(VarLocation::Local(_)) | Some(VarLocation::Upvalue(_)) => false,
-                    _ => true,
-                }
+                !matches!(
+                    self.resolve_variable(name),
+                    Some(VarLocation::Local(_)) | Some(VarLocation::Upvalue(_))
+                )
             } else {
                 false
             };
@@ -714,6 +732,7 @@ impl<'a> Compiler<'a> {
                 narguments,
                 upvalues,
                 is_async,
+                is_generator: fd.is_generator,
             },
         );
     }
@@ -738,7 +757,9 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 nlocals: 0,
                 narguments: 0,
-                upvalues: Vec::new(), is_async: false
+                upvalues: Vec::new(),
+                is_async: false,
+                is_generator: false,
             },
         );
 
@@ -754,7 +775,9 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 nlocals: 0,
                 narguments: 0,
-                upvalues: Vec::new(), is_async: false
+                upvalues: Vec::new(),
+                is_async: false,
+                is_generator: false,
             },
         );
     }
@@ -771,7 +794,9 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
-                upvalues: Vec::new(), is_async: false
+                upvalues: Vec::new(),
+                is_async: false,
+                is_generator: false,
             },
         );
 
@@ -798,7 +823,9 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
-                upvalues: Vec::new(), is_async: false
+                upvalues: Vec::new(),
+                is_async: false,
+                is_generator: false,
             },
         );
     }
@@ -849,6 +876,7 @@ impl<'a> Compiler<'a> {
                     nlocals: 0,
                     upvalues: Vec::new(),
                     is_async: false,
+                    is_generator: false,
                 },
             );
             self.emit(Instruction::Pop, loc); // Pop the Null method
@@ -866,6 +894,7 @@ impl<'a> Compiler<'a> {
                     nlocals: 0,
                     upvalues: Vec::new(),
                     is_async: false,
+                    is_generator: false,
                 },
             );
         } else {
@@ -893,6 +922,7 @@ impl<'a> Compiler<'a> {
                 nlocals: 0,
                 upvalues: Vec::new(),
                 is_async: false,
+                is_generator: false,
             },
         );
 
@@ -903,7 +933,7 @@ impl<'a> Compiler<'a> {
 
         // If async, await the result
         if for_of.is_async {
-            self.emit(Instruction::Yield, loc);
+            self.emit(Instruction::Await, loc);
         }
 
         // Check if done
@@ -926,6 +956,7 @@ impl<'a> Compiler<'a> {
                 nlocals: 0,
                 upvalues: Vec::new(),
                 is_async: false,
+                is_generator: false,
             },
         );
 
@@ -967,6 +998,7 @@ impl<'a> Compiler<'a> {
                 nlocals: 0,
                 upvalues: Vec::new(),
                 is_async: false,
+                is_generator: false,
             },
         );
 
@@ -1002,7 +1034,9 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
-                upvalues: Vec::new(), is_async: false
+                upvalues: Vec::new(),
+                is_async: false,
+                is_generator: false,
             },
         );
 
@@ -1042,7 +1076,9 @@ impl<'a> Compiler<'a> {
                     location: self.program.instructions.len() as i32,
                     narguments: 0,
                     nlocals: 0,
-                    upvalues: Vec::new(), is_async: false
+                    upvalues: Vec::new(),
+                    is_async: false,
+                    is_generator: false,
                 },
             );
 
@@ -1059,7 +1095,9 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
-                upvalues: Vec::new(), is_async: false
+                upvalues: Vec::new(),
+                is_async: false,
+                is_generator: false,
             },
         );
     }

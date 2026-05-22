@@ -219,6 +219,32 @@ for (let item of arr) {
 }
 ```
 
+### For Await-Of 循环
+用于遍历异步迭代器（例如具有 `asyncIter()` 方法的对象），通常在 `async` 函数内部使用：
+
+```js
+let async_iterable = {
+    asyncIter: function() {
+        let i = 0
+        return {
+            next: async function() {
+                if (i < 3) {
+                    i = i + 1
+                    return { value: i, done: false }
+                }
+                return { value: null, done: true }
+            }
+        }
+    }
+}
+
+async function run() {
+    for await (let x of async_iterable) {
+        console.log(x) // 依次打印 1, 2, 3
+    }
+}
+```
+
 ### Break 与 Continue
 用于控制循环退出与跳过当前迭代：
 

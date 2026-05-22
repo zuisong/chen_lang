@@ -1,9 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::value::NativeContext;
 use super::*;
-
+use crate::value::NativeContext;
 
 pub fn create_array_prototype() -> Value {
     use native_array_prototype::*;
@@ -44,10 +43,7 @@ pub fn create_array_prototype() -> Value {
     proto_val
 }
 
-fn array_receiver<'a>(
-    ctx: &'a NativeContext,
-    operation: &str,
-) -> Result<&'a Value, VMRuntimeError> {
+fn array_receiver<'a>(ctx: &'a NativeContext, operation: &str) -> Result<&'a Value, VMRuntimeError> {
     let Some(obj) = ctx.this.as_ref().or_else(|| ctx.args.first()) else {
         return Err(ValueError::TypeMismatch {
             expected: ValueType::Object,
@@ -121,7 +117,10 @@ pub fn native_array_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRu
             result_data.insert("value".to_string(), Value::Null);
             result_data.insert("done".to_string(), Value::Bool(true));
         }
-        Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data: result_data, metatable: None }))))
+        Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table {
+            data: result_data,
+            metatable: None,
+        }))))
     };
 
     let mut data = IndexMap::new();
@@ -133,7 +132,10 @@ pub fn native_array_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRu
         "@@iterator".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_iter_self) as Box<NativeFnType>)),
     );
-    Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data, metatable: None }))))
+    Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table {
+        data,
+        metatable: None,
+    }))))
 }
 
 pub fn native_array_entries(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
@@ -164,7 +166,10 @@ pub fn native_array_entries(_vm: &mut VM, ctx: NativeContext) -> Result<Value, V
             let mut pair_data = IndexMap::new();
             pair_data.insert("key".to_string(), Value::Int(*idx as i32));
             pair_data.insert("value".to_string(), val);
-            let pair = Value::Object(Rc::new(RefCell::new(crate::value::Table { data: pair_data, metatable: None })));
+            let pair = Value::Object(Rc::new(RefCell::new(crate::value::Table {
+                data: pair_data,
+                metatable: None,
+            })));
 
             *idx += 1;
             result_data.insert("value".to_string(), pair);
@@ -173,7 +178,10 @@ pub fn native_array_entries(_vm: &mut VM, ctx: NativeContext) -> Result<Value, V
             result_data.insert("value".to_string(), Value::Null);
             result_data.insert("done".to_string(), Value::Bool(true));
         }
-        Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data: result_data, metatable: None }))))
+        Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table {
+            data: result_data,
+            metatable: None,
+        }))))
     };
 
     let mut data = IndexMap::new();
@@ -185,5 +193,8 @@ pub fn native_array_entries(_vm: &mut VM, ctx: NativeContext) -> Result<Value, V
         "@@iterator".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_iter_self) as Box<NativeFnType>)),
     );
-    Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data, metatable: None }))))
+    Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table {
+        data,
+        metatable: None,
+    }))))
 }

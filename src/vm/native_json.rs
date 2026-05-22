@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 
-use crate::value::NativeContext;
 use super::*;
+use crate::value::NativeContext;
 pub fn create_json_object() -> Value {
     let mut table = crate::value::Table {
         data: IndexMap::new(),
@@ -20,7 +20,7 @@ pub fn create_json_object() -> Value {
 
 fn native_json_parse(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
     if let Some(Value::String(s)) = ctx.args.last() {
-        let v: serde_json::Value = serde_json::from_str(&s).map_err(|_e| ValueError::InvalidOperation {
+        let v: serde_json::Value = serde_json::from_str(s).map_err(|_e| ValueError::InvalidOperation {
             operator: "JSON.parse".into(),
             left_type: ValueType::String,
             right_type: ValueType::Null,

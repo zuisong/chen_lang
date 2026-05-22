@@ -1,436 +1,328 @@
 import init, { run_wasm } from './pkg/chen_lang.js';
 
 const examples = {
-    hello: `# Basic: Hello World
-let io = import("stdlib/io")
-let print = io.print
-let println = io.println
-
-print("Hello, Chen Lang!")
+    hello: `// Basic: Hello World
+console.log("Hello, Chen Lang!")
 
 let a = 10
-if a > 5 {
-    println("a is greater than 5")
+if (a > 5) {
+    console.log("a is greater than 5")
 }
 `,
-    if_else_if: `# Feature: Else If Chain
-let io = import("stdlib/io")
-let println = io.println
-
+    if_else_if: `// Feature: Else If Chain
 let score = 85
 
-if score >= 90 {
-    println("Excellent! (A)")
-} else if score >= 80 {
-    println("Good! (B)")
-} else if score >= 60 {
-    println("Passed! (C)")
+if (score >= 90) {
+    console.log("Excellent! (A)")
+} else if (score >= 80) {
+    console.log("Good! (B)")
+} else if (score >= 60) {
+    console.log("Passed! (C)")
 } else {
-    println("Failed! (F)")
+    console.log("Failed! (F)")
 }
 
-# It also works as an expression
-let grade = if score >= 90 { "A" } else if score >= 60 { "P" } else { "F" }
-println("Grade result: " + grade)
+// It also works as an expression
+let grade = if (score >= 90) { "A" } else if (score >= 60) { "P" } else { "F" }
+console.log("Grade result: " + grade)
 `,
-    multiplication_table: `# Feature: for loop (9x9 Table)
-let io = import("stdlib/io")
-let print = io.print
-let println = io.println
-
+    multiplication_table: `// Feature: for loop (9x9 Table)
 let i = 1
-for i <= 9 {
+while (i <= 9) {
     let j = 1
-    for j <= i {
-        print(j + "x" + i + "=" + i*j + " ")
+    while (j <= i) {
+        console.print(j + "x" + i + "=" + i*j + " ")
         j = j + 1
     }
-    println("")
+    console.log("")
     i = i + 1
 }
 `,
-    fib: `# Algorithm: Fibonacci
-let io = import("stdlib/io")
-let println = io.println
-
-def fib(n) {
-    if n <= 1 {
+    fib: `// Algorithm: Fibonacci
+function fib(n) {
+    if (n <= 1) {
         return n
     }
     return fib(n-1) + fib(n-2)
 }
 
-println("Fibonacci of 10 is:")
-println(fib(10))
+console.log("Fibonacci of 10 is:")
+console.log(fib(10))
 `,
-    objects: `# Pattern: Objects & Methods (Lua-style)
-let io = import("stdlib/io")
-let println = io.println
+    objects: `// Pattern: Objects & Methods
+function Person(name) {
+    let p = { name: name }
 
-def Person(name) {
-    let p = \${ name: name }
-
-    def greet(self) {
-        println("Hello, my name is " + self.name)
+    p.greet = function() {
+        console.log("Hello, my name is " + this.name)
     }
 
-    # Set prototype (methods)
-    set_meta(p, \${ 
-        __index: \${ greet: greet }
-    })
     return p
 }
 
 let chen = Person("Chen")
-chen:greet()
+chen.greet()
 `,
-    metamethod_funcs: `# Advanced: Metamethod Functions
-let io = import("stdlib/io")
-let println = io.println
-
-# Implement a "Strict Object" that throws on unknown access
-def create_strict_model(data) {
-    let meta = \${
-        # Intercept missing property lookup
-        __index: def(obj, key) {
-            println("Warning: Accessing undefined property '" + key + "'")
+    metamethod_funcs: `// Advanced: Metamethod Functions
+// Implement a "Strict Object" that throws on unknown access
+function create_strict_model(data) {
+    let meta = {
+        // Intercept missing property lookup
+        __index: function(obj, key) {
+            console.log("Warning: Accessing undefined property '" + key + "'")
             return null
         },
-        # Intercept new property assignment
-        __newindex: def(obj, key, value) {
-            println("Blocked: Settng new property '" + key + "' to " + value)
+        // Intercept new property assignment
+        __newindex: function(obj, key, value) {
+            console.log("Blocked: Setting new property '" + key + "' to " + value)
         }
     }
-    set_meta(data, meta)
+    Chen.setMeta(data, meta)
     return data
 }
 
-let user = create_strict_model(\${ name: "Chen" })
+let user = create_strict_model({ name: "Chen" })
 
-println("Name: " + user.name)
-println("Age: " + user.age)  # Triggers __index
+console.log("Name: " + user.name)
+console.log("Age: " + user.age)  // Triggers __index
 
-user.score = 100            # Triggers __newindex
+user.score = 100            // Triggers __newindex
 `,
-    inheritance: `# Pattern: Prototype Inheritance
-let io = import("stdlib/io")
-let println = io.println
-
-# Base "Class"
-def Animal(name) {
-    let a = \${ name: name }
-    def speak(self) {
-        println(self.name + " makes a noise.")
+    inheritance: `// Pattern: Prototype Inheritance
+// Base "Class"
+function Animal(name) {
+    let a = { name: name }
+    a.speak = function() {
+        console.log(this.name + " makes a noise.")
     }
-    set_meta(a, \${ __index: \${ speak: speak } })
     return a
 }
 
-# Derived "Class"
-def Dog(name) {
-    # 1. Create base instance
-    let d = Animal(name)
+// Derived "Class"
+function Dog(name) {
+    // Create new prototype that inherits from Animal's prototype
+    let dog = Object.create(Animal(name))
 
-    # 2. Define derived methods
-    def bark(self) {
-        println(self.name + " barks: Woof!")
+    // Define derived methods
+    dog.bark = function() {
+        console.log(this.name + " barks: Woof!")
     }
 
-    # 3. Create methods table that inherits from base's methods
-    # Get base prototype (metatable.__index)
-    let base_proto = get_meta(d).__index
-
-    # Create new prototype that inherits from base_proto
-    let dog_proto = \${ bark: bark }
-    set_meta(dog_proto, \${ __index: base_proto })
-
-    # 4. Update instance's metatable to use new prototype
-    set_meta(d, \${ __index: dog_proto })
-
-    return d
+    return dog
 }
 
 let dog = Dog("Rex")
-dog:speak() # Inherited from Animal
-dog:bark()  # Defined in Dog
+dog.speak() // Inherited from Animal
+dog.bark()  // Defined in Dog
 `,
-    point_objects: `# Pattern: Custom Objects (Point with methods and operators)
-let io = import("stdlib/io")
-let println = io.println
-
-
-# Define Point prototype (shared methods and metamethods)
-let Point = \${ 
-    __index: \${ 
-        # Method: Return string representation
-        to_string: def(self) {
-            return "Point(" + self.x + ", " + self.y + ")"
-        },
-        # Method: Move point by dx, dy
-        move_by: def(self, dx, dy) {
-            self.x = self.x + dx
-            self.y = self.y + dy
-        }
+    point_objects: `// Pattern: Custom Objects (Point with methods and operators)
+// Define Point prototype (shared methods and metamethods)
+let PointProto = { 
+    // Method: Return string representation
+    to_string: function() {
+        return "Point(" + this.x + ", " + this.y + ")"
     },
-    # Metamethod: Operator Overloading for addition (+)
-    __add: def(a, b) {
-        # Returns a new Point instance
+    // Method: Move point by dx, dy
+    move_by: function(dx, dy) {
+        this.x = this.x + dx
+        this.y = this.y + dy
+    },
+    // Metamethod: Operator Overloading for addition (+)
+    __add: function(a, b) {
         return new_Point(a.x + b.x, a.y + b.y)
     },
-    # Metamethod: Operator Overloading for subtraction (-)
-    __sub: def(a, b) {
+    // Metamethod: Operator Overloading for subtraction (-)
+    __sub: function(a, b) {
         return new_Point(a.x - b.x, a.y - b.y)
     },
-    # Metamethod: Operator Overloading for multiplication (*)
-    __mul: def(a, b) {
+    // Metamethod: Operator Overloading for multiplication (*)
+    __mul: function(a, b) {
         return new_Point(a.x * b.x, a.y * b.y)
     }
 }
 
-# Constructor function for Point objects
-def new_Point(x_coord, y_coord) {
-    let instance = \${ 
+// Constructor function for Point objects
+function new_Point(x_coord, y_coord) {
+    let instance = { 
         x: x_coord,
         y: y_coord
     }
-    # Set the instance's metatable to the Point prototype
-    set_meta(instance, Point)
+    // Set the instance's metatable to the Point prototype
+    Chen.setMeta(instance, PointProto)
     return instance
 }
 
-# --- Usage Examples ---
+// --- Usage Examples ---
 
-# Create Point instances
 let p1 = new_Point(10, 20)
 let p2 = new_Point(3, 5)
 
-println("Original Points:")
-println(p1:to_string())
-println(p2:to_string())
+console.log("Original Points:")
+console.log(p1.to_string())
+console.log(p2.to_string())
 
-# Call a method to modify state
-p1:move_by(5, -10)
-println("p1 after move_by(5, -10):")
-println(p1:to_string())
+p1.move_by(5, -10)
+console.log("p1 after move_by(5, -10):")
+console.log(p1.to_string())
 
-# Use overloaded operators
 let p3_add = p1 + p2
-println("p1 + p2 (overloaded +):")
-println(p3_add:to_string())
-
-let p4_sub = p1 - p2
-println("p1 - p2 (overloaded -):")
-println(p4_sub:to_string())
-
-let p5_mul = new_Point(2,3) * new_Point(4,5)
-println("p5_mul (overloaded *):")
-println(p5_mul:to_string())
+console.log("p1 + p2 (overloaded +):")
+console.log(p3_add.to_string())
 `,
-    date: `# StdLib: Date & Time
-let io = import("stdlib/io")
-let Date = import("stdlib/date")
-let JSON = import("stdlib/json")
-let println = io.println
+    date: `// StdLib: Date & Time
+let now = Chen.date.new()
+console.log("Current time (ISO): " + now.format("%Y-%m-%d %H:%M:%S"))
 
-let now = Date:new()
-println("Current time (ISO): " + now:format("%Y-%m-%d %H:%M:%S"))
-
-# JSON serialization of Date
-println("As JSON: " + JSON.stringify(now))
+// JSON serialization of Date
+console.log("As JSON: " + JSON.stringify(now))
 `,
-    json: `# StdLib: JSON Processing
-let io = import("stdlib/io")
-let JSON = import("stdlib/json")
-let println = io.println
-
-let data = \${ 
+    json: `// StdLib: JSON Processing
+let data = { 
     name: "Chen Lang",
     features: ["Simple", "Dynamic", "Rust-based"],
     version: 0.1
 }
 
 let jsonStr = JSON.stringify(data)
-println("Serialized JSON:")
-println(jsonStr)
+console.log("Serialized JSON:")
+console.log(jsonStr)
 
 let parsed = JSON.parse(jsonStr)
-println("Parsed JSON Name: " + parsed.name)
+console.log("Parsed JSON Name: " + parsed.name)
 `,
-    arrays: `# StdLib: Arrays
-let io = import("stdlib/io")
-let JSON = import("stdlib/json")
-let println = io.println
-
-# Arrays are dynamic list-like objects
+    arrays: `// StdLib: Arrays
+// Arrays are dynamic list-like objects
 let arr = [1, 2, 3]
 
-arr:push(4)
-println("Array length: " + arr:len())
+arr.push(4)
+console.log("Array length: " + arr.length)
 
-let popped = arr:pop()
-println("Popped value: " + popped)
+let popped = arr.pop()
+console.log("Popped value: " + popped)
 
-# Arrays can store any type
-arr:push("Mixed")
-println(JSON.stringify(arr))
+// Arrays can store any type
+arr.push("Mixed")
+console.log(JSON.stringify(arr))
 `,
-    closures: `# Feature: Closures
-let io = import("stdlib/io")
-let println = io.println
-
-def make_counter(start) {
+    closures: `// Feature: Closures
+function make_counter(start) {
     let count = start
     
-    # This inner function "captures" the 'count' variable
-    # from the outer scope. It remembers it even after
-    # make_counter has returned!
-    def counter() {
+    // This inner function "captures" the 'count' variable
+    return function() {
         count = count + 1
         return count
     }
-    
-    return counter
 }
 
 let c1 = make_counter(0)
 let c2 = make_counter(10)
 
-println("Counter 1: " + c1()) # 1
-println("Counter 1: " + c1()) # 2
-println("Counter 1: " + c1()) # 3
-
-println("Counter 2: " + c2()) # 11
-println("Counter 2: " + c2()) # 12
-
-# c1 is unaffected by c2
-println("Counter 1 again: " + c1()) # 4
+console.log("Counter 1: " + c1()) // 1
+console.log("Counter 1: " + c1()) // 2
+console.log("Counter 2: " + c2()) // 11
 `,
-    async_task: `# Feature: Async/Await (Coroutines)
-let io = import("stdlib/io")
-let println = io.println
-
-# Coroutines using 'coroutine.create' and 'coroutine.yield'.
-# This mimics Lua's asymmetric coroutines.
-def generator(limit) {
-    println("Generator starting...")
-    let i = 0
-    for i < limit {
-        println("Generator yielding " + i)
-        coroutine.yield(i)
-        i = i + 1
-    }
-    return "Done"
+    async_task: `// Feature: Async/Await
+async function fetch_data(id) {
+    console.log("Fetching data for ID: " + id + "...")
+    await Chen.timer.sleep(1000) // Simulate network delay
+    return { id: id, data: "Data for " + id }
 }
 
-# Create a coroutine from the function
-let gen = coroutine.create(generator)
-println("Generator status: " + coroutine.status(gen))
+async function main() {
+    console.log("Starting async tasks...")
+    
+    // Run tasks sequentially
+    let r1 = await fetch_data(1)
+    console.log("Got: " + r1.data)
+    
+    let r2 = await fetch_data(2)
+    console.log("Got: " + r2.data)
+    
+    console.log("All tasks completed!")
+}
 
-# Resume the coroutine to start it, passing 'limit' argument (3)
-let val1 = coroutine.resume(gen, 3)
-println("Main got: " + val1)
-
-# Resume again
-let val2 = coroutine.resume(gen)
-println("Main got: " + val2)
-
-# Resume again
-let val3 = coroutine.resume(gen)
-println("Main got: " + val3)
-
-# Final resume gets the return value
-let result = coroutine.resume(gen)
-println("Main result: " + result)
-println("Generator status: " + coroutine.status(gen))
+await main()
 `,
-    async_http: `# Feature: Async HTTP Request
-let http = import("stdlib/http")
-let json = import("stdlib/json")
-let println = import("stdlib/io").println
-
-println("Sending request to httpbin.org...")
+    async_http: `// Feature: Async HTTP Request
+console.log("Sending request to httpbin.org...")
 let url = "https://httpbin.org/anything"
-let resp = http.request("GET", url)
+let resp = Chen.http.request("GET", url)
 
-println("Status: " + resp.status)
-let data = json.parse(resp.body)
-println("Response JSON origin: " + data.origin)
+console.log("Status: " + resp.status)
+let data = JSON.parse(resp.body)
+console.log("Response JSON origin: " + data.origin)
 `,
-    concurrent_http: `# Feature: Concurrent HTTP Requests
-let http = import("stdlib/http")
-let json = import("stdlib/json")
-let println = import("stdlib/io").println
+    concurrent_http: `// Feature: Concurrent HTTP Requests
+console.log("Starting concurrent HTTP requests...")
 
-println("Starting concurrent HTTP requests...")
-
-# Helper function to fetch URL and return status
-def fetch_status(url) {
-    let resp = http.request("GET", url)
+// Helper function to fetch URL and return status
+async function fetch_status(url) {
+    let resp = Chen.http.request("GET", url)
     return resp.status
 }
 
-# Create coroutines for parallel requests
-let co1 = coroutine.create(def() { fetch_status("https://httpbin.org/delay/1") })
-let co2 = coroutine.create(def() { fetch_status("https://httpbin.org/delay/1") })
-let co3 = coroutine.create(def() {
-    let resp = http.request("GET", "https://httpbin.org/uuid")
-    let data = json.parse(resp.body)
+async function fetch_uuid() {
+    let resp = Chen.http.request("GET", "https://httpbin.org/uuid")
+    let data = JSON.parse(resp.body)
     return data.uuid
-})
+}
 
-# Spawn all coroutines (non-blocking)
-coroutine.spawn(co1)
-coroutine.spawn(co2)
-coroutine.spawn(co3)
+async function main() {
+    // Start promises concurrently
+    let p1 = fetch_status("https://httpbin.org/delay/1")
+    let p2 = fetch_status("https://httpbin.org/delay/1")
+    let p3 = fetch_uuid()
 
-println("All requests started, waiting for completion...")
+    console.log("All requests started, waiting for completion...")
 
-# Wait for all to complete
-let results = coroutine.await_all([co1, co2, co3])
+    // Wait for all to complete
+    let results = await Promise.all([p1, p2, p3])
 
-println("All requests completed!")
-println("Request 1 status: " + results[0])
-println("Request 2 status: " + results[1])
-println("Request 3 UUID: " + results[2])
+    console.log("All requests completed!")
+    console.log("Request 1 status: " + results[0])
+    console.log("Request 2 status: " + results[1])
+    console.log("Request 3 UUID: " + results[2])
+}
+
+await main()
 `,
-    christmas_tree: `# Merry Christmas!
-let println = import("stdlib/io").println
-
-# Simple string repeat function
-def repeat(str, count) {
+    christmas_tree: `// Merry Christmas!
+// Simple string repeat function
+function repeat(str, count) {
     let res = ""
     let i = 0
-    for i < count {
+    while (i < count) {
         res = res + str
         i = i + 1
     }
     return res
 }
 
-def print_tree(height) {
-    println("🎄 Merry Christmas! 🎄")
-    println("")
+function print_tree(height) {
+    console.log("🎄 Merry Christmas! 🎄")
+    console.log("")
 
-    # Print leaves
+    // Print leaves
     let i = 1
-    for i <= height {
+    while (i <= height) {
         let spaces = repeat(" ", height - i)
         let stars = repeat("*", 2 * i - 1)
-        println(spaces + stars)
+        console.log(spaces + stars)
         i = i + 1
     }
 
-    # Print trunk
+    // Print trunk
     let trunk_padding = repeat(" ", height - 2)
     
     let j = 0
-    for j < 2 {
-        println(trunk_padding + "###")
+    while (j < 2) {
+        console.log(trunk_padding + "###")
         j = j + 1
     }
     
-    println("")
-    println(repeat(" ", height - 4) + "Happy New Year!")
+    console.log("")
+    console.log(repeat(" ", height - 4) + "Happy New Year!")
 }
 
 print_tree(10)
@@ -463,9 +355,9 @@ async function run() {
 
         // Syntax Rules
         const rules = [
-            { rex: /(?<=^|\\s|;)(#.*|#$)/g, cls: 'comment' },
+            { rex: /(?<=^|\\s|;)(\/\/.*|\/\/ $)/g, cls: 'comment' },
             { rex: /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g, cls: 'string' },
-            { rex: /\b(let|def|if|else|return|for|break|continue|async|await|try|catch|finally|throw)\b/g, cls: 'keyword' },
+            { rex: /\b(let|function|if|else|return|while|for|of|break|continue|async|await|try|catch|finally|throw)\b/g, cls: 'keyword' },
             { rex: /\b(true|false)\b/g, cls: 'boolean' },
             { rex: /\b(null)\b/g, cls: 'null' },
             { rex: /\b(\d+(?:\.\d*)?)\b/g, cls: 'number' },
@@ -474,15 +366,6 @@ async function run() {
         ];
 
         // Apply rules
-        // We use a temporary map to avoid double-highlighting
-        let tokens = [];
-        let output = code;
-
-        // Simplified approach: sort-of-lexer
-        // For simple playground, regex replacement in order with special placeholders or spans is okay
-        // if we are careful about not matching inside spans.
-        // A better way is matching all then sorting by index.
-
         const allMatches = [];
         rules.forEach(rule => {
             let match;

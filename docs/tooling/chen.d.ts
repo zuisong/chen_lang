@@ -1,6 +1,6 @@
 /**
  * TypeScript definitions for Chen Lang runtime globals.
- * 
+ *
  * JS-like Chen source files (.chen.js) are compatible with JavaScript tooling
  * for syntax highlighting and linting. Using these definitions in your editor
  * (like VS Code) will provide better IntelliSense for Chen-specific built-ins.
@@ -198,7 +198,7 @@ interface ObjectConstructor {
 
 // Built-in prototypes extension
 interface Array<T> {
-  /**
+    /**
    * The length of the array.
    */
   readonly length: number;

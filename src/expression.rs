@@ -68,10 +68,10 @@ pub enum Expression {
         expression: Box<Expression>,
         loc: Location,
     },
-    /// New 表达式: new constructor(args)
-    New {
-        constructor: Box<Expression>,
-        arguments: Vec<Expression>,
+    /// Yield 表达式: yield expr 或 yield* expr
+    Yield {
+        expression: Box<Expression>,
+        is_delegate: bool, // yield*
         loc: Location,
     },
 }
@@ -107,6 +107,7 @@ pub struct FunctionDeclaration {
     pub parameters: Vec<Parameter>,
     pub return_type: Option<TypeAnnotation>,
     pub body: Vec<Statement>,
+    pub is_generator: bool,
     pub loc: Location,
 }
 

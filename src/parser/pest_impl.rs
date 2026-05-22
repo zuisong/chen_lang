@@ -7,9 +7,8 @@ use pest::iterators::Pair;
 use pest_derive::Parser;
 
 use crate::expression::{
-    Assign, Ast, BinaryOperation, Expression, ForOfLoop, FunctionCall,
-    FunctionDeclaration, If, Literal, Local, Loop, Parameter,
-    Return, Statement, TryCatch, TypeAnnotation, Unary,
+    Assign, Ast, BinaryOperation, Expression, ForOfLoop, FunctionCall, FunctionDeclaration, If, Literal, Local, Loop,
+    Parameter, Return, Statement, TryCatch, TypeAnnotation, Unary,
 };
 use crate::tokenizer::{Location, Operator};
 use crate::value::Value;
@@ -57,11 +56,10 @@ fn parse_statement(pair: Pair<Rule>) -> Statement {
         Rule::async_declaration => {
             let inner_decl = inner.into_inner().find(|p| p.as_rule() == Rule::declaration).unwrap();
             let mut stmt = parse_declaration(inner_decl, loc);
-            if let Statement::Local(ref mut local) = stmt {
-                if let Expression::Function(decl) = local.expression.clone() {
+            if let Statement::Local(ref mut local) = stmt
+                && let Expression::Function(decl) = local.expression.clone() {
                     local.expression = Expression::AsyncFunction(decl);
                 }
-            }
             stmt
         }
         Rule::for_loop => parse_for_loop(inner, loc),
@@ -88,7 +86,7 @@ fn parse_declaration(pair: Pair<Rule>, loc: Location) -> Statement {
     let name = inner.next().unwrap().as_str().to_string();
 
     let mut type_annotation = None;
-    let mut next_opt = inner.next();
+    let next_opt = inner.next();
 
     if let Some(next) = next_opt {
         if next.as_rule() == Rule::type_expr {
@@ -195,9 +193,13 @@ fn build_function_declaration(pair: Pair<Rule>) -> FunctionDeclaration {
     let mut parameters = Vec::new();
     let mut return_type = None;
     let mut body = Vec::new();
+    let mut is_generator = false;
 
     for p in pair.into_inner() {
         match p.as_rule() {
+            Rule::generator_marker => {
+                is_generator = true;
+            }
             Rule::identifier => {
                 name = Some(p.as_str().to_string());
                 name_loc = Some(loc_from_pair(&p));
@@ -230,6 +232,7 @@ fn build_function_declaration(pair: Pair<Rule>) -> FunctionDeclaration {
         parameters,
         return_type,
         body,
+        is_generator,
         loc: name_loc.unwrap_or(loc),
     }
 }
@@ -237,10 +240,10 @@ fn build_function_declaration(pair: Pair<Rule>) -> FunctionDeclaration {
 fn parse_return_stmt(pair: Pair<Rule>, loc: Location) -> Statement {
     let mut inner = pair.into_inner();
     inner.next(); // skip kw
-    let expression = inner.next().map(parse_expression).unwrap_or(Expression::Literal(
-        Literal::Value(Value::Null),
-        loc,
-    ));
+    let expression = inner
+        .next()
+        .map(parse_expression)
+        .unwrap_or(Expression::Literal(Literal::Value(Value::Null), loc));
     Statement::Return(Return { expression, loc })
 }
 
@@ -449,29 +452,29 @@ fn parse_atom(pair: Pair<Rule>) -> Expression {
             let inner_func = inner.into_inner().find(|p| p.as_rule() == Rule::function_def).unwrap();
             Expression::AsyncFunction(build_function_declaration(inner_func))
         }
-        Rule::new_expr => parse_new_expr(inner),
+        Rule::yield_expr => parse_yield_expr(inner),
         Rule::array_literal => parse_array_literal(inner),
         _ => unreachable!("Unexpected rule in atom: {:?}", inner.as_rule()),
     }
 }
 
-fn parse_new_expr(pair: Pair<Rule>) -> Expression {
+fn parse_yield_expr(pair: Pair<Rule>) -> Expression {
     let loc = loc_from_pair(&pair);
-    let mut inner = pair.into_inner();
-    let _new_kw = inner.next();
-    let primary_pair = inner.next().unwrap();
-    let constructor = parse_primary(primary_pair);
+    let mut is_delegate = false;
+    let mut expression = Expression::Literal(Literal::Value(Value::Null), loc);
 
-    let mut args = Vec::new();
-    if let Some(args_pair) = inner.next() {
-        for arg in args_pair.into_inner() {
-            args.push(parse_expression(arg));
+    for p in pair.into_inner() {
+        match p.as_rule() {
+            Rule::generator_marker => is_delegate = true,
+            Rule::expression => expression = parse_expression(p),
+            Rule::YIELD => {}
+            _ => {}
         }
     }
 
-    Expression::New {
-        constructor: Box::new(constructor),
-        arguments: args,
+    Expression::Yield {
+        expression: Box::new(expression),
+        is_delegate,
         loc,
     }
 }
@@ -523,12 +526,21 @@ fn parse_object_literal(pair: Pair<Rule>) -> Expression {
             let key_pair = inner.next().unwrap();
             let key_loc = loc_from_pair(&key_pair);
             let key_expr = match key_pair.as_rule() {
-                Rule::identifier => Expression::Literal(crate::expression::Literal::String(key_pair.as_str().to_string()), key_loc),
+                Rule::identifier => Expression::Literal(
+                    crate::expression::Literal::Value(crate::value::Value::string(key_pair.as_str().to_string())),
+                    key_loc,
+                ),
                 Rule::string => {
                     let s = key_pair.as_str();
-                    Expression::Literal(crate::expression::Literal::String(s[1..s.len() - 1].to_string()), key_loc)
+                    Expression::Literal(
+                        crate::expression::Literal::Value(crate::value::Value::string(s[1..s.len() - 1].to_string())),
+                        key_loc,
+                    )
                 }
-                Rule::integer => Expression::Literal(crate::expression::Literal::String(key_pair.as_str().to_string()), key_loc),
+                Rule::integer => Expression::Literal(
+                    crate::expression::Literal::Value(crate::value::Value::string(key_pair.as_str().to_string())),
+                    key_loc,
+                ),
                 Rule::computed_property => parse_expression(key_pair.into_inner().next().unwrap()),
                 _ => unreachable!(),
             };
@@ -558,7 +570,7 @@ fn parse_if_expr(pair: Pair<Rule>) -> Expression {
     let body = parse_block(inner.next().unwrap());
 
     let mut else_body = Vec::new();
-    if let Some(_) = inner.next() {
+    if inner.next().is_some() {
         // ELSE followed by (if_expr | block)
         let next = inner.next().unwrap();
         match next.as_rule() {
@@ -633,10 +645,10 @@ fn parse_type_annotation(pair: Pair<Rule>) -> TypeAnnotation {
 }
 
 fn parse_type_union(pair: Pair<Rule>) -> TypeAnnotation {
-    let mut inner = pair.into_inner();
+    let inner = pair.into_inner();
     let mut annotations = Vec::new();
 
-    while let Some(p) = inner.next() {
+    for p in inner {
         annotations.push(parse_type_primary(p));
         // terminals like '|' are skipped in into_inner() for non-atomic rules!
     }

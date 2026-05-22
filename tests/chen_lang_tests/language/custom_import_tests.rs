@@ -8,7 +8,7 @@ fn test_import_custom_module_simple() {
         console.log(mod.greet("World"))
     "#;
 
-    let output = run_captured(&source.to_string()).unwrap();
+    let output = run_captured(source).unwrap();
 
     assert!(output.contains("Module"));
     assert!(output.contains("Hello, World from Module"));
@@ -22,7 +22,7 @@ fn test_import_custom_module_relative_path() {
         console.print(math.add(10, 20))
     "#;
 
-    let output = run_captured(&source.to_string()).unwrap();
+    let output = run_captured(source).unwrap();
 
     assert!(output.contains("30"));
 }
@@ -34,7 +34,7 @@ fn test_import_custom_module_caching() {
         let m2 = Chen.load("tests/fixtures/cached_module.chen.js")
     "#;
 
-    let output = run_captured(&source.to_string()).unwrap();
+    let output = run_captured(source).unwrap();
 
     // "Module Loaded" should appear only once if caching works
     let matches: Vec<_> = output.matches("Module Loaded").collect();
@@ -50,7 +50,7 @@ fn test_call_imported_function() {
         console.log("After call")
         console.log(result)
     "#;
-    let output = run_captured(&source.to_string()).unwrap();
+    let output = run_captured(source).unwrap();
     assert!(output.contains("Before call"));
     assert!(output.contains("After call"));
     assert!(output.contains("30"));

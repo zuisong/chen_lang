@@ -181,8 +181,18 @@ fn test_object_literal() {
     let expr = parse_expr_str("{ x: 1, y: 2 }");
     if let Expression::ObjectLiteral(fields, _) = expr {
         assert_eq!(fields.len(), 2);
-        assert_eq!(fields[0].0, "x");
-        assert_eq!(fields[1].0, "y");
+        if let Expression::Literal(crate::expression::Literal::Value(crate::value::Value::String(s)), _) = &fields[0].0
+        {
+            assert_eq!(s.as_str(), "x");
+        } else {
+            panic!("Expected string literal key");
+        }
+        if let Expression::Literal(crate::expression::Literal::Value(crate::value::Value::String(s)), _) = &fields[1].0
+        {
+            assert_eq!(s.as_str(), "y");
+        } else {
+            panic!("Expected string literal key");
+        }
     } else {
         panic!("Expected ObjectLiteral");
     }
@@ -206,13 +216,7 @@ fn test_get_field() {
 #[test]
 fn test_set_field() {
     let stmts = parse_code("obj.x = 1").unwrap();
-    if let Statement::SetField {
-        object,
-        field,
-        value: _,
-        ..
-    } = &stmts[0]
-    {
+    if let Statement::SetField { object, field, .. } = &stmts[0] {
         if let Expression::Identifier(name, _) = object {
             assert_eq!(name, "obj");
         } else {
@@ -227,7 +231,7 @@ fn test_set_field() {
 #[test]
 fn test_index_access() {
     let expr = parse_expr_str("arr[0]");
-    if let Expression::Index { object, index: _, .. } = expr {
+    if let Expression::Index { object, .. } = expr {
         if let Expression::Identifier(name, _) = *object {
             assert_eq!(name, "arr");
         }

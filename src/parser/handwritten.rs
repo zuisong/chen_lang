@@ -1,9 +1,6 @@
-use std::collections::HashMap;
-
 use crate::expression::{
-    Assign, Ast, BinaryOperation, Expression, ForOfLoop, FunctionCall,
-    FunctionDeclaration, If, Literal, Local, Loop, Parameter,
-    Return, Statement, TryCatch, TypeAnnotation, Unary,
+    Assign, Ast, BinaryOperation, Expression, ForOfLoop, FunctionCall, FunctionDeclaration, If, Literal, Local, Loop,
+    Parameter, Return, Statement, TryCatch, TypeAnnotation, Unary,
 };
 use crate::tokenizer::{Keyword, Location, Operator, Token};
 
@@ -21,16 +18,11 @@ pub enum ParseError {
 pub struct Parser {
     tokens: Vec<(Token, Location)>,
     current: usize,
-    type_aliases: HashMap<String, TypeAnnotation>,
 }
 
 impl Parser {
     pub fn new(tokens: Vec<(Token, Location)>) -> Self {
-        Parser {
-            tokens,
-            current: 0,
-            type_aliases: HashMap::new(),
-        }
+        Parser { tokens, current: 0 }
     }
 
     fn is_at_end(&self) -> bool {
@@ -42,21 +34,18 @@ impl Parser {
     }
 
     fn peek_location(&self) -> Location {
-        self.tokens
-            .get(self.current)
-            .map(|(_, l)| *l)
-            .unwrap_or_else(|| {
-                if self.tokens.is_empty() {
-                    Location::default()
-                } else {
-                    let last_loc = self.tokens.last().unwrap().1;
-                    Location {
-                        index: last_loc.index + 1,
-                        line: last_loc.line,
-                        col: last_loc.col + 1,
-                    }
+        self.tokens.get(self.current).map(|(_, l)| *l).unwrap_or_else(|| {
+            if self.tokens.is_empty() {
+                Location::default()
+            } else {
+                let last_loc = self.tokens.last().unwrap().1;
+                Location {
+                    index: last_loc.index + 1,
+                    line: last_loc.line,
+                    col: last_loc.col + 1,
                 }
-            })
+            }
+        })
     }
 
     fn advance(&mut self) -> Option<&Token> {
@@ -219,10 +208,7 @@ impl Parser {
             type_annotation = Some(self.parse_type_annotation()?);
         }
 
-        self.consume(
-            &Token::Operator(Operator::Assign),
-            "Expected '=' after variable name",
-        )?;
+        self.consume(&Token::Operator(Operator::Assign), "Expected '=' after variable name")?;
         let expression = self.parse_expression_logic()?;
 
         Ok(Statement::Local(Local {
@@ -359,16 +345,17 @@ impl Parser {
     }
 
     fn parse_async_function(&mut self) -> Result<Statement, ParseError> {
-        self.consume(
-            &Token::Keyword(Keyword::FUNCTION),
-            "Expected 'function' after 'async'",
-        )?;
+        self.consume(&Token::Keyword(Keyword::FUNCTION), "Expected 'function' after 'async'")?;
         let decl = self.parse_function_definition()?;
         Ok(Statement::AsyncFunctionDeclaration(decl))
     }
 
     fn parse_function_definition(&mut self) -> Result<FunctionDeclaration, ParseError> {
         let loc = self.peek_location();
+
+        // Check for generator * suffix
+        let is_generator = self.match_token(&Token::Operator(Operator::Multiply));
+        eprintln!("DEBUG: parse_function_definition is_generator: {}", is_generator);
 
         // Optional name
         let mut name = None;
@@ -416,6 +403,7 @@ impl Parser {
             parameters,
             return_type,
             body,
+            is_generator,
             loc,
         })
     }
@@ -458,10 +446,7 @@ impl Parser {
         } else {
             self.parse_expression_logic()?
         };
-        Ok(Statement::Return(Return {
-            expression: expr,
-            loc,
-        }))
+        Ok(Statement::Return(Return { expression: expr, loc }))
     }
 
     fn parse_try_catch(&mut self) -> Result<Statement, ParseError> {
@@ -519,6 +504,28 @@ impl Parser {
         Ok(Statement::Throw { value, loc })
     }
 
+    fn parse_yield(&mut self) -> Result<Expression, ParseError> {
+        let loc = self.peek_location();
+        let is_delegate = self.match_token(&Token::Operator(Operator::Multiply));
+
+        let expression = if self.check(&Token::NewLine)
+            || self.check(&Token::RBig)
+            || self.check(&Token::COMMA)
+            || self.check(&Token::RParen)
+            || self.is_at_end()
+        {
+            Expression::Literal(Literal::Value(crate::value::Value::Null), loc)
+        } else {
+            self.parse_expression_logic()?
+        };
+
+        Ok(Expression::Yield {
+            expression: Box::new(expression),
+            is_delegate,
+            loc,
+        })
+    }
+
     fn parse_expression_logic(&mut self) -> Result<Expression, ParseError> {
         self.parse_logical_or()
     }
@@ -562,9 +569,7 @@ impl Parser {
     fn parse_equality(&mut self) -> Result<Expression, ParseError> {
         let mut left = self.parse_comparison()?;
 
-        while self.check(&Token::Operator(Operator::Equals))
-            || self.check(&Token::Operator(Operator::NotEquals))
-        {
+        while self.check(&Token::Operator(Operator::Equals)) || self.check(&Token::Operator(Operator::NotEquals)) {
             let operator = match self.advance().unwrap() {
                 Token::Operator(Operator::Equals) => Operator::Equals,
                 Token::Operator(Operator::NotEquals) => Operator::NotEquals,
@@ -616,9 +621,7 @@ impl Parser {
     fn parse_term(&mut self) -> Result<Expression, ParseError> {
         let mut left = self.parse_factor()?;
 
-        while self.check(&Token::Operator(Operator::Add))
-            || self.check(&Token::Operator(Operator::Subtract))
-        {
+        while self.check(&Token::Operator(Operator::Add)) || self.check(&Token::Operator(Operator::Subtract)) {
             let operator = match self.advance().unwrap() {
                 Token::Operator(Operator::Add) => Operator::Add,
                 Token::Operator(Operator::Subtract) => Operator::Subtract,
@@ -675,9 +678,7 @@ impl Parser {
             });
         }
 
-        if self.check(&Token::Operator(Operator::Not))
-            || self.check(&Token::Operator(Operator::Subtract))
-        {
+        if self.check(&Token::Operator(Operator::Not)) || self.check(&Token::Operator(Operator::Subtract)) {
             let loc = self.peek_location();
             let operator = match self.advance().unwrap() {
                 Token::Operator(Operator::Not) => Operator::Not,
@@ -752,26 +753,16 @@ impl Parser {
         let loc = self.peek_location();
         if let Some(token) = self.advance() {
             match token {
-                Token::Int(i) => Ok(Expression::Literal(
-                    Literal::Value(crate::value::Value::Int(*i)),
-                    loc,
-                )),
-                Token::Float(f) => Ok(Expression::Literal(
-                    Literal::Value(crate::value::Value::Float(*f)),
-                    loc,
-                )),
-                Token::Bool(b) => Ok(Expression::Literal(
-                    Literal::Value(crate::value::Value::Bool(*b)),
-                    loc,
-                )),
+                Token::Int(i) => Ok(Expression::Literal(Literal::Value(crate::value::Value::Int(*i)), loc)),
+                Token::Float(f) => Ok(Expression::Literal(Literal::Value(crate::value::Value::Float(*f)), loc)),
+                Token::Bool(b) => Ok(Expression::Literal(Literal::Value(crate::value::Value::Bool(*b)), loc)),
                 Token::String(s) => Ok(Expression::Literal(
                     Literal::Value(crate::value::Value::string(s.clone())),
                     loc,
                 )),
-                Token::Keyword(Keyword::NULL) => Ok(Expression::Literal(
-                    Literal::Value(crate::value::Value::Null),
-                    loc,
-                )),
+                Token::Keyword(Keyword::NULL) => {
+                    Ok(Expression::Literal(Literal::Value(crate::value::Value::Null), loc))
+                }
                 Token::Keyword(Keyword::THIS) => Ok(Expression::Identifier("this".to_string(), loc)),
                 Token::Identifier(name) => Ok(Expression::Identifier(name.clone(), loc)),
                 Token::LParen => {
@@ -784,7 +775,11 @@ impl Parser {
                     // Detect if this is an object literal: { key: value } or {} or { [key]: value }
                     let is_object = if self.check(&Token::RBig) {
                         true
-                    } else if let Some(Token::Identifier(_)) | Some(Token::String(_)) | Some(Token::Int(_)) | Some(Token::Float(_)) = self.peek() {
+                    } else if let Some(Token::Identifier(_))
+                    | Some(Token::String(_))
+                    | Some(Token::Int(_))
+                    | Some(Token::Float(_)) = self.peek()
+                    {
                         // Look ahead for colon
                         let mut lookahead = self.current + 1;
                         while lookahead < self.tokens.len() && matches!(self.tokens[lookahead].0, Token::NewLine) {
@@ -815,7 +810,7 @@ impl Parser {
                     if is_object {
                         return self.parse_object_literal(loc);
                     }
-                    
+
                     let body = self.parse_block()?;
                     self.consume(&Token::RBig, "Expected '}' after block")?;
                     Ok(Expression::Block(body, loc))
@@ -838,19 +833,12 @@ impl Parser {
                     Ok(Expression::Function(decl))
                 }
                 Token::Keyword(Keyword::ASYNC) => {
-                    self.consume(
-                        &Token::Keyword(Keyword::FUNCTION),
-                        "Expected 'function' after 'async'",
-                    )?;
+                    self.consume(&Token::Keyword(Keyword::FUNCTION), "Expected 'function' after 'async'")?;
                     let decl = self.parse_function_definition()?;
                     Ok(Expression::AsyncFunction(decl))
                 }
-                Token::Keyword(Keyword::NEW) => {
-                    self.parse_new()
-                }
-                Token::Keyword(Keyword::IF) => {
-                    self.parse_if()
-                }
+                Token::Keyword(Keyword::IF) => self.parse_if(),
+                Token::Keyword(Keyword::YIELD) => self.parse_yield(),
                 _ => Err(ParseError::UnexpectedToken {
                     token: token.clone(),
                     loc,
@@ -920,34 +908,6 @@ impl Parser {
         self.skip_newlines();
         self.consume(&Token::RBig, "Expected '}' after object literal")?;
         Ok(Expression::ObjectLiteral(fields, loc))
-    }
-
-    fn parse_new(&mut self) -> Result<Expression, ParseError> {
-        let loc = self.peek_location();
-        // constructor should be a primary expression or at least an identifier/member access
-        let constructor = self.parse_primary(false)?; // Don't consume the arguments (
-        
-        self.skip_newlines();
-        self.consume(&Token::LParen, "Expected '(' after constructor")?;
-        let mut arguments = Vec::new();
-        if !self.check(&Token::RParen) {
-            loop {
-                self.skip_newlines();
-                arguments.push(self.parse_expression_logic()?);
-                self.skip_newlines();
-                if !self.match_token(&Token::COMMA) {
-                    break;
-                }
-            }
-        }
-        self.skip_newlines();
-        self.consume(&Token::RParen, "Expected ')' after arguments")?;
-        
-        Ok(Expression::New {
-            constructor: Box::new(constructor),
-            arguments,
-            loc,
-        })
     }
 
     fn consume_member_name(&mut self, message: &str) -> Result<String, ParseError> {

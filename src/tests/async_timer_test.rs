@@ -83,4 +83,3 @@ fn test_spawn_closure_captures_and_sleep() {
 
     assert_eq!(run_code(code), "Capturing Works");
 }
-

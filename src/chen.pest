@@ -24,11 +24,11 @@ OF = @{ "of" ~ !(ASCII_ALPHANUMERIC | "_") }
 WHILE = @{ "while" ~ !(ASCII_ALPHANUMERIC | "_") }
 ASYNC = @{ "async" ~ !(ASCII_ALPHANUMERIC | "_") }
 AWAIT = @{ "await" ~ !(ASCII_ALPHANUMERIC | "_") }
-NEW = @{ "new" ~ !(ASCII_ALPHANUMERIC | "_") }
+YIELD = @{ "yield" ~ !(ASCII_ALPHANUMERIC | "_") }
 
 // 标识符 (不能是关键字)
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
-keyword = { LET | FOR | FUNCTION | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | THROW | IN | OF | WHILE | ASYNC | AWAIT | NEW }
+keyword = { LET | FOR | FUNCTION | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | THROW | IN | OF | WHILE | ASYNC | AWAIT | YIELD }
 
 // 字面量
 integer = @{ "-"? ~ ASCII_DIGIT+ }
@@ -78,7 +78,7 @@ atom = {
     block |
     async_function_def |
     function_def |
-    new_expr |
+    yield_expr |
     array_literal
 }
 
@@ -86,8 +86,6 @@ postfix = { call_suffix | dot_suffix | index_suffix }
 call_suffix = { "(" ~ NEWLINE* ~ arguments? ~ NEWLINE* ~ ")" }
 dot_suffix = { "." ~ (identifier | keyword) }
 index_suffix = { "[" ~ NEWLINE* ~ expression ~ NEWLINE* ~ "]" }
-
-new_expr = { NEW ~ primary ~ "(" ~ NEWLINE* ~ arguments? ~ NEWLINE* ~ ")" }
 
 object_literal = { "{" ~ NEWLINE* ~ (pair ~ ("," ~ NEWLINE* ~ pair)*)? ~ NEWLINE* ~ "}" }
 array_literal = { "[" ~ NEWLINE* ~ (expression ~ ("," ~ NEWLINE* ~ expression)*)? ~ NEWLINE* ~ "]" }
@@ -121,8 +119,10 @@ assignment = { assignment_target ~ assign ~ NEWLINE* ~ expression }
 
 for_loop = { FOR ~ NEWLINE* ~ AWAIT? ~ NEWLINE* ~ "(" ~ NEWLINE* ~ LET ~ identifier ~ OF ~ expression ~ NEWLINE* ~ ")" ~ block }
 while_loop = { WHILE ~ NEWLINE* ~ "(" ~ NEWLINE* ~ expression ~ NEWLINE* ~ ")" ~ block }
-function_def = { FUNCTION ~ identifier? ~ "(" ~ NEWLINE* ~ parameters? ~ NEWLINE* ~ ")" ~ ("->" ~ type_expr)? ~ block }
+generator_marker = { "*" }
+function_def = { FUNCTION ~ generator_marker? ~ identifier? ~ "(" ~ NEWLINE* ~ parameters? ~ NEWLINE* ~ ")" ~ ("->" ~ type_expr)? ~ block }
 async_function_def = { ASYNC ~ function_def }
+yield_expr = { YIELD ~ generator_marker? ~ NEWLINE* ~ expression? }
 return_stmt = { RETURN ~ NEWLINE* ~ expression }
 break_stmt = { BREAK }
 continue_stmt = { CONTINUE }

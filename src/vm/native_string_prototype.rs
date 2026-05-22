@@ -1,5 +1,5 @@
-use crate::value::NativeContext;
 use super::*;
+use crate::value::NativeContext;
 
 pub fn create_string_prototype() -> Value {
     use native_string_prototype::*;
@@ -47,7 +47,7 @@ pub fn create_string_prototype() -> Value {
     proto_val
 }
 
-fn string_receiver<'a>(ctx: &'a NativeContext) -> Option<&'a Value> {
+fn string_receiver(ctx: &NativeContext) -> Option<&Value> {
     ctx.this.as_ref().or_else(|| ctx.args.first())
 }
 
@@ -108,7 +108,10 @@ fn native_string_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRunti
                 result_data.insert("value".to_string(), Value::Null);
                 result_data.insert("done".to_string(), Value::Bool(true));
             }
-            Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data: result_data, metatable: None }))))
+            Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table {
+                data: result_data,
+                metatable: None,
+            }))))
         };
 
         let mut data = IndexMap::new();
@@ -119,7 +122,11 @@ fn native_string_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRunti
         data.insert(
             "@@iterator".to_string(),
             Value::NativeFunction(Rc::new(Box::new(native_iter_self) as Box<NativeFnType>)),
-        );        return Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data, metatable: None }))));
+        );
+        return Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table {
+            data,
+            metatable: None,
+        }))));
     }
     Ok(Value::Null)
 }

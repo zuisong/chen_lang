@@ -122,7 +122,10 @@ fn native_object_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRunti
                 result_data.insert("value".to_string(), Value::Null);
                 result_data.insert("done".to_string(), Value::Bool(true));
             }
-            Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data: result_data, metatable: None }))))
+            Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table {
+                data: result_data,
+                metatable: None,
+            }))))
         };
 
         let mut data = IndexMap::new();
@@ -134,7 +137,10 @@ fn native_object_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRunti
             "@@iterator".to_string(),
             Value::NativeFunction(Rc::new(Box::new(native_iter_self) as Box<NativeFnType>)),
         );
-        return Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data, metatable: None }))));
+        return Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table {
+            data,
+            metatable: None,
+        }))));
     }
     Ok(Value::Null)
 }

@@ -37,6 +37,8 @@ pub mod compiler;
 pub mod expression;
 /// 统一解析器模块（内部包含手写和 Pest 两种实现）
 pub mod parser;
+/// Promise 模块
+pub mod promise;
 /// 词法分析模块
 pub mod tokenizer;
 /// 静态类型系统模块
@@ -45,8 +47,6 @@ pub mod type_system;
 pub mod value;
 /// 虚拟机模块
 pub mod vm;
-/// Promise 模块
-pub mod promise;
 
 /// 测试模块
 #[cfg(test)]
@@ -211,10 +211,9 @@ fn get_line_range(code: &str, line: u32) -> Range<usize> {
         return 0..code.len();
     }
 
-    let mut current_line = 1;
     let mut start_byte = 0;
 
-    for line_str in code.split_inclusive('\n') {
+    for (current_line, line_str) in (1..).zip(code.split_inclusive('\n')) {
         if current_line == line {
             let len = line_str.trim_end().len();
             let end_byte = if len == 0 { start_byte + 1 } else { start_byte + len };
@@ -223,7 +222,6 @@ fn get_line_range(code: &str, line: u32) -> Range<usize> {
             return start_byte..end_byte;
         }
         start_byte += line_str.len();
-        current_line += 1;
     }
 
     let len = code.len();

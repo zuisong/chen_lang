@@ -104,7 +104,10 @@ pub fn create_http_object() -> Value {
                     let mut q = ready_queue.borrow_mut();
                     for reaction in reactions {
                         if let crate::promise::Reaction::ResumeFiber(f) = reaction {
-                            q.push_back((f, Err(VMRuntimeError::UncaughtException(format!("HTTP invalid method: {}", e)))));
+                            q.push_back((
+                                f,
+                                Err(VMRuntimeError::UncaughtException(format!("HTTP invalid method: {}", e))),
+                            ));
                         }
                     }
                     *pending_tasks.borrow_mut() -= 1;
@@ -128,7 +131,10 @@ pub fn create_http_object() -> Value {
                         let mut q = ready_queue.borrow_mut();
                         for reaction in reactions {
                             if let crate::promise::Reaction::ResumeFiber(f) = reaction {
-                                q.push_back((f, Err(VMRuntimeError::UncaughtException(format!("HTTP header error: {}", e)))));
+                                q.push_back((
+                                    f,
+                                    Err(VMRuntimeError::UncaughtException(format!("HTTP header error: {}", e))),
+                                ));
                             }
                         }
                         *pending_tasks.borrow_mut() -= 1;

@@ -11,7 +11,7 @@ Chen Lang source files use the `.chen.js` extension (e.g., `main.chen.js`, `util
 > - **Tooling Compatibility**: The extension and JavaScript-like syntax are used **exclusively to leverage existing JavaScript tooling** for syntax highlighting, autocomplete/IntelliSense, bracket matching, and code formatting in editors.
 > - **Comment Syntax**: Chen source should use JavaScript-style `//` comments.
 > - **No `undefined`**: Chen does **not** have `undefined`. The only empty-value concept in Chen is `null`.
-> - **Runtime Globals & Built-ins**: Chen's built-in capabilities come from `Chen` (namespaces like `Chen.fs`, `Chen.http`, `Chen.process`, `Chen.timer`, `Chen.date`, `Chen.coroutine`, `Chen.io`), `console`, `JSON`, and `Object`. Other standard JS global variables, classes, or Node/browser APIs are not supported at runtime.
+> - **Runtime Globals & Built-ins**: Chen's built-in capabilities come from `Chen` (namespaces like `Chen.fs`, `Chen.http`, `Chen.process`, `Chen.timer`, `Chen.date`, `Chen.io`), `console`, `JSON`, and `Object`. Other standard JS global variables, classes, or Node/browser APIs are not supported at runtime.
 
 ## VS Code Setup
 
