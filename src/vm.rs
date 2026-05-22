@@ -46,7 +46,10 @@ use native_json::create_json_object;
 use native_object_prototype::create_object_prototype;
 use native_process::create_process_object;
 use native_string_prototype::create_string_prototype;
+use native_symbol::create_symbol_object;
 use native_timer::create_timer_object;
+
+pub mod native_symbol;
 pub use program::{Instruction, Program, Symbol};
 
 pub(crate) use crate::value::{NativeContext, NativeFnType, ObjClosure, Value, ValueError, ValueType};
@@ -193,6 +196,7 @@ impl VM {
         let object_prototype = create_object_prototype();
         variables.insert("Object".to_string(), object_prototype.clone());
         variables.insert("JSON".to_string(), create_json_object());
+        variables.insert("Symbol".to_string(), create_symbol_object());
         variables.insert("console".to_string(), Self::create_console_object());
 
         let chen = Value::object();

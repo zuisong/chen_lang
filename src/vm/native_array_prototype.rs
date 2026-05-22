@@ -24,7 +24,7 @@ pub fn create_array_prototype() -> Value {
         Value::NativeFunction(Rc::new(Box::new(native_array_pop) as Box<NativeFnType>)),
     );
     table.data.insert(
-        "iter".to_string(),
+        "@@iterator".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_array_iter) as Box<NativeFnType>)),
     );
     table.data.insert(
@@ -130,7 +130,7 @@ pub fn native_array_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRu
         Value::NativeFunction(Rc::new(Box::new(next_body) as Box<NativeFnType>)),
     );
     data.insert(
-        "iter".to_string(),
+        "@@iterator".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_iter_self) as Box<NativeFnType>)),
     );
     Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data, metatable: None }))))
@@ -182,7 +182,7 @@ pub fn native_array_entries(_vm: &mut VM, ctx: NativeContext) -> Result<Value, V
         Value::NativeFunction(Rc::new(Box::new(next_body) as Box<NativeFnType>)),
     );
     data.insert(
-        "iter".to_string(),
+        "@@iterator".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_iter_self) as Box<NativeFnType>)),
     );
     Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data, metatable: None }))))

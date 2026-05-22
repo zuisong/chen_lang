@@ -19,7 +19,7 @@ pub fn create_object_prototype() -> Value {
         Value::NativeFunction(Rc::new(Box::new(native_object_keys) as Box<NativeFnType>)),
     );
     data.insert(
-        "iter".to_string(),
+        "@@iterator".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_object_iter) as Box<NativeFnType>)),
     );
     data.insert(
@@ -131,7 +131,7 @@ fn native_object_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRunti
             Value::NativeFunction(Rc::new(Box::new(next_body) as Box<NativeFnType>)),
         );
         data.insert(
-            "iter".to_string(),
+            "@@iterator".to_string(),
             Value::NativeFunction(Rc::new(Box::new(native_iter_self) as Box<NativeFnType>)),
         );
         return Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data, metatable: None }))));

@@ -828,15 +828,15 @@ impl<'a> Compiler<'a> {
             let fallback_label = format!("for_of_fallback_{}", unique_id);
             let got_iterator_label = format!("for_of_got_iter_{}", unique_id);
 
-            // Try asyncIter
+            // Try @@asyncIterator
             self.emit(Instruction::DupPlusFP(iter_expr_offset), loc);
-            self.emit(Instruction::GetMethod("asyncIter".to_string()), loc);
+            self.emit(Instruction::GetMethod("@@asyncIterator".to_string()), loc);
             self.emit(Instruction::Dup, loc);
             self.emit(Instruction::Push(crate::value::Value::Null), loc);
             self.emit(Instruction::Equal, loc);
             self.emit(Instruction::JumpIfTrue(fallback_label.clone()), loc);
 
-            // Found asyncIter method, call it
+            // Found @@asyncIterator method, call it
             self.emit(Instruction::CallMethodStack(0), loc);
             self.emit(Instruction::Jump(got_iterator_label.clone()), loc);
 
@@ -854,7 +854,7 @@ impl<'a> Compiler<'a> {
             self.emit(Instruction::Pop, loc); // Pop the Null method
             self.emit(Instruction::Pop, loc); // Pop the iterable receiver
             self.emit(Instruction::DupPlusFP(iter_expr_offset), loc);
-            self.emit(Instruction::GetMethod("iter".to_string()), loc);
+            self.emit(Instruction::GetMethod("@@iterator".to_string()), loc);
             self.emit(Instruction::CallMethodStack(0), loc);
 
             // Got iterator label
@@ -870,7 +870,7 @@ impl<'a> Compiler<'a> {
             );
         } else {
             self.compile_expression(for_of.iterable);
-            self.emit(Instruction::GetMethod("iter".to_string()), loc);
+            self.emit(Instruction::GetMethod("@@iterator".to_string()), loc);
             self.emit(Instruction::CallMethodStack(0), loc);
         }
 

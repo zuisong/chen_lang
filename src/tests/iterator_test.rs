@@ -55,7 +55,7 @@ fn test_sync_object_iterator() {
 fn test_custom_sync_iterator() {
     let code = r#"
     let custom = {
-        iter: function() {
+        [Symbol.iterator]: function() {
             let i = 0
             return {
                 next: function() {
@@ -81,7 +81,7 @@ fn test_custom_sync_iterator() {
 fn test_custom_async_iterator() {
     let code = r#"
     let custom_async = {
-        asyncIter: function() {
+        [Symbol.asyncIterator]: function() {
             let i = 0
             return {
                 next: async function() {
@@ -111,7 +111,7 @@ fn test_custom_async_iterator() {
 fn test_async_iterator_fallback_to_sync() {
     let code = r#"
     let custom = {
-        iter: function() {
+        [Symbol.iterator]: function() {
             let i = 0
             return {
                 next: function() {

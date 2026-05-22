@@ -781,12 +781,29 @@ impl Parser {
                 }
                 Token::LBig => {
                     self.skip_newlines();
-                    // Detect if this is an object literal: { key: value } or {}
+                    // Detect if this is an object literal: { key: value } or {} or { [key]: value }
                     let is_object = if self.check(&Token::RBig) {
                         true
                     } else if let Some(Token::Identifier(_)) | Some(Token::String(_)) | Some(Token::Int(_)) | Some(Token::Float(_)) = self.peek() {
                         // Look ahead for colon
                         let mut lookahead = self.current + 1;
+                        while lookahead < self.tokens.len() && matches!(self.tokens[lookahead].0, Token::NewLine) {
+                            lookahead += 1;
+                        }
+                        lookahead < self.tokens.len() && matches!(self.tokens[lookahead].0, Token::Colon)
+                    } else if let Some(Token::LSquare) = self.peek() {
+                        // Look ahead for matching RSquare and then a colon
+                        let mut lookahead = self.current + 1;
+                        let mut depth = 1;
+                        while lookahead < self.tokens.len() && depth > 0 {
+                            match self.tokens[lookahead].0 {
+                                Token::LSquare => depth += 1,
+                                Token::RSquare => depth -= 1,
+                                _ => {}
+                            }
+                            lookahead += 1;
+                        }
+                        // Skip newlines after RSquare
                         while lookahead < self.tokens.len() && matches!(self.tokens[lookahead].0, Token::NewLine) {
                             lookahead += 1;
                         }
@@ -849,30 +866,39 @@ impl Parser {
         self.skip_newlines();
         while !self.check(&Token::RBig) {
             self.skip_newlines();
-            let key = match self.peek() {
+            let key_loc = self.peek_location();
+            let key_expr = match self.peek() {
                 Some(Token::Identifier(name)) => {
                     let name = name.clone();
                     self.advance();
-                    name
+                    Expression::Literal(Literal::Value(crate::value::Value::string(name)), key_loc)
                 }
                 Some(Token::String(s)) => {
                     let s = s.clone();
                     self.advance();
-                    s
+                    Expression::Literal(Literal::Value(crate::value::Value::string(s)), key_loc)
                 }
                 Some(Token::Int(i)) => {
                     let s = i.to_string();
                     self.advance();
-                    s
+                    Expression::Literal(Literal::Value(crate::value::Value::string(s)), key_loc)
                 }
                 Some(Token::Float(f)) => {
                     let s = f.to_string();
                     self.advance();
-                    s
+                    Expression::Literal(Literal::Value(crate::value::Value::string(s)), key_loc)
+                }
+                Some(Token::LSquare) => {
+                    self.advance(); // skip [
+                    self.skip_newlines();
+                    let expr = self.parse_expression_logic()?;
+                    self.skip_newlines();
+                    self.consume(&Token::RSquare, "Expected ']' after computed property name")?;
+                    expr
                 }
                 _ => {
                     return Err(ParseError::Message {
-                        msg: "Expected field name in object literal".to_string(),
+                        msg: "Expected field name or '[' in object literal".to_string(),
                         loc: self.peek_location(),
                     });
                 }
@@ -882,7 +908,7 @@ impl Parser {
             self.consume(&Token::Colon, "Expected ':' after field name")?;
             self.skip_newlines();
             let value = self.parse_expression_logic()?;
-            fields.push((key, value));
+            fields.push((key_expr, value));
 
             self.skip_newlines();
             if !self.match_token(&Token::COMMA) {
