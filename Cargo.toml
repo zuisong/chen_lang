@@ -19,7 +19,7 @@ default = ["binaries", "wasm", "winnow-tokenizer", "http"]
 
 [dependencies]
 thiserror = "2"
-winnow = { version = "0.7", optional = true }
+winnow = { version = "1.0.3", optional = true }
 tracing = { version = "0.1" }
 tracing-subscriber = { version = "0.3", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }

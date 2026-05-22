@@ -233,15 +233,18 @@ pub mod winnow {
     use winnow::{
         ModalResult, Parser,
         ascii::{digit1, line_ending, till_line_ending},
-        combinator::{alt, delimited, opt},
+        combinator::{alt, delimited, opt, not},
         token::{literal, one_of, take_until, take_while},
     };
 
     use super::{Keyword, Location, Operator, Token, TokenError};
 
-    pub fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
+    fn parse_comment(input: &mut &str) -> ModalResult<Token> {
+        (literal("//"), till_line_ending).value(Token::Comment).parse_next(input)
+    }
+
+    fn parse_punctuation(input: &mut &str) -> ModalResult<Token> {
         alt((
-            (literal("//"), till_line_ending).map(|_| Token::Comment),
             alt((
                 line_ending.value(Token::NewLine),
                 one_of((' ', '\t', '\r', '\n')).value(Token::Space),
@@ -251,81 +254,102 @@ pub mod winnow {
                 literal("]").value(Token::RSquare),
                 literal("(").value(Token::LParen),
                 literal(")").value(Token::RParen),
+            )),
+            alt((
                 literal(":").value(Token::Colon),
                 literal(".").value(Token::Dot),
                 literal(",").value(Token::COMMA),
+                literal("->").value(Token::Arrow),
+                (literal("&"), not(literal("&"))).value(Token::Ampersand),
+                (literal("|"), not(literal("|"))).value(Token::Pipe),
+            ))
+        )).parse_next(input)
+    }
+
+    fn parse_operator(input: &mut &str) -> ModalResult<Token> {
+        alt((
+            alt((
+                literal("==").value(Token::Operator(Operator::Equals)),
+                literal("=").value(Token::Operator(Operator::Assign)),
+                literal("&&").value(Token::Operator(Operator::And)),
+                literal("||").value(Token::Operator(Operator::Or)),
+                literal("!=").value(Token::Operator(Operator::NotEquals)),
+                literal("!").value(Token::Operator(Operator::Not)),
+                literal("<=").value(Token::Operator(Operator::LtE)),
+                literal("<").value(Token::Operator(Operator::Lt)),
             )),
             alt((
-                alt((
-                    literal("->").value(Token::Arrow),
-                    literal("+").value(Token::Operator(Operator::Add)),
-                    literal("*").value(Token::Operator(Operator::Multiply)),
-                    literal("/").value(Token::Operator(Operator::Divide)),
-                    literal("%").value(Token::Operator(Operator::Mod)),
-                    literal("==").value(Token::Operator(Operator::Equals)),
-                    literal("=").value(Token::Operator(Operator::Assign)),
-                    literal("&&").value(Token::Operator(Operator::And)),
-                    literal("&").value(Token::Ampersand),
-                    literal("||").value(Token::Operator(Operator::Or)),
-                    literal("|").value(Token::Pipe),
-                    literal("!=").value(Token::Operator(Operator::NotEquals)),
-                    literal("!").value(Token::Operator(Operator::Not)),
-                    literal("<=").value(Token::Operator(Operator::LtE)),
-                    literal("<").value(Token::Operator(Operator::Lt)),
-                    literal(">=").value(Token::Operator(Operator::GtE)),
-                    literal(">").value(Token::Operator(Operator::Gt)),
-                    literal("-").value(Token::Operator(Operator::Subtract)),
-                )),
-                alt((
-                    delimited(literal("\""), take_until(0.., "\""), literal("\"")),
-                    delimited(literal("'"), take_until(0.., "'"), literal("'")),
-                ))
-                .map(|s: &str| Token::String(s.to_string())),
-                //
-                // 浮点数解析（必须在整数之前，因为更具体）
-                (digit1, literal("."), opt(digit1)).try_map(|(int_part, _, frac_part): (&str, _, Option<&str>)| {
-                    let frac = frac_part.unwrap_or("0");
-                    let float_str = format!("{}.{}", int_part, frac);
-                    Decimal::from_str(&float_str).map(Token::Float)
-                }),
-                // 整数解析
-                digit1.try_map(|s: &str| s.parse::<i32>().map(Token::Int)),
-                take_while(1.., |c: char| c.is_alphanumeric() || c == '_').map(|arr: &str| {
-                    let s = arr;
-                    match s {
-                        "let" => Token::Keyword(Keyword::LET),
-                        "return" => Token::Keyword(Keyword::RETURN),
-                        "if" => Token::Keyword(Keyword::IF),
-                        "function" => Token::Keyword(Keyword::FUNCTION),
-                        "def" => Token::Keyword(Keyword::FUNCTION),
-                        "else" => Token::Keyword(Keyword::ELSE),
-                        "for" => Token::Keyword(Keyword::FOR),
-                        "while" => Token::Keyword(Keyword::WHILE),
-                        "break" => Token::Keyword(Keyword::BREAK),
-                        "continue" => Token::Keyword(Keyword::CONTINUE),
-                        "try" => Token::Keyword(Keyword::TRY),
-                        "catch" => Token::Keyword(Keyword::CATCH),
-                        "finally" => Token::Keyword(Keyword::FINALLY),
-                        "throw" => Token::Keyword(Keyword::THROW),
-                        "in" => Token::Keyword(Keyword::IN),
-                        "of" => Token::Keyword(Keyword::OF),
-                        "this" => Token::Keyword(Keyword::THIS),
-                        "int" => Token::Keyword(Keyword::INT),
-                        "float" => Token::Keyword(Keyword::FLOAT),
-                        "bool" => Token::Keyword(Keyword::BOOL),
-                        "string" => Token::Keyword(Keyword::STRING),
-                        "object" => Token::Keyword(Keyword::OBJECT),
-                        "null" => Token::Keyword(Keyword::NULL),
-                        "async" => Token::Keyword(Keyword::ASYNC),
-                        "await" => Token::Keyword(Keyword::AWAIT),
-                        "new" => Token::Keyword(Keyword::NEW),
-                        "yield" => Token::Keyword(Keyword::YIELD),
-                        "true" => Token::Bool(true),
-                        "false" => Token::Bool(false),
-                        _ => Token::Identifier(s.to_string()),
-                    }
-                }),
-            )),
+                literal(">=").value(Token::Operator(Operator::GtE)),
+                literal(">").value(Token::Operator(Operator::Gt)),
+                literal("+").value(Token::Operator(Operator::Add)),
+                literal("*").value(Token::Operator(Operator::Multiply)),
+                literal("/").value(Token::Operator(Operator::Divide)),
+                literal("%").value(Token::Operator(Operator::Mod)),
+                (literal("-"), not(literal(">"))).value(Token::Operator(Operator::Subtract)),
+            ))
+        )).parse_next(input)
+    }
+
+    fn parse_literal(input: &mut &str) -> ModalResult<Token> {
+        alt((
+            alt((
+                delimited(literal("\""), take_until(0.., "\""), literal("\"")),
+                delimited(literal("'"), take_until(0.., "'"), literal("'")),
+            ))
+            .map(|s: &str| Token::String(s.to_string())),
+            (digit1, literal("."), opt(digit1)).try_map(|(int_part, _, frac_part): (&str, _, Option<&str>)| {
+                let frac = frac_part.unwrap_or("0");
+                let float_str = format!("{}.{}", int_part, frac);
+                Decimal::from_str(&float_str).map(Token::Float)
+            }),
+            digit1.try_map(|s: &str| s.parse::<i32>().map(Token::Int)),
+        )).parse_next(input)
+    }
+
+    fn parse_identifier(input: &mut &str) -> ModalResult<Token> {
+        take_while(1.., |c: char| c.is_alphanumeric() || c == '_')
+            .map(|s: &str| match s {
+                "let" => Token::Keyword(Keyword::LET),
+                "return" => Token::Keyword(Keyword::RETURN),
+                "if" => Token::Keyword(Keyword::IF),
+                "function" => Token::Keyword(Keyword::FUNCTION),
+                "def" => Token::Keyword(Keyword::FUNCTION),
+                "else" => Token::Keyword(Keyword::ELSE),
+                "for" => Token::Keyword(Keyword::FOR),
+                "while" => Token::Keyword(Keyword::WHILE),
+                "break" => Token::Keyword(Keyword::BREAK),
+                "continue" => Token::Keyword(Keyword::CONTINUE),
+                "try" => Token::Keyword(Keyword::TRY),
+                "catch" => Token::Keyword(Keyword::CATCH),
+                "finally" => Token::Keyword(Keyword::FINALLY),
+                "throw" => Token::Keyword(Keyword::THROW),
+                "in" => Token::Keyword(Keyword::IN),
+                "of" => Token::Keyword(Keyword::OF),
+                "this" => Token::Keyword(Keyword::THIS),
+                "int" => Token::Keyword(Keyword::INT),
+                "float" => Token::Keyword(Keyword::FLOAT),
+                "bool" => Token::Keyword(Keyword::BOOL),
+                "string" => Token::Keyword(Keyword::STRING),
+                "object" => Token::Keyword(Keyword::OBJECT),
+                "null" => Token::Keyword(Keyword::NULL),
+                "async" => Token::Keyword(Keyword::ASYNC),
+                "await" => Token::Keyword(Keyword::AWAIT),
+                "new" => Token::Keyword(Keyword::NEW),
+                "yield" => Token::Keyword(Keyword::YIELD),
+                "true" => Token::Bool(true),
+                "false" => Token::Bool(false),
+                _ => Token::Identifier(s.to_string()),
+            })
+            .parse_next(input)
+    }
+
+    pub fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
+        alt((
+            parse_comment,
+            parse_punctuation,
+            parse_operator,
+            parse_literal,
+            parse_identifier,
         ))
         .parse_peek(chars)
     }
