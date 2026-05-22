@@ -355,7 +355,6 @@ impl Parser {
 
         // Check for generator * suffix
         let is_generator = self.match_token(&Token::Operator(Operator::Multiply));
-        eprintln!("DEBUG: parse_function_definition is_generator: {}", is_generator);
 
         // Optional name
         let mut name = None;

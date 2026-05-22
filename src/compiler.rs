@@ -206,7 +206,6 @@ impl<'a> Compiler<'a> {
     // --- Compilation Methods ---
 
     fn compile_program(&mut self, ast: Ast) {
-        eprintln!("DEBUG: compile_program called with {} statements", ast.len());
         let mut function_declarations = Vec::new();
         let mut main_statements = Vec::new();
 

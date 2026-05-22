@@ -222,6 +222,47 @@ console.log("Counter 1: " + c1()) // 1
 console.log("Counter 1: " + c1()) // 2
 console.log("Counter 2: " + c2()) // 11
 `,
+    sync_generator: `// Feature: Generators (Sync)
+function* countTo(limit) {
+    let i = 1
+    while (i <= limit) {
+        yield i
+        i = i + 1
+    }
+}
+
+console.log("Manual iteration:")
+let g = countTo(3)
+console.log(JSON.stringify(g.next())) // {"value": 1, "done": false}
+console.log(JSON.stringify(g.next())) // {"value": 2, "done": false}
+console.log(JSON.stringify(g.next())) // {"value": 3, "done": false}
+console.log(JSON.stringify(g.next())) // {"value": null, "done": true}
+
+console.log("\\nIteration using for-of loop:")
+for (let x of countTo(5)) {
+    console.log(x)
+}
+`,
+    async_generator: `// Feature: Generators (Async)
+async function* asyncCount(limit) {
+    let i = 1
+    while (i <= limit) {
+        await Chen.timer.sleep(500) // Async delay
+        yield i
+        i = i + 1
+    }
+}
+
+async function main() {
+    console.log("Starting async iteration...")
+    for await (let x of asyncCount(3)) {
+        console.log("Got: " + x)
+    }
+    console.log("Done!")
+}
+
+await main()
+`,
     async_task: `// Feature: Async/Await
 async function fetch_data(id) {
     console.log("Fetching data for ID: " + id + "...")
@@ -245,25 +286,29 @@ async function main() {
 await main()
 `,
     async_http: `// Feature: Async HTTP Request
-console.log("Sending request to httpbin.org...")
-let url = "https://httpbin.org/anything"
-let resp = Chen.http.request("GET", url)
+async function main() {
+    console.log("Sending request to httpbin.org...")
+    let url = "https://httpbin.org/anything"
+    let resp = await Chen.http.request("GET", url)
 
-console.log("Status: " + resp.status)
-let data = JSON.parse(resp.body)
-console.log("Response JSON origin: " + data.origin)
+    console.log("Status: " + resp.status)
+    let data = JSON.parse(resp.body)
+    console.log("Response JSON origin: " + data.origin)
+}
+
+await main()
 `,
     concurrent_http: `// Feature: Concurrent HTTP Requests
 console.log("Starting concurrent HTTP requests...")
 
 // Helper function to fetch URL and return status
 async function fetch_status(url) {
-    let resp = Chen.http.request("GET", url)
+    let resp = await Chen.http.request("GET", url)
     return resp.status
 }
 
 async function fetch_uuid() {
-    let resp = Chen.http.request("GET", "https://httpbin.org/uuid")
+    let resp = await Chen.http.request("GET", "https://httpbin.org/uuid")
     let data = JSON.parse(resp.body)
     return data.uuid
 }
@@ -355,9 +400,9 @@ async function run() {
 
         // Syntax Rules
         const rules = [
-            { rex: /(?<=^|\\s|;)(\/\/.*|\/\/ $)/g, cls: 'comment' },
+            { rex: /(?<=^|\s|;)(\/\/.*|\/\/ $)/g, cls: 'comment' },
             { rex: /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/g, cls: 'string' },
-            { rex: /\b(let|function|if|else|return|while|for|of|break|continue|async|await|try|catch|finally|throw)\b/g, cls: 'keyword' },
+            { rex: /\b(let|function|if|else|return|while|for|of|break|continue|async|await|try|catch|finally|throw|yield)\b/g, cls: 'keyword' },
             { rex: /\b(true|false)\b/g, cls: 'boolean' },
             { rex: /\b(null)\b/g, cls: 'null' },
             { rex: /\b(\d+(?:\.\d*)?)\b/g, cls: 'number' },

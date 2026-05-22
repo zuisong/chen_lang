@@ -823,6 +823,9 @@ impl VM {
         reaction: crate::promise::Reaction,
         settled_state: &crate::promise::PromiseState,
     ) {
+        let pending_reaction_error =
+            || Value::string("Promise reaction scheduled while promise is still pending".to_string());
+
         match reaction {
             crate::promise::Reaction::ResumeFiber(fiber) => {
                 let res = match settled_state {
@@ -834,7 +837,9 @@ impl VM {
                         };
                         Err(VMRuntimeError::UncaughtException(msg))
                     }
-                    _ => unreachable!(),
+                    crate::promise::PromiseState::Pending => {
+                        Err(VMRuntimeError::UncaughtException(pending_reaction_error().to_string()))
+                    }
                 };
                 self.async_state.ready_queue.borrow_mut().push_back((fiber, res));
                 self.async_state.notify.notify_one();
@@ -879,13 +884,23 @@ impl VM {
                         self.settle_promise(next_promise, crate::promise::PromiseState::Rejected(reason.clone()));
                     }
                 }
-                _ => unreachable!(),
+                crate::promise::PromiseState::Pending => {
+                    self.settle_promise(
+                        next_promise,
+                        crate::promise::PromiseState::Rejected(pending_reaction_error()),
+                    );
+                }
             },
             crate::promise::Reaction::Finally {
                 on_finally,
                 next_promise,
             } => {
-                if let Err(e) = self.spawn_callback_fiber(
+                if matches!(settled_state, crate::promise::PromiseState::Pending) {
+                    self.settle_promise(
+                        next_promise,
+                        crate::promise::PromiseState::Rejected(pending_reaction_error()),
+                    );
+                } else if let Err(e) = self.spawn_callback_fiber(
                     on_finally,
                     Value::null(),
                     next_promise.clone(),
@@ -926,12 +941,7 @@ impl VM {
                 fiber.finally_initial_state = finally_initial_state;
 
                 let fiber_rc = Rc::new(RefCell::new(fiber));
-                self.async_state
-                    .ready_queue
-                    .borrow_mut()
-                    .push_back((fiber_rc, Ok(Value::null())));
-                *self.async_state.pending_tasks.borrow_mut() += 1;
-                self.async_state.notify.notify_one();
+                self.async_state.enqueue_pending_fiber(fiber_rc, Ok(Value::null()));
                 Ok(())
             }
             Value::NativeFunction(native_fn) => {

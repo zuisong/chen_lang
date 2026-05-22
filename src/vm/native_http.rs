@@ -86,34 +86,12 @@ pub fn create_http_object() -> Value {
         let promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
         let promise_val = Value::Promise(promise.clone());
 
-        let ready_queue = vm.async_state.ready_queue.clone();
-        let pending_tasks = vm.async_state.pending_tasks.clone();
-        let notify = vm.async_state.notify.clone();
-
-        *pending_tasks.borrow_mut() += 1;
-
-        // Spawn Async Task
-        tokio::task::spawn_local(async move {
+        let fut = async move {
             let client = reqwest::Client::new();
 
             let method = match reqwest::Method::from_str(&method_str) {
-                Ok(m) => m,
-                Err(e) => {
-                    let mut p = promise.borrow_mut();
-                    let reactions = p.reject(Value::string(format!("HTTP invalid method: {}", e)));
-                    let mut q = ready_queue.borrow_mut();
-                    for reaction in reactions {
-                        if let crate::promise::Reaction::ResumeFiber(f) = reaction {
-                            q.push_back((
-                                f,
-                                Err(VMRuntimeError::UncaughtException(format!("HTTP invalid method: {}", e))),
-                            ));
-                        }
-                    }
-                    *pending_tasks.borrow_mut() -= 1;
-                    notify.notify_one();
-                    return;
-                }
+                Ok(method) => method,
+                Err(e) => return Err(VMRuntimeError::UncaughtException(format!("HTTP invalid method: {}", e))),
             };
 
             let mut builder = client.request(method, &url_str);
@@ -125,28 +103,13 @@ pub fn create_http_object() -> Value {
             if let Some(h) = headers_arg {
                 match value_to_header_map(&h) {
                     Ok(headers) => builder = builder.headers(headers),
-                    Err(e) => {
-                        let mut p = promise.borrow_mut();
-                        let reactions = p.reject(Value::string(format!("HTTP header error: {}", e)));
-                        let mut q = ready_queue.borrow_mut();
-                        for reaction in reactions {
-                            if let crate::promise::Reaction::ResumeFiber(f) = reaction {
-                                q.push_back((
-                                    f,
-                                    Err(VMRuntimeError::UncaughtException(format!("HTTP header error: {}", e))),
-                                ));
-                            }
-                        }
-                        *pending_tasks.borrow_mut() -= 1;
-                        notify.notify_one();
-                        return;
-                    }
+                    Err(e) => return Err(VMRuntimeError::UncaughtException(format!("HTTP header error: {}", e))),
                 }
             }
 
             let resp_res = builder.send().await;
 
-            let result = match resp_res {
+            match resp_res {
                 Ok(resp) => {
                     let status = resp.status().as_u16() as i32;
                     let headers = resp.headers().clone();
@@ -178,31 +141,10 @@ pub fn create_http_object() -> Value {
                     }))))
                 }
                 Err(e) => Err(VMRuntimeError::UncaughtException(format!("HTTP request error: {}", e))),
-            };
-
-            let mut p = promise.borrow_mut();
-            let mut q = ready_queue.borrow_mut();
-            match result {
-                Ok(val) => {
-                    let reactions = p.resolve(val.clone());
-                    for reaction in reactions {
-                        if let crate::promise::Reaction::ResumeFiber(f) = reaction {
-                            q.push_back((f, Ok(val.clone())));
-                        }
-                    }
-                }
-                Err(err) => {
-                    let reactions = p.reject(Value::string(err.to_string()));
-                    for reaction in reactions {
-                        if let crate::promise::Reaction::ResumeFiber(f) = reaction {
-                            q.push_back((f, Err(err.clone())));
-                        }
-                    }
-                }
             }
-            *pending_tasks.borrow_mut() -= 1;
-            notify.notify_one();
-        });
+        };
+
+        vm.async_state.spawn_promise_task(promise, fut);
 
         Ok(promise_val)
     };

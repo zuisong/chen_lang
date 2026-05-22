@@ -4,17 +4,23 @@ use std::future::Future;
 use std::rc::Rc;
 use std::time::Duration;
 
+use crate::promise::{Promise, PromiseState};
 use crate::value::Value;
 use crate::vm::{Fiber, VMRuntimeError};
 
 type FiberRef = Rc<RefCell<Fiber>>;
 type ReadyTask = (FiberRef, Result<Value, VMRuntimeError>);
 type ReadyQueue = Rc<RefCell<VecDeque<ReadyTask>>>;
+type PromiseRef = Rc<RefCell<Promise>>;
+type CompletedPromise = (PromiseRef, PromiseState);
+type CompletedPromiseQueue = Rc<RefCell<VecDeque<CompletedPromise>>>;
 
 /// 异步运行时状态
 pub struct AsyncState {
     /// 待恢复的任务队列 (Fiber, ResumeValue)
     pub ready_queue: ReadyQueue,
+    /// 已完成的原生异步 Promise，由 VM 主循环统一结算
+    pub completed_promises: CompletedPromiseQueue,
     /// 对待处理任务的计数
     pub pending_tasks: Rc<RefCell<usize>>,
     pub notify: Rc<tokio::sync::Notify>,
@@ -30,91 +36,79 @@ impl AsyncState {
     pub fn new() -> Self {
         Self {
             ready_queue: Rc::new(RefCell::new(VecDeque::new())),
+            completed_promises: Rc::new(RefCell::new(VecDeque::new())),
             pending_tasks: Rc::new(RefCell::new(0)),
             notify: Rc::new(tokio::sync::Notify::new()),
         }
     }
 
-    /// 注册一个延时任务
-    pub fn spawn_sleep(&self, duration: Duration, fiber: Rc<RefCell<Fiber>>) {
-        let queue = self.ready_queue.clone();
-        let pending = self.pending_tasks.clone();
-        *pending.borrow_mut() += 1;
-
-        let notify = self.notify.clone();
-
-        #[cfg(not(target_arch = "wasm32"))]
-        tokio::task::spawn_local(async move {
-            tokio::time::sleep(duration).await;
-            // 唤醒：将 Fiber 加入就绪队列，Resume 值为 null
-            queue.borrow_mut().push_back((fiber, Ok(Value::null())));
-            *pending.borrow_mut() -= 1;
-            notify.notify_one();
-        });
-
-        #[cfg(target_arch = "wasm32")]
-        {
-            // TODO: Implant timer for WASM
-            // For now just decrement pending to avoid hanging if we ever called this
-            *pending.borrow_mut() -= 1;
-            notify.notify_one();
-        }
-    }
-
-    /// 注册一个通用的 Future 任务
-    pub fn spawn_future<F>(&self, fut: F, fiber: Rc<RefCell<Fiber>>)
+    pub fn spawn_promise_task<F>(&self, promise_rc: PromiseRef, fut: F)
     where
         F: Future<Output = Result<Value, VMRuntimeError>> + 'static,
     {
-        let queue = self.ready_queue.clone();
+        let completed_promises = self.completed_promises.clone();
         let pending = self.pending_tasks.clone();
         *pending.borrow_mut() += 1;
 
         let notify = self.notify.clone();
 
-        #[cfg(not(target_arch = "wasm32"))]
-        tokio::task::spawn_local(async move {
+        let task = async move {
             let result = fut.await;
-            queue.borrow_mut().push_back((fiber, result));
+            let state = match result {
+                Ok(value) => PromiseState::Fulfilled(value),
+                Err(err) => PromiseState::Rejected(Value::string(err.to_string())),
+            };
+
+            completed_promises.borrow_mut().push_back((promise_rc, state));
             *pending.borrow_mut() -= 1;
             notify.notify_one();
-        });
+        };
 
         #[cfg(target_arch = "wasm32")]
-        wasm_bindgen_futures::spawn_local(async move {
-            let result = fut.await;
-            queue.borrow_mut().push_back((fiber, result));
-            *pending.borrow_mut() -= 1;
-            notify.notify_one();
-        });
+        wasm_bindgen_futures::spawn_local(task);
+
+        #[cfg(not(target_arch = "wasm32"))]
+        tokio::task::spawn_local(task);
     }
 
-    pub fn resolve_promise(&self, promise_rc: Rc<RefCell<crate::promise::Promise>>, value: Value) {
-        let reactions = promise_rc.borrow_mut().resolve(value.clone());
-        self.schedule_reactions(reactions, Ok(value));
+    pub fn enqueue_pending_fiber(&self, fiber: FiberRef, resume_value: Result<Value, VMRuntimeError>) {
+        self.ready_queue.borrow_mut().push_back((fiber, resume_value));
+        *self.pending_tasks.borrow_mut() += 1;
+        self.notify.notify_one();
     }
 
-    pub fn reject_promise(&self, promise_rc: Rc<RefCell<crate::promise::Promise>>, reason: Value) {
-        let reactions = promise_rc.borrow_mut().reject(reason.clone());
-        self.schedule_reactions(reactions, Err(VMRuntimeError::UncaughtException(reason.to_string())));
+    pub fn drain_completed_promises(&self) -> Vec<CompletedPromise> {
+        self.completed_promises.borrow_mut().drain(..).collect()
     }
-    pub fn schedule_reactions(&self, reactions: Vec<crate::promise::Reaction>, result: Result<Value, VMRuntimeError>) {
-        let queue = self.ready_queue.clone();
-        let notify = self.notify.clone();
-        let mut q = queue.borrow_mut();
-        for reaction in reactions {
-            match reaction {
-                crate::promise::Reaction::ResumeFiber(fiber) => {
-                    q.push_back((fiber, result.clone()));
-                    notify.notify_one();
-                }
-                crate::promise::Reaction::Callback { .. } => {
-                    // TODO
-                }
-                crate::promise::Reaction::Finally { .. } => {
-                    // TODO
-                }
-            }
+}
+
+pub async fn sleep(duration: Duration) {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        tokio::time::sleep(duration).await;
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        use wasm_bindgen::JsCast;
+        use wasm_bindgen::closure::Closure;
+        use wasm_bindgen::prelude::wasm_bindgen;
+
+        #[wasm_bindgen]
+        extern "C" {
+            #[wasm_bindgen(js_namespace = globalThis, js_name = setTimeout)]
+            fn set_timeout(handler: &js_sys::Function, timeout: i32) -> i32;
         }
+
+        let timeout = duration.as_millis().min(i32::MAX as u128) as i32;
+        let js_promise = js_sys::Promise::new(&mut |resolve, _reject| {
+            let callback = Closure::once(move || {
+                let _ = resolve.call0(&wasm_bindgen::JsValue::NULL);
+            });
+            set_timeout(callback.as_ref().unchecked_ref(), timeout);
+            callback.forget();
+        });
+
+        let _ = wasm_bindgen_futures::JsFuture::from(js_promise).await;
     }
 }

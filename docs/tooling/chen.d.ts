@@ -55,11 +55,11 @@ declare namespace Chen {
     /**
      * Sends an HTTP request.
      */
-    function request(method: string, url: string, body?: string | null, headers?: { [key: string]: string }): Response;
+    function request(method: string, url: string, body?: string | null, headers?: { [key: string]: string }): Promise<Response>;
     /**
      * Alias for request.
      */
-    function fetch(method: string, url: string, body?: string | null, headers?: { [key: string]: string }): Response;
+    function fetch(method: string, url: string, body?: string | null, headers?: { [key: string]: string }): Promise<Response>;
   }
 
   /**
@@ -186,14 +186,40 @@ interface ChenIterator<T> {
   next(): { value: T | null, done: boolean };
 }
 
+interface ChenAsyncIterator<T> {
+  next(): Promise<{ value: T | null, done: boolean }>;
+}
+
+/**
+ * Global Symbols for protocols.
+ */
+declare namespace Symbol {
+  /**
+   * Key for synchronous iterator.
+   */
+  const iterator: string;
+  /**
+   * Key for asynchronous iterator.
+   */
+  const asyncIterator: string;
+}
+
 /**
  * Object Constructor extension for Chen.
  */
 interface ObjectConstructor {
   /**
-   * Returns an iterator over the object keys.
+   * Returns an array of an object's own enumerable string-keyed property keys.
    */
-  iter(obj: object): ChenIterator<string>;
+  keys(obj: object): string[];
+  /**
+   * Returns an array of a given object's own enumerable string-keyed property [key, value] pairs.
+   */
+  entries(obj: object): [string, any][];
+  /**
+   * Creates an object that has the specified prototype.
+   */
+  create(proto: object | null): object;
 }
 
 // Built-in prototypes extension
@@ -205,7 +231,7 @@ interface Array<T> {
   /**
    * Returns an iterator for the array.
    */
-  iter(): ChenIterator<T>;
+  [Symbol.iterator](): ChenIterator<T>;
   /**
    * Adds an element to the end of the array.
    */
@@ -244,5 +270,5 @@ interface String {
   /**
    * Returns an iterator for the string characters.
    */
-  iter(): ChenIterator<string>;
+  [Symbol.iterator](): ChenIterator<string>;
 }

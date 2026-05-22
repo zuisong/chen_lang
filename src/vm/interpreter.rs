@@ -32,6 +32,47 @@ struct RuntimeStateSnapshot {
 }
 
 impl VM {
+    fn iterator_result(value: Value, done: bool) -> Value {
+        let mut data = IndexMap::new();
+        data.insert("value".to_string(), value);
+        data.insert("done".to_string(), Value::Bool(done));
+        Value::Object(Rc::new(RefCell::new(crate::value::Table { data, metatable: None })))
+    }
+
+    fn is_current_fiber_async_generator(fiber: &Fiber) -> bool {
+        fiber
+            .current_closure
+            .as_ref()
+            .map(|closure| closure.func_symbol.is_async && closure.func_symbol.is_generator)
+            .unwrap_or(false)
+    }
+
+    fn settle_async_generator_next(
+        &mut self,
+        fiber_rc: &Rc<RefCell<Fiber>>,
+        state: crate::promise::PromiseState,
+    ) -> bool {
+        let promise = fiber_rc.borrow_mut().associated_promise.take();
+        if let Some(promise_rc) = promise {
+            self.settle_promise(promise_rc, state);
+
+            let mut pending = self.async_state.pending_tasks.borrow_mut();
+            if *pending > 0 {
+                *pending -= 1;
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    fn fulfill_async_generator_next(&mut self, fiber_rc: &Rc<RefCell<Fiber>>, value: Value, done: bool) {
+        self.settle_async_generator_next(
+            fiber_rc,
+            crate::promise::PromiseState::Fulfilled(Self::iterator_result(value, done)),
+        );
+    }
+
     /// 执行程序
     pub fn execute(&mut self, program: &Program) -> VMResult {
         self.execute_rc(Rc::new(program.clone()))
@@ -65,6 +106,7 @@ impl VM {
             {
                 let pending = *self.async_state.pending_tasks.borrow();
                 let queue_empty = self.async_state.ready_queue.borrow().is_empty();
+                let completed_promises_empty = self.async_state.completed_promises.borrow().is_empty();
 
                 let current_fiber_done = if let Some(f) = &self.current_fiber {
                     let f_borrow = f.borrow();
@@ -76,7 +118,7 @@ impl VM {
                     true
                 };
 
-                if pending == 0 && queue_empty {
+                if pending == 0 && queue_empty && completed_promises_empty {
                     if current_fiber_done {
                         break;
                     } else {
@@ -93,6 +135,12 @@ impl VM {
             }
 
             let mut did_work = false;
+
+            for (promise, state) in self.async_state.drain_completed_promises() {
+                did_work = true;
+                self.settle_promise(promise, state);
+            }
+
             let queue = self.async_state.ready_queue.clone();
 
             let mut ready_tasks = Vec::new();
@@ -159,10 +207,18 @@ impl VM {
 
                         let is_finished =
                             f.state == FiberState::Dead || (f.state == FiberState::Running && f.call_stack.is_empty());
+                        let is_async_generator = Self::is_current_fiber_async_generator(&f);
 
                         if is_finished {
                             f.result = Some(result.clone());
                             f.state = FiberState::Dead;
+
+                            if is_async_generator {
+                                drop(f);
+                                self.fulfill_async_generator_next(&fiber, result.clone(), true);
+                                self.async_state.notify.notify_waiters();
+                                continue;
+                            }
 
                             if let Some(promise_rc) = f.associated_promise.take() {
                                 let final_state = if let Some(initial_state) = f.finally_initial_state.take() {
@@ -182,9 +238,26 @@ impl VM {
                     }
 
                     if let Err(e) = &last_res {
-                        if matches!(e.error, VMRuntimeError::Yield) || matches!(e.error, VMRuntimeError::GeneratorYield)
-                        {
+                        if matches!(e.error, VMRuntimeError::GeneratorYield) {
+                            if Self::is_current_fiber_async_generator(&fiber.borrow()) {
+                                let value = fiber.borrow().stack.last().cloned().unwrap_or(Value::Null);
+                                self.fulfill_async_generator_next(&fiber, value, false);
+                                self.async_state.notify.notify_waiters();
+                            }
+                        } else if matches!(e.error, VMRuntimeError::Yield) {
                         } else {
+                            if Self::is_current_fiber_async_generator(&fiber.borrow()) {
+                                let error_val = Value::string(e.to_string());
+                                if self.settle_async_generator_next(
+                                    &fiber,
+                                    crate::promise::PromiseState::Rejected(error_val),
+                                ) {
+                                    fiber.borrow_mut().state = FiberState::Dead;
+                                    self.async_state.notify.notify_waiters();
+                                    continue;
+                                }
+                            }
+
                             // Error in fiber, handle it
                             let mut f = fiber.borrow_mut();
                             f.state = FiberState::Dead;
@@ -212,9 +285,17 @@ impl VM {
             }
 
             if !did_work {
-                tokio::select! {
-                    _ = self.async_state.notify.notified() => {},
-                    _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {},
+                #[cfg(target_arch = "wasm32")]
+                {
+                    self.async_state.notify.notified().await;
+                }
+
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    tokio::select! {
+                        _ = self.async_state.notify.notified() => {},
+                        _ = tokio::time::sleep(std::time::Duration::from_millis(10)) => {},
+                    }
                 }
             }
         }
@@ -416,11 +497,7 @@ impl VM {
                         fiber_clone.borrow_mut().state = FiberState::Running;
 
                         vm.async_state
-                            .ready_queue
-                            .borrow_mut()
-                            .push_back((fiber_clone.clone(), Ok(Value::null())));
-                        *vm.async_state.pending_tasks.borrow_mut() += 1;
-                        vm.async_state.notify.notify_one();
+                            .enqueue_pending_fiber(fiber_clone.clone(), Ok(Value::null()));
 
                         return Ok(promise_val);
                     }
@@ -512,12 +589,7 @@ impl VM {
             fiber.associated_promise = Some(promise.clone());
 
             let fiber_rc = Rc::new(RefCell::new(fiber));
-            self.async_state
-                .ready_queue
-                .borrow_mut()
-                .push_back((fiber_rc, Ok(Value::null())));
-            *self.async_state.pending_tasks.borrow_mut() += 1;
-            self.async_state.notify.notify_one();
+            self.async_state.enqueue_pending_fiber(fiber_rc, Ok(Value::null()));
 
             self.stack.push(promise_val);
             return Ok(true);
@@ -1587,11 +1659,7 @@ impl VM {
                         fiber.associated_promise = Some(promise.clone());
 
                         let fiber_rc = Rc::new(RefCell::new(fiber));
-                        self.async_state
-                            .ready_queue
-                            .borrow_mut()
-                            .push_back((fiber_rc, Ok(Value::null())));
-                        *self.async_state.pending_tasks.borrow_mut() += 1;
+                        self.async_state.enqueue_pending_fiber(fiber_rc, Ok(Value::null()));
 
                         self.stack.push(promise_val);
                     }

@@ -57,27 +57,9 @@ fn native_timer_sleep(vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntim
     let promise_val = Value::Promise(promise.clone());
 
     let duration = Duration::from_millis(ms as u64);
-    let ready_queue = vm.async_state.ready_queue.clone();
-    let pending_tasks = vm.async_state.pending_tasks.clone();
-    let notify = vm.async_state.notify.clone();
-
-    *pending_tasks.borrow_mut() += 1;
-
-    #[cfg(not(target_arch = "wasm32"))]
-    tokio::task::spawn_local(async move {
-        tokio::time::sleep(duration).await;
-
-        let mut p = promise.borrow_mut();
-        let reactions = p.resolve(Value::null());
-
-        let mut q = ready_queue.borrow_mut();
-        for reaction in reactions {
-            if let crate::promise::Reaction::ResumeFiber(f) = reaction {
-                q.push_back((f, Ok(Value::null())));
-            }
-        }
-        *pending_tasks.borrow_mut() -= 1;
-        notify.notify_one();
+    vm.async_state.spawn_promise_task(promise, async move {
+        crate::vm::rt::sleep(duration).await;
+        Ok(Value::null())
     });
 
     Ok(promise_val)

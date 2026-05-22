@@ -57,9 +57,10 @@ fn parse_statement(pair: Pair<Rule>) -> Statement {
             let inner_decl = inner.into_inner().find(|p| p.as_rule() == Rule::declaration).unwrap();
             let mut stmt = parse_declaration(inner_decl, loc);
             if let Statement::Local(ref mut local) = stmt
-                && let Expression::Function(decl) = local.expression.clone() {
-                    local.expression = Expression::AsyncFunction(decl);
-                }
+                && let Expression::Function(decl) = local.expression.clone()
+            {
+                local.expression = Expression::AsyncFunction(decl);
+            }
             stmt
         }
         Rule::for_loop => parse_for_loop(inner, loc),

@@ -136,3 +136,54 @@ fn test_async_iterator_fallback_to_sync() {
     "#;
     assert_eq!(run_code(code), "6");
 }
+
+#[test]
+fn test_async_generator_for_await() {
+    let code = r#"
+    async function* asyncCount(limit) {
+        let i = 1
+        while (i <= limit) {
+            await Chen.timer.sleep(1)
+            yield i
+            i = i + 1
+        }
+    }
+
+    async function run() {
+        let sum = 0
+        for await (let x of asyncCount(3)) {
+            sum = sum + x
+        }
+        return sum
+    }
+
+    return await run()
+    "#;
+
+    assert_eq!(run_code(code), "6");
+}
+
+#[test]
+fn test_async_generator_error_rejects_next() {
+    let code = r#"
+    async function* broken() {
+        await Chen.timer.sleep(1)
+        throw "boom"
+    }
+
+    async function run() {
+        try {
+            for await (let x of broken()) {
+                return "unexpected"
+            }
+        } catch (err) {
+            return "caught"
+        }
+        return "missed"
+    }
+
+    return await run()
+    "#;
+
+    assert_eq!(run_code(code), "caught");
+}
