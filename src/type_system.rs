@@ -30,6 +30,7 @@ pub enum Type {
         parameters: Vec<Type>,
         return_type: Box<Type>,
     },
+    Promise(Box<Type>),
 }
 
 impl Type {
@@ -48,6 +49,7 @@ impl Type {
                 arguments: arguments.iter().map(Type::from_annotation).collect(),
             },
             TypeAnnotation::Union(types) => Type::Union(types.iter().map(Type::from_annotation).collect()),
+            TypeAnnotation::Promise(inner) => Type::Promise(Box::new(Type::from_annotation(inner))),
         }
     }
 
@@ -123,6 +125,7 @@ impl std::fmt::Display for Type {
                     .join(", ");
                 write!(f, "fn({params}) -> {return_type}")
             }
+            Type::Promise(inner) => write!(f, "Promise<{inner}>"),
         }
     }
 }
@@ -174,10 +177,26 @@ impl TypeChecker {
 
     pub fn check(&mut self, ast: &Ast) -> Result<(), TypeError> {
         for statement in ast {
-            if let Statement::FunctionDeclaration(function) = statement
-                && let Some(name) = &function.name
+            if (matches!(statement, Statement::FunctionDeclaration(_)) || matches!(statement, Statement::AsyncFunctionDeclaration(_)))
+                && let Some(name) = match statement {
+                    Statement::FunctionDeclaration(f) => &f.name,
+                    Statement::AsyncFunctionDeclaration(f) => &f.name,
+                    _ => unreachable!(),
+                }
             {
-                self.define(name.clone(), self.function_signature(function));
+                let signature = match statement {
+                    Statement::FunctionDeclaration(f) => self.function_signature(f),
+                    Statement::AsyncFunctionDeclaration(f) => {
+                        let sig = self.function_signature(f);
+                        if let Type::Function { parameters, return_type } = sig {
+                            Type::Function { parameters, return_type: Box::new(Type::Promise(return_type)) }
+                        } else {
+                            sig
+                        }
+                    }
+                    _ => unreachable!(),
+                };
+                self.define(name.clone(), signature);
             }
         }
 
@@ -208,6 +227,7 @@ impl TypeChecker {
                 Ok(())
             }
             Statement::FunctionDeclaration(function) => self.check_function(function),
+            Statement::AsyncFunctionDeclaration(function) => self.check_function(function),
             Statement::Return(ret) => self.check_return(ret),
             Statement::Expression(expr) => {
                 self.check_expression(expr)?;
@@ -217,11 +237,11 @@ impl TypeChecker {
                 self.check_expression(&loop_.test)?;
                 self.with_scope(|checker| checker.check_statements(&loop_.body))
             }
-            Statement::ForIn(for_in) => {
-                self.check_expression(&for_in.iterable)?;
+            Statement::ForOf(for_of) => {
+                self.check_expression(&for_of.iterable)?;
                 self.with_scope(|checker| {
-                    checker.define(for_in.var.clone(), Type::Unknown);
-                    checker.check_statements(&for_in.body)
+                    checker.define(for_of.var.clone(), Type::Unknown);
+                    checker.check_statements(&for_of.body)
                 })
             }
             Statement::SetField { object, value, .. } => {
@@ -422,9 +442,40 @@ impl TypeChecker {
                 self.check_expression(index)?;
                 Ok(Type::Unknown)
             }
-            Expression::Function(function) => {
-                self.check_function(function)?;
-                Ok(self.function_signature(function))
+            Expression::Function(function) => Ok(self.function_signature(function)),
+            Expression::AsyncFunction(function) => {
+                let sig = self.function_signature(function);
+                if let Type::Function {
+                    parameters,
+                    return_type,
+                } = sig
+                {
+                    Ok(Type::Function {
+                        parameters,
+                        return_type: Box::new(Type::Promise(return_type)),
+                    })
+                } else {
+                    Ok(sig)
+                }
+            }
+            Expression::Await { expression, .. } => {
+                let inner = self.check_expression(expression)?;
+                if let Type::Promise(inner) = inner {
+                    Ok(*inner)
+                } else {
+                    Ok(inner)
+                }
+            }
+            Expression::New {
+                constructor,
+                arguments,
+                ..
+            } => {
+                self.check_expression(constructor)?;
+                for argument in arguments {
+                    self.check_expression(argument)?;
+                }
+                Ok(Type::Unknown)
             }
         }
     }
@@ -645,7 +696,7 @@ impl TypeChecker {
             Value::String(_) => Type::String,
             Value::Object(_) => Type::Object,
             Value::Null => Type::Null,
-            Value::Fn(_) | Value::NativeFunction(_) | Value::Coroutine(_) => Type::Unknown,
+            Value::Fn(_) | Value::NativeFunction(_) | Value::Promise(_) => Type::Unknown,
         }
     }
 

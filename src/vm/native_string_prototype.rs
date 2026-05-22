@@ -11,10 +11,6 @@ pub fn create_string_prototype() -> Value {
         .data
         .insert("__type".to_string(), Value::string("String".to_string()));
     table.data.insert(
-        "len".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_len) as Box<NativeFnType>)),
-    );
-    table.data.insert(
         "trim".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_string_trim) as Box<NativeFnType>)),
     );
@@ -35,10 +31,6 @@ pub fn create_string_prototype() -> Value {
         Value::NativeFunction(Rc::new(Box::new(native_string_lower) as Box<NativeFnType>)),
     );
     table.data.insert(
-        "length".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_len) as Box<NativeFnType>)),
-    );
-    table.data.insert(
         "iter".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_string_iter) as Box<NativeFnType>)),
     );
@@ -57,18 +49,6 @@ pub fn create_string_prototype() -> Value {
 
 fn string_receiver<'a>(ctx: &'a NativeContext) -> Option<&'a Value> {
     ctx.this.as_ref().or_else(|| ctx.args.first())
-}
-
-pub fn native_string_len(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
-    match string_receiver(&ctx) {
-        Some(Value::String(s)) => Ok(Value::Int(s.chars().count() as i32)),
-        Some(v) => Err(ValueError::TypeMismatch {
-            expected: ValueType::String,
-            found: v.get_type(),
-            operation: "string.len".into(),
-        })?,
-        None => Ok(Value::Int(0)),
-    }
 }
 
 pub fn native_string_trim(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
@@ -116,21 +96,31 @@ fn native_string_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRunti
         let chars: Vec<String> = s.chars().map(|c| c.to_string()).collect();
         let index = Rc::new(RefCell::new(0));
 
-        let iter_body = move |vm: &mut VM, _ctx: NativeContext| {
+        let next_body = move |_vm: &mut VM, _ctx: NativeContext| {
             let mut idx = index.borrow_mut();
+            let mut result_data = IndexMap::new();
             if *idx < chars.len() {
                 let val = Value::string(chars[*idx].clone());
                 *idx += 1;
-                return crate::vm::native_coroutine::native_coroutine_yield(vm, vec![val]);
+                result_data.insert("value".to_string(), val);
+                result_data.insert("done".to_string(), Value::Bool(false));
+            } else {
+                result_data.insert("value".to_string(), Value::Null);
+                result_data.insert("done".to_string(), Value::Bool(true));
             }
-            Ok(Value::Null)
+            Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data: result_data, metatable: None }))))
         };
 
-        let mut fiber = Fiber::new();
-        let nf_rc = Rc::new(Box::new(iter_body) as Box<NativeFnType>);
-        fiber.native_function = Some(nf_rc.clone());
-        fiber.stack.push(Value::NativeFunction(nf_rc));
-        return Ok(Value::Coroutine(Rc::new(RefCell::new(fiber))));
+        let mut data = IndexMap::new();
+        data.insert(
+            "next".to_string(),
+            Value::NativeFunction(Rc::new(Box::new(next_body) as Box<NativeFnType>)),
+        );
+        data.insert(
+            "iter".to_string(),
+            Value::NativeFunction(Rc::new(Box::new(native_iter_self) as Box<NativeFnType>)),
+        );
+        return Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data, metatable: None }))));
     }
     Ok(Value::Null)
 }

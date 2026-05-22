@@ -14,7 +14,7 @@ fn test_http_get() {
     let code = format!(
         r#"
     let request = Chen.http.request
-    let res = request("GET", "{}/hello")
+    let res = await request("GET", "{}/hello")
     console.print(res.body)
     "#,
         url
@@ -39,7 +39,7 @@ fn test_http_post() {
     let code = format!(
         r#"
     let request = Chen.http.request
-    let res = request("POST", "{}/echo", "hello")
+    let res = await request("POST", "{}/echo", "hello")
     console.print(res.body)
     "#,
         url
@@ -64,7 +64,7 @@ fn test_http_request_method() {
 
     let code = r#"
     let request = Chen.http.request
-    let res = request("PUT", url + "/update", "new_data")
+    let res = await request("PUT", url + "/update", "new_data")
     console.log(res.status)
     console.log(res.headers['x-custom-header'])
     console.print(res.body)
@@ -97,7 +97,7 @@ fn test_http_request_with_headers() {
     let request = Chen.http.request
     let headers = {{}}
     headers["X-Auth"] = "secret123"
-    let res = request("GET", "{}/headers", null, headers)
+    let res = await request("GET", "{}/headers", null, headers)
     console.print(res.body)
     "#,
         url

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::expression::{
-    Assign, Ast, BinaryOperation, Expression, ForInLoop, FunctionCall,
+    Assign, Ast, BinaryOperation, Expression, ForOfLoop, FunctionCall,
     FunctionDeclaration, If, Literal, Local, Loop, Parameter,
     Return, Statement, TryCatch, TypeAnnotation, Unary,
 };
@@ -143,6 +143,9 @@ impl Parser {
         if self.match_token(&Token::Keyword(Keyword::FUNCTION)) {
             return self.parse_function();
         }
+        if self.match_token(&Token::Keyword(Keyword::ASYNC)) {
+            return self.parse_async_function();
+        }
         if self.match_token(&Token::Keyword(Keyword::WHILE)) {
             return self.parse_while();
         }
@@ -252,7 +255,14 @@ impl Parser {
                 let name = name.clone();
                 self.advance();
 
-                if self.match_token(&Token::Operator(Operator::Lt)) {
+                if name == "Promise" && self.match_token(&Token::Operator(Operator::Lt)) {
+                    let inner_type = self.parse_type_annotation()?;
+                    self.consume(
+                        &Token::Operator(Operator::Gt),
+                        "Expected '>' after Promise type argument",
+                    )?;
+                    TypeAnnotation::Promise(Box::new(inner_type))
+                } else if self.match_token(&Token::Operator(Operator::Lt)) {
                     let mut arguments = Vec::new();
                     loop {
                         arguments.push(self.parse_type_annotation()?);
@@ -291,6 +301,7 @@ impl Parser {
 
     fn parse_for(&mut self) -> Result<Statement, ParseError> {
         let start_loc = self.peek_location();
+        let is_async = self.match_token(&Token::Keyword(Keyword::AWAIT));
 
         // Check if it's a for-of loop: for (let x of iterable)
         if self.match_token(&Token::LParen) {
@@ -304,10 +315,11 @@ impl Parser {
                 let body = self.parse_block()?;
                 self.consume(&Token::RBig, "Expected '}' after for-of block")?;
 
-                return Ok(Statement::ForIn(ForInLoop {
+                return Ok(Statement::ForOf(ForOfLoop {
                     var,
                     iterable,
                     body,
+                    is_async,
                     loc: start_loc,
                 }));
             }
@@ -344,6 +356,15 @@ impl Parser {
     fn parse_function(&mut self) -> Result<Statement, ParseError> {
         let decl = self.parse_function_definition()?;
         Ok(Statement::FunctionDeclaration(decl))
+    }
+
+    fn parse_async_function(&mut self) -> Result<Statement, ParseError> {
+        self.consume(
+            &Token::Keyword(Keyword::FUNCTION),
+            "Expected 'function' after 'async'",
+        )?;
+        let decl = self.parse_function_definition()?;
+        Ok(Statement::AsyncFunctionDeclaration(decl))
     }
 
     fn parse_function_definition(&mut self) -> Result<FunctionDeclaration, ParseError> {
@@ -645,6 +666,15 @@ impl Parser {
     }
 
     fn parse_unary(&mut self) -> Result<Expression, ParseError> {
+        if self.match_token(&Token::Keyword(Keyword::AWAIT)) {
+            let loc = self.peek_location();
+            let expr = self.parse_unary()?;
+            return Ok(Expression::Await {
+                expression: Box::new(expr),
+                loc,
+            });
+        }
+
         if self.check(&Token::Operator(Operator::Not))
             || self.check(&Token::Operator(Operator::Subtract))
         {
@@ -662,24 +692,28 @@ impl Parser {
             }));
         }
 
-        self.parse_primary()
+        self.parse_primary(true)
     }
 
-    fn parse_primary(&mut self) -> Result<Expression, ParseError> {
+    fn parse_primary(&mut self, allow_call: bool) -> Result<Expression, ParseError> {
         let mut expr = self.parse_atom()?;
 
         loop {
-            if self.match_token(&Token::LParen) {
+            self.skip_newlines();
+            if allow_call && self.match_token(&Token::LParen) {
                 let loc = self.peek_location();
                 let mut arguments = Vec::new();
                 if !self.check(&Token::RParen) {
                     loop {
+                        self.skip_newlines();
                         arguments.push(self.parse_expression_logic()?);
+                        self.skip_newlines();
                         if !self.match_token(&Token::COMMA) {
                             break;
                         }
                     }
                 }
+                self.skip_newlines();
                 self.consume(&Token::RParen, "Expected ')' after arguments")?;
                 expr = Expression::FunctionCall(FunctionCall {
                     callee: Box::new(expr),
@@ -687,16 +721,19 @@ impl Parser {
                     loc,
                 });
             } else if self.match_token(&Token::Dot) {
+                self.skip_newlines();
                 let loc = self.peek_location();
-                let field = self.consume_identifier("Expected field name after '.'")?;
+                let field = self.consume_member_name("Expected field name after '.'")?;
                 expr = Expression::GetField {
                     object: Box::new(expr),
                     field,
                     loc,
                 };
             } else if self.match_token(&Token::LSquare) {
+                self.skip_newlines();
                 let loc = self.peek_location();
                 let index = self.parse_expression_logic()?;
+                self.skip_newlines();
                 self.consume(&Token::RSquare, "Expected ']' after index")?;
                 expr = Expression::Index {
                     object: Box::new(expr),
@@ -783,6 +820,17 @@ impl Parser {
                     let decl = self.parse_function_definition()?;
                     Ok(Expression::Function(decl))
                 }
+                Token::Keyword(Keyword::ASYNC) => {
+                    self.consume(
+                        &Token::Keyword(Keyword::FUNCTION),
+                        "Expected 'function' after 'async'",
+                    )?;
+                    let decl = self.parse_function_definition()?;
+                    Ok(Expression::AsyncFunction(decl))
+                }
+                Token::Keyword(Keyword::NEW) => {
+                    self.parse_new()
+                }
                 Token::Keyword(Keyword::IF) => {
                     self.parse_if()
                 }
@@ -846,6 +894,53 @@ impl Parser {
         self.skip_newlines();
         self.consume(&Token::RBig, "Expected '}' after object literal")?;
         Ok(Expression::ObjectLiteral(fields, loc))
+    }
+
+    fn parse_new(&mut self) -> Result<Expression, ParseError> {
+        let loc = self.peek_location();
+        // constructor should be a primary expression or at least an identifier/member access
+        let constructor = self.parse_primary(false)?; // Don't consume the arguments (
+        
+        self.skip_newlines();
+        self.consume(&Token::LParen, "Expected '(' after constructor")?;
+        let mut arguments = Vec::new();
+        if !self.check(&Token::RParen) {
+            loop {
+                self.skip_newlines();
+                arguments.push(self.parse_expression_logic()?);
+                self.skip_newlines();
+                if !self.match_token(&Token::COMMA) {
+                    break;
+                }
+            }
+        }
+        self.skip_newlines();
+        self.consume(&Token::RParen, "Expected ')' after arguments")?;
+        
+        Ok(Expression::New {
+            constructor: Box::new(constructor),
+            arguments,
+            loc,
+        })
+    }
+
+    fn consume_member_name(&mut self, message: &str) -> Result<String, ParseError> {
+        match self.peek() {
+            Some(Token::Identifier(name)) => {
+                let name = name.clone();
+                self.advance();
+                Ok(name)
+            }
+            Some(Token::Keyword(kw)) => {
+                let name = format!("{:?}", kw).to_lowercase();
+                self.advance();
+                Ok(name)
+            }
+            _ => Err(ParseError::Message {
+                msg: message.to_string(),
+                loc: self.peek_location(),
+            }),
+        }
     }
 
     fn consume_identifier(&mut self, message: &str) -> Result<String, ParseError> {

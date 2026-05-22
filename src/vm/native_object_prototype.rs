@@ -5,8 +5,7 @@ use indexmap::IndexMap;
 
 use crate::value::{NativeContext, NativeFnType, Table, Value, ValueError, ValueType};
 use crate::vm::error::VMRuntimeError;
-use crate::vm::native_coroutine::native_coroutine_yield;
-use crate::vm::{Fiber, VM};
+use crate::vm::{VM, native_iter_self};
 
 pub fn create_object_prototype() -> Value {
     let mut data = IndexMap::new();
@@ -107,8 +106,9 @@ fn native_object_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRunti
         };
         let index = Rc::new(RefCell::new(0));
 
-        let iter_body = move |vm: &mut VM, _ctx: NativeContext| {
+        let next_body = move |_vm: &mut VM, _ctx: NativeContext| {
             let mut idx = index.borrow_mut();
+            let mut result_data = IndexMap::new();
             if *idx < keys.len() {
                 let key = &keys[*idx];
                 let val = {
@@ -116,16 +116,25 @@ fn native_object_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRunti
                     table.data.get(key).cloned().unwrap_or(Value::Null)
                 };
                 *idx += 1;
-                return native_coroutine_yield(vm, vec![val]);
+                result_data.insert("value".to_string(), val);
+                result_data.insert("done".to_string(), Value::Bool(false));
+            } else {
+                result_data.insert("value".to_string(), Value::Null);
+                result_data.insert("done".to_string(), Value::Bool(true));
             }
-            Ok(Value::Null)
+            Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data: result_data, metatable: None }))))
         };
 
-        let mut fiber = Fiber::new();
-        let nf_rc = Rc::new(Box::new(iter_body) as Box<NativeFnType>);
-        fiber.native_function = Some(nf_rc.clone());
-        fiber.stack.push(Value::NativeFunction(nf_rc));
-        return Ok(Value::Coroutine(Rc::new(RefCell::new(fiber))));
+        let mut data = IndexMap::new();
+        data.insert(
+            "next".to_string(),
+            Value::NativeFunction(Rc::new(Box::new(next_body) as Box<NativeFnType>)),
+        );
+        data.insert(
+            "iter".to_string(),
+            Value::NativeFunction(Rc::new(Box::new(native_iter_self) as Box<NativeFnType>)),
+        );
+        return Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data, metatable: None }))));
     }
     Ok(Value::Null)
 }

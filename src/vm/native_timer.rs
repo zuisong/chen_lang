@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 
 use crate::value::{NativeContext, NativeFnType, Value, ValueError, ValueType};
 use crate::vm::error::VMRuntimeError;
-use crate::vm::{Fiber, FiberState, VM};
+use crate::vm::VM;
 
 pub fn create_timer_object() -> Value {
     let timer = Value::Object(Rc::new(RefCell::new(crate::value::Table {
@@ -21,8 +21,7 @@ pub fn create_timer_object() -> Value {
                 as Box<NativeFnType>,
         ));
 
-        table.data.insert("sleep".to_string(), sleep_fn.clone());
-        table.data.insert("sleepMs".to_string(), sleep_fn);
+        table.data.insert("sleep".to_string(), sleep_fn);
     }
 
     timer
@@ -54,35 +53,32 @@ fn native_timer_sleep(vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntim
         .into());
     }
 
-    // Capture current fiber logic
-    let current_fiber_rc = if let Some(c) = &vm.current_fiber {
-        c.clone()
-    } else {
-        // Root Fiber Promotion: valid for top-level code or when no fiber is explicitly created.
-        let f = Rc::new(RefCell::new(Fiber::new()));
-        vm.current_fiber = Some(f.clone());
-        f
-    };
+    let promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+    let promise_val = Value::Promise(promise.clone());
 
-    let mut current_fiber = current_fiber_rc.borrow_mut();
-
-    // IMPORTANT: We must increment PC before saving state, because `execute_from`
-    // will normally increment PC after instruction execution. But since we are breaking
-    // the loop via `Yield`, the automatic increment is skipped (or must be handled).
-    // If we save state NOW, we save `pc` pointing to the `Call` instruction.
-    // When resumed, we execute `Call` again -> Infinite Loop.
-    vm.pc += 1;
-
-    // 1. Save state
-    vm.save_state_to_fiber(&mut current_fiber);
-    current_fiber.state = FiberState::Suspended;
-    drop(current_fiber); // Release borrow
-
-    // 2. Spawn Async Task
     let duration = Duration::from_millis(ms as u64);
-    vm.async_state.spawn_sleep(duration, current_fiber_rc.clone());
+    let ready_queue = vm.async_state.ready_queue.clone();
+    let pending_tasks = vm.async_state.pending_tasks.clone();
+    let notify = vm.async_state.notify.clone();
 
-    // 3. Signal VM to Yield
-    // Note: The VM loop must handle `VMRuntimeError::Yield` by NOT incrementing PC again.
-    Err(VMRuntimeError::Yield)
+    *pending_tasks.borrow_mut() += 1;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    tokio::task::spawn_local(async move {
+        tokio::time::sleep(duration).await;
+        
+        let mut p = promise.borrow_mut();
+        let reactions = p.resolve(Value::null());
+        
+        let mut q = ready_queue.borrow_mut();
+        for reaction in reactions {
+            if let crate::promise::Reaction::ResumeFiber(f) = reaction {
+                q.push_back((f, Ok(Value::null())));
+            }
+        }
+        *pending_tasks.borrow_mut() -= 1;
+        notify.notify_one();
+    });
+
+    Ok(promise_val)
 }

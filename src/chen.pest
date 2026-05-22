@@ -7,7 +7,7 @@ COMMENT = _{ "//" ~ (!NEWLINE ~ ANY)* }
 // 关键字
 LET = @{ "let" ~ !(ASCII_ALPHANUMERIC | "_") }
 FOR = @{ "for" ~ !(ASCII_ALPHANUMERIC | "_") }
-FUNCTION = @{ "function" ~ !(ASCII_ALPHANUMERIC | "_") }
+FUNCTION = @{ ("function" | "def") ~ !(ASCII_ALPHANUMERIC | "_") }
 RETURN = @{ "return" ~ !(ASCII_ALPHANUMERIC | "_") }
 IF = @{ "if" ~ !(ASCII_ALPHANUMERIC | "_") }
 ELSE = @{ "else" ~ !(ASCII_ALPHANUMERIC | "_") }
@@ -22,10 +22,13 @@ THROW = @{ "throw" ~ !(ASCII_ALPHANUMERIC | "_") }
 IN = @{ "in" ~ !(ASCII_ALPHANUMERIC | "_") }
 OF = @{ "of" ~ !(ASCII_ALPHANUMERIC | "_") }
 WHILE = @{ "while" ~ !(ASCII_ALPHANUMERIC | "_") }
+ASYNC = @{ "async" ~ !(ASCII_ALPHANUMERIC | "_") }
+AWAIT = @{ "await" ~ !(ASCII_ALPHANUMERIC | "_") }
+NEW = @{ "new" ~ !(ASCII_ALPHANUMERIC | "_") }
 
 // 标识符 (不能是关键字)
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
-keyword = { LET | FOR | FUNCTION | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | THROW | IN | OF | WHILE }
+keyword = { LET | FOR | FUNCTION | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | THROW | IN | OF | WHILE | ASYNC | AWAIT | NEW }
 
 // 字面量
 integer = @{ "-"? ~ ASCII_DIGIT+ }
@@ -59,7 +62,7 @@ equality = { comparison ~ ((eq | neq) ~ NEWLINE* ~ comparison)* }
 comparison = { term ~ ((lte | lt | gte | gt) ~ NEWLINE* ~ term)* }
 term = { factor ~ ((add | subtract) ~ NEWLINE* ~ factor)* }
 factor = { unary ~ ((multiply | divide | modulo) ~ NEWLINE* ~ unary)* }
-unary = { (not | subtract) ~ NEWLINE* ~ unary | primary }
+unary = { ((not | subtract) ~ NEWLINE* ~ unary) | (AWAIT ~ NEWLINE* ~ unary) | primary }
 
 primary = { atom ~ postfix* }
 
@@ -73,14 +76,18 @@ atom = {
     if_expr |
     object_literal |
     block |
+    async_function_def |
     function_def |
+    new_expr |
     array_literal
 }
 
 postfix = { call_suffix | dot_suffix | index_suffix }
 call_suffix = { "(" ~ NEWLINE* ~ arguments? ~ NEWLINE* ~ ")" }
-dot_suffix = { "." ~ identifier }
+dot_suffix = { "." ~ (identifier | keyword) }
 index_suffix = { "[" ~ NEWLINE* ~ expression ~ NEWLINE* ~ "]" }
+
+new_expr = { NEW ~ primary ~ "(" ~ NEWLINE* ~ arguments? ~ NEWLINE* ~ ")" }
 
 object_literal = { "{" ~ NEWLINE* ~ (pair ~ ("," ~ NEWLINE* ~ pair)*)? ~ NEWLINE* ~ "}" }
 array_literal = { "[" ~ NEWLINE* ~ (expression ~ ("," ~ NEWLINE* ~ expression)*)? ~ NEWLINE* ~ "]" }
@@ -91,9 +98,11 @@ stmt_sep = _{ (NEWLINE | WHITESPACE)+ }
 
 // 语句
 statement = {
+    async_declaration |
     declaration |
     for_loop |
     while_loop |
+    async_function_def |
     function_def |
     return_stmt |
     break_stmt |
@@ -105,12 +114,14 @@ statement = {
 }
 
 declaration = { LET ~ identifier ~ (":" ~ type_expr)? ~ assign ~ NEWLINE* ~ expression }
+async_declaration = { ASYNC ~ declaration }
 assignment_target = { identifier ~ postfix* }
 assignment = { assignment_target ~ assign ~ NEWLINE* ~ expression }
 
-for_loop = { FOR ~ NEWLINE* ~ "(" ~ NEWLINE* ~ LET ~ identifier ~ OF ~ expression ~ NEWLINE* ~ ")" ~ block }
+for_loop = { FOR ~ NEWLINE* ~ AWAIT? ~ NEWLINE* ~ "(" ~ NEWLINE* ~ LET ~ identifier ~ OF ~ expression ~ NEWLINE* ~ ")" ~ block }
 while_loop = { WHILE ~ NEWLINE* ~ "(" ~ NEWLINE* ~ expression ~ NEWLINE* ~ ")" ~ block }
 function_def = { FUNCTION ~ identifier? ~ "(" ~ NEWLINE* ~ parameters? ~ NEWLINE* ~ ")" ~ ("->" ~ type_expr)? ~ block }
+async_function_def = { ASYNC ~ function_def }
 return_stmt = { RETURN ~ NEWLINE* ~ expression }
 break_stmt = { BREAK }
 continue_stmt = { CONTINUE }

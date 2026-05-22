@@ -45,6 +45,8 @@ pub mod type_system;
 pub mod value;
 /// 虚拟机模块
 pub mod vm;
+/// Promise 模块
+pub mod promise;
 
 /// 测试模块
 #[cfg(test)]

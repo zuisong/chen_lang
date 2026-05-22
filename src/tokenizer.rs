@@ -66,6 +66,12 @@ pub enum Keyword {
     OBJECT,
     /// null
     NULL,
+    /// async
+    ASYNC,
+    /// await
+    AWAIT,
+    /// new
+    NEW,
 }
 
 /// 操作符
@@ -290,6 +296,7 @@ pub mod winnow {
                         "return" => Token::Keyword(Keyword::RETURN),
                         "if" => Token::Keyword(Keyword::IF),
                         "function" => Token::Keyword(Keyword::FUNCTION),
+                        "def" => Token::Keyword(Keyword::FUNCTION),
                         "else" => Token::Keyword(Keyword::ELSE),
                         "for" => Token::Keyword(Keyword::FOR),
                         "while" => Token::Keyword(Keyword::WHILE),
@@ -308,11 +315,15 @@ pub mod winnow {
                         "string" => Token::Keyword(Keyword::STRING),
                         "object" => Token::Keyword(Keyword::OBJECT),
                         "null" => Token::Keyword(Keyword::NULL),
+                        "async" => Token::Keyword(Keyword::ASYNC),
+                        "await" => Token::Keyword(Keyword::AWAIT),
+                        "new" => Token::Keyword(Keyword::NEW),
                         "true" => Token::Bool(true),
                         "false" => Token::Bool(false),
                         _ => Token::Identifier(s.to_string()),
-                    }
-                }),
+                        }
+                        }),
+
             )),
         ))
         .parse_peek(chars)
@@ -494,6 +505,7 @@ mod handwritten {
                     "return" => Token::Keyword(Keyword::RETURN),
                     "if" => Token::Keyword(Keyword::IF),
                     "function" => Token::Keyword(Keyword::FUNCTION),
+                    "def" => Token::Keyword(Keyword::FUNCTION),
                     "else" => Token::Keyword(Keyword::ELSE),
                     "for" => Token::Keyword(Keyword::FOR),
                     "while" => Token::Keyword(Keyword::WHILE),
@@ -512,6 +524,9 @@ mod handwritten {
                     "string" => Token::Keyword(Keyword::STRING),
                     "object" => Token::Keyword(Keyword::OBJECT),
                     "null" => Token::Keyword(Keyword::NULL),
+                    "async" => Token::Keyword(Keyword::ASYNC),
+                    "await" => Token::Keyword(Keyword::AWAIT),
+                    "new" => Token::Keyword(Keyword::NEW),
                     "true" => Token::Bool(true),
                     "false" => Token::Bool(false),
                     _ => Token::Identifier(s),

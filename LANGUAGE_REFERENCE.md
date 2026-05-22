@@ -1,6 +1,7 @@
-**版本**: 0.2.0
+# Chen Lang 语言参考手册
 
-**更新日期**: 2026-02-01
+**版本**: 0.3.0  
+**更新日期**: 2026-05-22  
 
 ---
 
@@ -12,37 +13,41 @@
 4. [变量和作用域](#变量和作用域)
 5. [运算符](#运算符)
 6. [控制流](#控制流)
-7. [函数](#函数)
-8. [对象和元表](#对象和元表)
+7. [函数与异步](#函数与异步)
+8. [对象与原型系统](#对象与原型系统)
 9. [数组](#数组)
 10. [异常处理](#异常处理)
-11. [标准库](#标准库)
-12. [示例程序](#示例程序)
+11. [内置全局对象](#内置全局对象)
+12. [Chen 运行时命名空间](#chen-运行时命名空间)
+13. [示例程序](#示例程序)
+14. [最佳实践与常见问题](#最佳实践与常见问题)
 
 ---
 
 ## 简介
 
-Chen Lang 是一个简洁、动态类型的编程语言,具有以下特点:
+**Chen Lang** 是一个简洁、采用 JS 风格的动态类型脚本语言。它由 Rust 实现，底层基于一个轻量高效的字节码虚拟机。
 
-- 🎯 **简洁语法** - 易于学习和使用
-- 🔄 **动态类型** - 灵活的类型系统
-- 📦 **对象系统** - 基于原型的对象模型
-- ⚡ **高精度数值** - 使用 Decimal 类型避免浮点误差
-- 🛡️ **异常处理** - 完整的 try-catch-finally 机制
-- 🚀 **快速执行** - 基于字节码的虚拟机
+### 核心特性
+- 🎯 **JS 语法风格**：绝大部分代码写法与 JavaScript 极其相似。
+- 🔄 **动态类型**：变量在运行时绑定类型。
+- 📦 **原型链继承**：支持基于 JavaScript 风格的对象和原型链，也保留了底层的高级元表（Metatable）定制能力。
+- ⚡ **高精度数值**：Float 类型在底层使用 Decimal（高精度十进制数）表示，彻底避免了 `0.1 + 0.2 != 0.3` 的浮点误差。
+- 🛡️ **异常处理**：完整的 `try-catch-finally` 机制。
+- 🟢 **异步控制**：支持 `Promise`、`async/await`，基于轻量级 Fiber 协程调度。
 
-### 运行示例
+### 运行环境与执行
+Chen Lang 源文件推荐使用 `.chen.js` 作为后缀名。
 
 ```bash
-# 运行demo文件
-cargo run --bin chen_lang -- run demo_codes/fibonacci.ch
+# 启动交互式命令行（REPL）
+cargo run --bin chen_lang -- repl
 
-# 从标准输入运行程序
-echo 'let io = import("stdlib/io"); io.println("Hello from stdin")' | cargo run --bin chen_lang -- run -
+# 运行一个指定的代码文件
+cargo run --bin chen_lang -- run demo.chen.js
 
-# 直接运行代码
-echo 'let x = 5; let y = 3; print(x + y)' | cargo run --bin chen_lang -- run -
+# 从标准输入直接执行代码
+echo 'console.log("Hello from stdin")' | cargo run --bin chen_lang -- run -
 ```
 
 ---
@@ -50,39 +55,30 @@ echo 'let x = 5; let y = 3; print(x + y)' | cargo run --bin chen_lang -- run -
 ## 基础语法
 
 ### 注释
+Chen Lang 仅支持 JS 风格的单行注释。旧版 `#` 注释不再支持：
 
 ```js
 // 这是单行注释
 
-// 多行说明可以连续写多行
-// 第二行说明
-// 第三行说明
+// 可以连续多行
+// 来编写多行说明
 ```
 
-Chen Lang 的注释风格会向 JavaScript 靠拢，目标是使用 `//` 作为行注释。旧的 `#` 注释不再作为目标语法。
+### 语句与分号
+语句的分隔是**分号可选**的。你可以使用新行，或者显式使用分号 `;` 分隔：
 
-### 语句分隔
-
-Chen Lang 使用换行符作为语句分隔符:
-
-```python
+```js
 let x = 10
-let y = 20
-let z = x + y
+let y = 20; let z = x + y
 ```
 
 ### 代码块
+使用花括号 `{}` 定义语句块：
 
-使用花括号 `{}` 定义代码块:
-
-```python
-if x > 0 {
-    println("Positive")
-}
-
-for i < 10 {
-    println(i)
-    i = i + 1
+```js
+if (x > 0) {
+    let msg = "positive"
+    console.log(msg)
 }
 ```
 
@@ -90,132 +86,44 @@ for i < 10 {
 
 ## 数据类型
 
-Chen Lang 支持以下数据类型:
+Chen Lang 支持以下基础数据类型：
 
-### 1. 整数 (Integer)
-
-```python
-let age = 25
-let negative = -100
-let zero = 0
-```
-
-### 2. 浮点数 (Float)
-
-使用高精度 Decimal 类型,避免浮点误差:
-
-```python
-let price = 19.99
-let pi = 3.14159
-let result = 0.1 + 0.2  # 结果是精确的 0.3
-```
-
-### 3. 字符串 (String)
-
-使用双引号或单引号:
-
-```python
-let name = "Chen Lang"
-let message = 'Hello, World!'
-
-# 字符串拼接
-let greeting = "Hello, " + name
-```
-
-### 4. 布尔值 (Boolean)
-
-```python
-let is_valid = true
-let is_empty = false
-```
-
-### 5. 空值 (Null)
-
-```python
-let empty = null
-```
-
-### 6. 对象 (Object)
-
-使用 `${}` 创建对象:
-
-```python
-let person = ${
-    name: "Alice",
-    age: 30,
-    city: "Beijing"
-}
-```
-
-### 7. 数组 (Array)
-
-使用 `[]` 创建数组:
-
-```python
-let numbers = [1, 2, 3, 4, 5]
-let mixed = [1, "two", true, null]
-```
-
-### 8. 函数 (Function)
-
-函数是一等公民:
-
-```python
-let add = def(a, b) {
-    a + b
-}
-```
+| 类型 | 说明 | 示例 |
+| :--- | :--- | :--- |
+| **Integer** | 32位带符号整数 | `42`, `-10`, `0` |
+| **Float** | 基于 Decimal 的高精度十进制浮点数 | `3.14`, `-0.01`, `0.1` |
+| **String** | 字符串类型，支持双引号与单引号 | `"Hello"`, `'World'` |
+| **Boolean** | 布尔真/假值 | `true`, `false` |
+| **Null** | 空值，表示没有值或未定义 | `null` |
+| **Array** | 顺序数组列表 | `[1, 2, "three", null]` |
+| **Object** | 键值对表 | `{ name: "Alice", age: 25 }` |
+| **Function**| 可执行的函数（包含闭包与原生函数） | `function(a) { return a }` |
 
 ---
 
 ## 变量和作用域
 
-### 变量声明
+### 变量声明与赋值
+使用 `let` 关键字声明变量。声明后可以随时重新赋值：
 
-使用 `let` 关键字声明变量:
-
-```python
+```js
 let x = 10
-let name = "Chen"
-let is_valid = true
-```
-
-### 变量赋值
-
-```python
-let x = 10
-x = 20  # 重新赋值
-```
-
-### 作用域
-
-Chen Lang 使用词法作用域:
-
-```python
-let global_var = "global"
-
-def my_function() {
-    let local_var = "local"
-    # println 需要导入，这里假设已导入
-    # println(global_var)  # 可以访问全局变量
-    # println(local_var)   # 可以访问局部变量
-}
-
-# println(local_var)  # 错误!无法访问局部变量
+x = 20 // 重新赋值
 ```
 
 ### 块级作用域
+变量具有严格的词法块级作用域。在 `{}` 内部声明的变量在块外无法访问：
 
-```python
-let x = 10
+```js
+let outer = "global"
 
-if true {
-    let y = 20
-    println(x)  # 10
-    println(y)  # 20
+if (true) {
+    let inner = "local"
+    console.log(outer) // "global"
+    console.log(inner) // "local"
 }
 
-# println(y)  # 错误!y 在块外不可见
+// console.log(inner) // 错误！inner 在当前作用域未定义
 ```
 
 ---
@@ -223,1013 +131,477 @@ if true {
 ## 运算符
 
 ### 算术运算符
+支持基本的算术运算。所有浮点数运算均为高精度（Decimal）：
 
-```python
+```js
 let a = 10
 let b = 3
-
-let sum = a + b        # 13
-let diff = a - b       # 7
-let product = a * b    # 30
-let quotient = a / b   # 3.333...
-let remainder = a % b  # 1
+console.log(a + b)  // 13
+console.log(a - b)  // 7
+console.log(a * b)  // 30
+console.log(a / b)  // 3.3333333333333333333333333333
+console.log(a % b)  // 1 (取余数)
 ```
 
 ### 比较运算符
-
-```python
+```js
 let x = 10
 let y = 20
-
-x == y   # false (等于)
-x != y   # true  (不等于)
-x < y    # true  (小于)
-x <= y   # true  (小于等于)
-x > y    # false (大于)
-x >= y   # false (大于等于)
+console.log(x == y)  // false
+console.log(x != y)  // true
+console.log(x < y)   // true
+console.log(x >= y)  // false
 ```
 
 ### 逻辑运算符
+`&&`（逻辑与）和 `||`（逻辑或）会返回操作数本身（短路逻辑）；`!`（逻辑非）始终返回布尔值：
 
-```python
-let a = true
-let b = false
-
-a && b   # false (逻辑与)
-a || b   # true  (逻辑或)
-!a       # false (逻辑非)
+```js
+let a = "hello" && 123  // 返回 123 (真值)
+let b = null || "fallback"  // 返回 "fallback"
+let c = !0  // 返回 true
 ```
+
+#### 真值与假值（Truthiness）
+- **假值 (Falsey)**: `false`, `null`, 整数 `0`, 浮点数 `0.0`, 空字符串 `""`。
+- **真值 (Truthy)**: 除上述假值外的所有其他值（如非空数组、非空对象、非空字符串等）。
 
 ### 字符串拼接
+使用 `+` 运算符。如果其中一个操作数是字符串，Chen Lang 会自动将另一个操作数转换为字符串进行拼接：
 
-```python
-let first = "Hello"
-let second = "World"
-let result = first + " " + second  # "Hello World"
+```js
+let text = "Score: " + 98.5 // "Score: 98.5"
 ```
-
-### 运算符优先级
-
-从高到低:
-
-1. `!` (逻辑非), `-` (负号)
-2. `*`, `/`, `%`
-3. `+`, `-`
-4. `<`, `<=`, `>`, `>=`
-5. `==`, `!=`
-6. `&&`
-7. `||`
 
 ---
 
 ## 控制流
 
-### If-Else 语句
+### If-Else 条件分支
+条件表达式**必须**用小括号 `()` 包裹：
 
-```python
+```js
 let score = 85
 
-if score >= 90 {
-    println("A")
-} else if score >= 80 {
-    println("B")
+if (score >= 90) {
+    console.log("A")
+} else if (score >= 80) {
+    console.log("B")
 } else {
-    println("C")
+    console.log("C")
 }
 ```
 
-### If 表达式
+If 可以作为表达式使用（类似于三元运算符）：
 
-If 可以作为表达式使用:
-
-```python
-let status = if age >= 18 { "adult" } else { "minor" }
+```js
+let status = if (age >= 18) { "adult" } else { "minor" }
 ```
 
-### For 循环
+### While 循环
+条件表达式**必须**用小括号 `()` 包裹：
 
-Chen Lang 的 `for` 循环非常灵活, 支持条件循环、无限循环以及集合迭代。
-
-#### 1. 条件循环 (Go 风格)
-
-```python
+```js
 let i = 0
-for i < 10 {
-    println(i)
+while (i < 5) {
+    console.log(i)
     i = i + 1
 }
 ```
 
-#### 2. 无限循环
+### For-Of 循环
+用于遍历数组、对象（的值）以及字符串：
 
-```python
-for {
-    if some_condition() {
-        break
-    }
-}
-```
-
-#### 3. 集合迭代 (For-In)
-
-可以使用 `for...in` 语法遍历数组、对象、字符串以及协程。它会自动调用集合的
-`:iter()` 方法。
-
-```python
-# 遍历数组值
+```js
 let arr = ["A", "B", "C"]
-for x in arr {
-    println(x)
-}
-
-# 遍历对象值
-let obj = ${ a: 1, b: 2 }
-for v in obj {
-    println(v)
-}
-
-# 遍历字符串字符
-for char in "Hello" {
-    println(char)
+for (let item of arr) {
+    console.log(item) // "A", "B", "C"
 }
 ```
 
-#### 4. 键值对迭代 (Entries)
+### Break 与 Continue
+用于控制循环退出与跳过当前迭代：
 
-如果需要同时获取索引/键和值，可以使用 `:entries()` 方法。它会返回一个包含 `key`
-和 `value` 属性的对象。
-
-```python
-for e in arr:entries() {
-    println("Index: " + e.key + ", Value: " + e.value)
-}
-
-for e in obj:entries() {
-    println("Key: " + e.key + ", Value: " + e.value)
-}
-```
-
-### Break 和 Continue
-
-```python
+```js
 let i = 0
-for i < 10 {
-    if i == 5 {
-        break  # 退出循环
-    }
-    if i % 2 == 0 {
-        i = i + 1
-        continue  # 跳过本次迭代
-    }
-    println(i)
+while (i < 10) {
     i = i + 1
+    if (i == 5) {
+        continue // 跳过本次
+    }
+    if (i == 8) {
+        break // 终止循环
+    }
+    console.log(i)
 }
 ```
 
 ---
 
-## 函数
+## 函数与异步
 
 ### 函数定义
+使用 `function` 关键字（旧版 `def` 也保留支持）定义函数：
 
-```python
-def greet(name) {
-    println("Hello, " + name + "!")
-}
-
-greet("Alice")  # 输出: Hello, Alice!
-```
-
-### 带返回值的函数
-
-```python
-def add(a, b) {
+```js
+// 命名函数
+function add(a, b) {
     return a + b
 }
 
-let result = add(10, 20)  # 30
+// 匿名函数表达式
+let multiply = function(a, b) {
+    return a * b
+}
 ```
 
 ### 隐式返回
+如果函数体内没有显式使用 `return` 语句，函数体内**最后一个表达式的值**将被自动作为返回值返回：
 
-函数的最后一个表达式会自动返回:
-
-```python
-def multiply(a, b) {
-    a * b  # 隐式返回
+```js
+function square(x) {
+    x * x // 隐式返回 x * x 的结果
 }
-
-let result = multiply(5, 6)  # 30
+console.log(square(5)) // 25
 ```
 
-### 匿名函数
+### 异步函数 (`async/await`)
+`async` 声明的函数会自动返回一个 `Promise`。在 `async` 函数内部，可以使用 `await` 暂停当前 Fiber 并等待 Promise 决议：
 
-```python
-let square = def(x) {
-    x * x
+```js
+async function fetchData() {
+    // 异步等待定时器
+    await Chen.timer.sleep(100)
+    return "data"
 }
 
-println(square(5))  # 25
-```
-
-### 递归函数
-
-```python
-def fibonacci(n) {
-    if n <= 1 {
-        return n
-    }
-    return fibonacci(n - 1) + fibonacci(n - 2)
+async function main() {
+    console.log("开始加载")
+    let result = await fetchData()
+    console.log("结果: " + result)
 }
 
-println(fibonacci(10))  # 55
-```
-
-### 嵌套函数
-
-```python
-def outer() {
-    def inner() {
-        println("Inner function")
-    }
-    inner()
-}
-
-outer()  # 输出: Inner function
-```
-
-### 函数作为参数
-
-```python
-def apply(func, value) {
-    func(value)
-}
-
-def double(x) {
-    x * 2
-}
-
-let result = apply(double, 10)  # 20
+main()
 ```
 
 ---
 
-## 对象和元表
+## 对象与原型系统
 
-### 创建对象
+### 对象字面量
+使用键值对的 `{}` 声明对象。键可以是标识符、字符串或整数：
 
-```python
-let person = ${
+```js
+let user = {
     name: "Alice",
     age: 30,
-    city: "Beijing"
+    "current city": "Beijing"
 }
+
+// 属性访问与修改
+console.log(user.name) // "Alice"
+user.age = 31
+console.log(user["current city"]) // "Beijing"
 ```
 
-### 访问属性
+### 原型继承
+使用 `Object.create(proto)` 创建一个指定原型的新对象。当访问对象属性不存在时，会沿原型链向上查找：
 
-```python
-println(person.name)  # "Alice"
-println(person.age)   # 30
+```js
+let proto = { name: "prototype_name" }
+let obj = Object.create(proto)
+obj.own_prop = "value"
+
+console.log(obj.own_prop) // "value" (自有属性)
+console.log(obj.name)     // "prototype_name" (继承自原型)
 ```
 
-### 修改属性
+### 方法与 `this` 绑定
+在对象上调用方法时，如果使用点号 `obj.method(...)`，那么在 `method` 函数内部，`this` 会自动绑定到调用对象 `obj`。  
+普通函数直接调用不会绑定 `this`。在未绑定 `this` 的上下文中使用 `this` 关键字会抛出运行时错误：
 
-```python
-person.age = 31
-person.email = "alice@example.com"  # 添加新属性
-```
-
-### 对象方法
-
-调用对象方法时，如果方法需要访问对象本身（即 `self`），请使用冒号 `:`
-语法。冒号语法会自动将调用者作为第一个参数传递给方法。如果使用点号 `.`
-调用，对象**不会**作为参数传递。
-
-```python
-let calculator = ${
-    value: 0,
-    add: def(self, n) {
-        self.value = self.value + n
-    },
-    get: def(self) {
-        self.value
+```js
+let dog = {
+    name: "Buddy",
+    bark: function() {
+        return this.name + " says woof!"
     }
 }
 
-# 使用冒号调用（自动传递 self）
-calculator:add(10)
-calculator:add(5)
-println(calculator:get())  # 15
+// 方法调用：this 绑定到 dog
+console.log(dog.bark()) // "Buddy says woof!"
+
+// 提取方法为普通函数：失去了 this 绑定
+let barkFunc = dog.bark
+// barkFunc() // 运行时报错：this unbound error
 ```
 
-### 元表 (Metatable)
+### 底层元表（Metatable）与元方法
+对于高级开发，Chen Lang 提供了类似 Lua 的元表机制。可以使用 `Chen.setMeta(obj, meta)` 和 `Chen.getMeta(obj)`。
 
-元表用于实现高级特性,如运算符重载和方法查找:
+#### 支持的元方法：
+- `__index`：属性查找拦截器。可以是一个包含属性的对象，或者是函数 `function(obj, key)`。
+- `__newindex`：属性写入拦截器。必须是一个函数 `function(obj, key, value)`。
+- `__add`：自定义加法行为 `+`。
+- `__sub`：自定义减法行为 `-`。
+- `__mul`：自定义乘法行为 `*`。
 
-```python
-# 定义 Point 原型
-let Point = ${
-    __index: ${
-        to_string: def(self) {
-            "Point(" + self.x + ", " + self.y + ")"
-        }
-    },
-    __add: def(a, b) {
-        new_Point(a.x + b.x, a.y + b.y)
-    }
-}
-
-# 构造函数
-def new_Point(x, y) {
-    let instance = ${ x: x, y: y }
-    set_meta(instance, Point)
-    return instance
-}
-
-# 使用
-let p1 = new_Point(10, 20)
-let p2 = new_Point(5, 10)
-let p3 = p1 + p2  # 使用重载的 + 运算符
-
-println(p3:to_string())  # "Point(15, 30)"
-```
-
-### 元方法
-
-支持的元方法:
-
-- `__add` - 加法 (+)
-- `__sub` - 减法 (-)
-- `__mul` - 乘法 (*)
-- `__index` - 属性查找拦截。当访问不存在的属性时触发。它可以是一个对象（在该对象中继续查找），也可以是一个函数 `def(obj, key)`，用于动态返回默认值。
-- `__newindex` - 属性赋值拦截。当给不存在的属性赋值时触发。它必须是一个函数 `def(obj, key, value)`，用于动态拦截和处理赋值行为。
-
-#### 动态元方法示例
-
-```python
-let io = import("stdlib/io")
-
-let proto = ${
-    # 当查找不存在的属性时触发
-    __index: def(obj, key) {
+```js
+let proto = {
+    __index: function(obj, key) {
         return "fallback_" + key
-    },
-    # 当给不存在的属性赋值时触发
-    __newindex: def(obj, key, value) {
-        io.println("拦截到赋值: " + key + " = " + value)
-        # 注意: 如果这里直接给 obj[key] 赋值会触发死循环
     }
 }
-
-let person = ${ name: "Alice" }
-set_meta(person, proto)
-
-# 触发 __index
-println(person.age)  # 输出: fallback_age
-
-# 触发 __newindex
-person.city = "Beijing"  # 输出: 拦截到赋值: city = Beijing
+let target = {}
+Chen.setMeta(target, proto)
+console.log(target.anything) // "fallback_anything"
 ```
 
 ---
 
 ## 数组
 
-### 创建数组
+数组在底层是绑定了数组原型的特殊对象，索引从 `0` 开始。
 
-```python
-let numbers = [1, 2, 3, 4, 5]
-let mixed = [1, "two", true, null]
-let empty = []
-```
-
-### 访问元素
-
-```python
-let first = numbers[0]   # 1
-let second = numbers[1]  # 2
-```
-
-### 修改元素
-
-```python
-numbers[0] = 10
-numbers[5] = 6  # 添加新元素
-```
-
-### 数组方法
-
-```python
-let arr = [1, 2, 3]
-
-# 获取长度
-let length = arr:len()  # 3
-
-# 添加元素
-arr:push(4)  # 返回新长度 4, arr 变为 [1, 2, 3, 4]
-
-# 弹出元素
-let last = arr:pop()  # 返回 4, arr 变为 [1, 2, 3]
-
-# 获取类型
-println(arr.__type)  # "Array"
-```
-
-### 遍历数组
-
-```python
+### 创建与修改
+```js
 let arr = [10, 20, 30]
-let i = 0
-for i < arr:len() {
-    println(arr[i])
-    i = i + 1
-}
+console.log(arr[0]) // 10
+arr[1] = 99
+```
+
+### 属性与方法
+- **`.length`**: 获取数组的长度（成员个数）。
+- **`arr.push(value)`**: 向数组末尾添加一个元素，返回新数组长度。
+- **`arr.pop()`**: 弹出并返回数组最后一个元素。
+- **`arr.iter()`**: 获取用于 `for-of` 遍历的只读迭代器。
+- **`arr.entries()`**: 获取包含键值对 `{ key: index, value: val }` 的迭代器。
+
+```js
+let list = [1, 2]
+console.log(list.length) // 2
+list.push(3)
+console.log(list.length) // 3
+console.log(list.pop())    // 3
 ```
 
 ---
 
 ## 异常处理
 
-### Try-Catch
-
-```python
-try {
-    throw "Something went wrong!"
-} catch error {
-    println("Caught error: " + error)
-}
-```
-
 ### Try-Catch-Finally
+任何类型的值均可被 `throw`。捕获变量在 `catch` 后必须加上小括号 `()`：
 
-```python
+```js
 try {
-    throw "Error"
-} catch error {
-    println("Error: " + error)
+    throw { code: 500, message: "Internal Error" }
+} catch (err) {
+    console.log("Error code: " + err.code) // 500
 } finally {
-    println("Cleanup")  # 总是执行
+    console.log("清理工作完毕")
 }
 ```
 
-### 不带错误变量的 Catch
+也可以不声明异常变量：
 
-```python
+```js
 try {
-    throw "Error"
+    throw "Oops"
 } catch {
-    println("An error occurred")
-}
-```
-
-### 函数中的异常
-
-```python
-def divide(a, b) {
-    if b == 0 {
-        throw "Division by zero"
-    }
-    a / b
-}
-
-try {
-    let result = divide(10, 0)
-} catch error {
-    println("Error: " + error)
-}
-```
-
-### 嵌套异常处理
-
-```python
-try {
-    try {
-        throw "Inner error"
-    } catch e {
-        println("Inner catch: " + e)
-        throw "Outer error"
-    }
-} catch e {
-    println("Outer catch: " + e)
+    console.log("发生了未知错误")
 }
 ```
 
 ---
 
-## 模块系统与标准库
+## 内置全局对象
 
-Chen Lang 采用显式导入机制。除了极少数核心功能（如 `null`,
-`coroutine`）外，大部分标准库功能（即所谓的“标准库”）都需要通过 `import`
-语句显式引入。
+无需特殊导入即可直接在全局作用域使用的对象：
 
-### 导入语法
+### `console`
 
-```python
-let <变量名> = import("<模块路径>")
-```
+- `console.log(arg1, arg2, ...)`: 打印内容并自动换行。
+- `console.info(arg1, arg2, ...)`: `console.log` 的别名。
+- `console.warn(arg1, arg2, ...)`: `console.log` 的别名。
+- `console.error(arg1, arg2, ...)`: `console.log` 的别名。
+- `console.debug(arg1, arg2, ...)`: `console.log` 的别名。
+- `console.print(arg1, arg2, ...)`: 打印内容，末尾不换行。
+- `console.readLine()`: 同步阻塞读取控制台的一行输入（非标准，建议使用 `Chen.io.readline`）。
 
-示例:
+### `JSON`
+数据序列化和反序列化：
+- `JSON.stringify(value)`: 将 Chen Lang 值转换为 JSON 字符串。
+- `JSON.parse(str)`: 将 JSON 字符串解析为 Chen Lang 原生对象/数组/值。
 
-```python
-let JSON = import("stdlib/json")
-let io = import("stdlib/io")
-```
+### `Object`
+原型管理与反射：
+- `Object.create(proto)`: 创建以 `proto` 为原型的新对象。
+- `Object.keys(obj)`: 返回一个包含对象所有可枚举键名的数组。
+- `Object.entries(obj)`: 返回一个包含对象所有 `[key, value]` 键值对的二维数组。
 
-### 核心设计原则
+### `Promise`
+异步决议与状态控制：
+- **`Promise.new(executor)`**: 创建新 Promise。`executor` 是 `function(resolve, reject) {}`。
+- **`Promise.resolve(value)`**: 返回一个已 Fulfilled 的 Promise。
+- **`Promise.reject(reason)`**: 返回一个已 Rejected 的 Promise。
+- **`Promise.all(array)`**: 并发等待数组中的所有 Promise 完成。全部成功返回结果数组，有一个失败则立即 Rejected。
+- **`Promise.race(array)`**: 返回第一个完成（无论成功/失败）的 Promise 结果。
+- **`Promise.allSettled(array)`**: 等待所有 Promise 敲定，返回的数组包含所有结果状态对象 `{ status: "fulfilled", value: val }` 或 `{ status: "rejected", reason: err }`。
 
-1. **按需引入**: 减少全局命名空间污染，提高加载性能。
-2. **显式依赖**: 从代码中可以清晰看到使用了哪些外部模块。
+#### 实例方法：
+- **`promise.then(onFulfilled, onRejected)`**
+- **`promise.catch(onRejected)`**
+- **`promise.finally(onFinally)`**：无论成败都执行。
 
-### 常用标准库模块
+---
 
-| 模块路径         | 返回对象包含的成员                | 说明              |
-| :--------------- | :-------------------------------- | :---------------- |
-| `stdlib/io`      | `print`, `println`, `readline`    | 标准输入输出      |
-| `stdlib/json`    | `stringify`, `parse`              | JSON 序列化与解析 |
-| `stdlib/date`    | `new`, `now`, `parse`             | 日期时间处理      |
-| `stdlib/fs`      | `read_to_string`, `write_file` 等 | 文件系统操作      |
-| `stdlib/http`    | `get`, `post` 等                  | HTTP 客户端       |
-| `stdlib/process` | `exit`, `args`, `env` 等          | 进程与环境信息    |
+## Chen 运行时命名空间
 
-### 自定义模块
+Chen Lang 独有的核心模块与工具全部集中在全局的 `Chen` 命名空间下。不需要手动 `import`：
 
-你可以创建自己的 `.ch`
-文件并导入它们。被导入的文件会作为独立的模块执行，最后一行表达式的值将作为模块的返回值。
+### `Chen.fs` (文件系统)
+- `Chen.fs.readTextFile(path)`: 同步读取文本文件，返回字符串。
+- `Chen.fs.writeTextFile(path, text)`: 同步写入文本内容到指定路径。
+- `Chen.fs.readDir(path)`: 同步读取目录，返回文件/子目录名数组。
+- `Chen.fs.exists(path)`: 判断路径是否存在，返回布尔值。
+- `Chen.fs.remove(path)`: 移除文件或目录。
 
-例如，创建 `math_utils.ch`:
+### `Chen.timer` (定时器)
+- `Chen.timer.sleep(ms)`: 异步挂起当前 Fiber 指定的毫秒数。**必须在 async 函数中使用 await 调用**：
+  ```js
+  await Chen.timer.sleep(1000) // 睡眠 1 秒
+  ```
 
-```python
-# math_utils.ch
-${
-    add: def(a, b) { a + b },
-    sub: def(a, b) { a - b }
+### `Chen.date` (日期处理)
+- `Chen.date.new(val?)`: 构造一个新的 Date 对象实例。`val` 可为空（获取当前时间）、ISO时间字符串，或毫秒时间戳。
+- `Chen.date.now()`: 获取当前时间戳（Float类型毫秒数）。
+- **Date 实例方法**:
+  - `date.format(fmt)`: 格式化日期（如 `%Y-%m-%d %H:%M:%S`）。
+  - `date.timestamp()`: 返回对应的毫秒时间戳。
+
+### `Chen.process` (进程控制)
+- `Chen.process.exit(code)`: 以指定退出码结束当前程序进程。
+- `Chen.process.args()`: 获取命令行参数数组。
+- `Chen.process.env()`: 获取当前进程的环境变量对象。
+
+### `Chen.load(path)` (模块加载)
+执行指定路径的 `.chen.js` 模块文件。被加载的模块在独立的沙箱作用域中运行，模块文件的**最后一个表达式的值**作为模块的导出对象返回。模块加载结果会被自动缓存：
+
+```js
+// math.chen.js
+let utils = {
+    add: function(a, b) { a + b }
 }
-```
+utils // 作为最后一行表达式导出
 
-在主程序中导入:
-
-```python
-let math_utils = import("math_utils.ch")
-
-let result = math_utils.add(10, 20)
-let io = import("stdlib/io")
-io.println(result)  # 30
-```
-
-注意：导入路径是相对于当前执行目录或绝对路径。模块会被缓存，重复导入不会重新执行。
-
-### 示例程序
-
-```python
-let io = import("stdlib/io")
-let JSON = import("stdlib/json")
-
-let score = 85
-let level = if score >= 90 { "A" } else if score >= 60 { "P" } else { "F" }
-
-let result = ${
-    score: score,
-    level: level
-}
-
-# 必须导入 stdlib/io 才能使用 println
-io.println("Final Result: " + JSON.stringify(result))
-```
-
-### 输出函数
-
-```python
-# 打印(不换行)
-print("Hello")
-print(" World")  # 输出: Hello World
-
-# 打印(换行)
-println("Hello")
-println("World")
-# 输出:
-# Hello
-# World
-```
-
-### Date 对象
-
-```python
-# 创建当前时间
-let now = Date:new()
-
-# 获取类型
-println(now.__type)  # "Date"
-
-# 格式化日期
-let formatted = now:format('%Y-%m-%d %H:%M:%S')
-println(formatted)  # 例如: 2025-12-10 22:40:00
-
-# 常用格式符号:
-# %Y - 年份 (2025)
-# %m - 月份 (01-12)
-# %d - 日期 (01-31)
-# %H - 小时 (00-23)
-# %M - 分钟 (00-59)
-# %S - 秒 (00-59)
-```
-
-### JSON 对象
-
-```python
-# 序列化为 JSON
-let data = ${
-    name: "Alice",
-    age: 30,
-    hobbies: ["reading", "coding"]
-}
-let json_str = JSON.stringify(data)
-io.println(json_str)
-# 输出: {"name":"Alice","age":30,"hobbies":["reading","coding"]}
-
-# 解析 JSON
-let parsed = JSON.parse(json_str)
-println(parsed.name)  # "Alice"
-```
-
-### 字符串方法
-
-```python
-let text = "Hello, World!"
-
-# 获取长度
-let length = text:len()  # 13
-
-# 转大写
-let upper = text:upper()  # "HELLO, WORLD!"
-
-# 转小写
-let lower = text:lower()  # "hello, world!"
-
-# 去除空白
-let trimmed = "  hello  ":trim()  # "hello"
-
-# 获取类型
-println(text.__type)  # "String"
-```
-
-### 对象方法
-
-```python
-let obj = ${
-    name: "Alice",
-    age: 30,
-    city: "Beijing"
-}
-
-# 获取所有键
-let keys = obj:keys()  # ["name", "age", "city"]
-
-# 获取迭代器 (仅返回值)
-let it = obj:iter()
-
-# 获取键值对迭代器
-let entries = obj:entries()
-# 返回的对象结构为: ${ key: "name", value: "Alice" }
-```
-
-### 元表函数
-
-```python
-# 设置元表
-set_meta(object, metatable)
-
-# 获取元表
-let mt = get_meta(object)
+// main.chen.js
+let math = Chen.load("math.chen.js")
+console.log(math.add(2, 3)) // 5
 ```
 
 ---
 
 ## 示例程序
 
-### 1. 斐波那契数列
-
-```python
-def fibonacci(n) {
-    if n <= 1 {
+### 1. 斐波那契数列 (递归实现)
+```js
+function fibonacci(n) {
+    if (n <= 1) {
         return n
     }
-    fibonacci(n - 1) + fibonacci(n - 2)
+    return fibonacci(n - 1) + fibonacci(n - 2)
 }
 
 let i = 0
-for i < 10 {
-    println("fib(" + i + ") = " + fibonacci(i))
+while (i < 10) {
+    console.log("fib(" + i + ") = " + fibonacci(i))
     i = i + 1
 }
 ```
 
 ### 2. 九九乘法表
-
-```python
+```js
 let i = 1
-for i <= 9 {
+while (i <= 9) {
     let j = 1
-    for j <= i {
-        print(j + " × " + i + " = " + (i * j) + "  ")
+    while (j <= i) {
+        console.print(j + " × " + i + " = " + (i * j) + "  ")
         j = j + 1
     }
-    println("")
+    console.log("")
     i = i + 1
 }
 ```
 
-### 3. 计算器对象
-
-```python
-let calculator = ${
-    value: 0,
-    add: def(self, n) {
-        self.value = self.value + n
-        self
-    },
-    subtract: def(self, n) {
-        self.value = self.value - n
-        self
-    },
-    multiply: def(self, n) {
-        self.value = self.value * n
-        self
-    },
-    divide: def(self, n) {
-        if n == 0 {
-            throw "Division by zero"
-        }
-        self.value = self.value / n
-        self
-    },
-    result: def(self) {
-        self.value
+### 3. 基于原型的 Point 类与加法重载
+```js
+// 定义 Point 类的原型
+let PointPrototype = {
+    toString: function() {
+        return "Point(" + this.x + ", " + this.y + ")"
     }
 }
 
-try {
-    let result = calculator.add(10).multiply(5).subtract(20).result()
-    println("Result: " + result)  # 30
-} catch error {
-    println("Error: " + error)
-}
-```
-
-### 4. Point 类
-
-```python
-# Point 原型
-let Point = ${
-    __index: ${
-        to_string: def(self) {
-            "Point(" + self.x + ", " + self.y + ")"
-        },
-        move_by: def(self, dx, dy) {
-            self.x = self.x + dx
-            self.y = self.y + dy
-        }
-    },
-    __add: def(a, b) {
-        new_Point(a.x + b.x, a.y + b.y)
-    },
-    __sub: def(a, b) {
-        new_Point(a.x - b.x, a.y - b.y)
+// 类元表，包含加法操作符重载
+let PointMeta = {
+    __index: PointPrototype,
+    __add: function(a, b) {
+        return newPoint(a.x + b.x, a.y + b.y)
     }
 }
 
-def new_Point(x, y) {
-    let instance = ${ x: x, y: y }
-    set_meta(instance, Point)
+// 构造函数
+function newPoint(x, y) {
+    let instance = { x: x, y: y }
+    Chen.setMeta(instance, PointMeta)
     return instance
 }
 
-# 使用
-let p1 = new_Point(10, 20)
-let p2 = new_Point(5, 10)
-
-println(p1.to_string())  # "Point(10, 20)"
-println(p2.to_string())  # "Point(5, 10)"
-
+let p1 = newPoint(10, 20)
+let p2 = newPoint(5, 8)
 let p3 = p1 + p2
-println(p3.to_string())  # "Point(15, 30)"
 
-p1.move_by(5, -10)
-println(p1.to_string())  # "Point(15, 10)"
-```
-
-### 5. 安全除法函数
-
-```python
-def safe_divide(a, b) {
-    try {
-        if b == 0 {
-            throw "Division by zero"
-        }
-        return a / b
-    } catch error {
-        println("Error: " + error)
-        return null
-    }
-}
-
-println(safe_divide(10, 2))   # 5
-println(safe_divide(10, 0))   # Error: Division by zero, 然后输出 null
+console.log(p3.toString()) // "Point(15, 28)"
 ```
 
 ---
 
-## 最佳实践
+## 最佳实践与常见问题
 
-### 1. 命名约定
+### 1. 变量命名规范
+- 局部变量和普通函数名建议使用小驼峰（`camelCase`）或蛇形命名（`snake_case`）。
+- 构造函数建议使用大驼峰（`CamelCase`）或者 `new` 前缀（`newPoint`）。
 
-```python
-# 变量和函数使用 snake_case
-let user_name = "Alice"
-def calculate_total() { }
+### 2. this 指向与避免 unbound 错误
+请确保在调用需要访问对象内部属性的方法时，使用 `obj.method()` 的形式。如果将 `obj.method` 赋值给另一个变量后再执行，该方法内部的 `this` 就会变为未绑定状态，导致抛出运行时错误。
 
-# 构造函数推荐使用驼峰或 new_ 前缀
-def new_Point(x, y) { }
-def NewPoint(x, y) { }
+### 3. Semicolon-free 与代码块换行
+由于分号是可选的，请尽量保持大括号 `{` 紧跟在条件语句或函数定义行末，防止换行符被误解析为语句结束：
 
-# 常量使用大写
-let MAX_SIZE = 100
-```
+```js
+// 推荐写法
+if (x > 0) {
+    console.log(x)
+}
 
-### 2. 代码组织
-
-```python
-# 将相关功能组织在一起
-let MathUtils = ${
-    PI: 3.14159,
-    square: def(x) { x * x },
-    cube: def(x) { x * x * x }
+// 不推荐写法 (可能引发解析歧义)
+if (x > 0)
+{
+    console.log(x)
 }
 ```
 
-### 3. 错误处理
+### 4. 异步并发性能
+在需要并发等待多个异步 I/O 操作时，优先选择 `Promise.all` 批量等待，而不是连续串行使用 `await`：
 
-```python
-# 对可能失败的操作使用 try-catch
-try {
-    risky_operation()
-} catch error {
-    println("Error: " + error)
-}
-```
+```js
+// 推荐的并发做法
+let results = await Promise.all([task1(), task2()])
 
-### 4. 使用 Finally 清理资源
-
-```python
-try {
-    # 执行操作
-    process_data()
-} catch error {
-    println("Error: " + error)
-} finally {
-    # 总是清理资源
-    println("Cleanup done")
-}
+// 较慢的串行做法
+let res1 = await task1()
+let res2 = await task2()
 ```
 
 ---
-
-## 常见问题
-
-### Q: Chen Lang 是静态类型还是动态类型?
-
-A: Chen Lang 是动态类型语言,变量的类型在运行时确定。
-
-### Q: 如何处理浮点数精度问题?
-
-A: Chen Lang 使用 Decimal 类型存储浮点数,避免了常见的浮点精度问题。例如
-`0.1 + 0.2` 的结果是精确的 `0.3`。
-
-### Q: 支持类和继承吗?
-
-A: Chen Lang 使用基于原型的对象系统,通过元表的 `__index` 实现类似继承的功能。
-
-### Q: 如何调试程序?
-
-A: 使用 `println()` 输出调试信息,查看错误消息中的行号定位问题。
-
-### Q: 如何遍历数组?
-
-A: 推荐使用 `for...in` 语法直接遍历:
-
-```python
-let arr = [1, 2, 3]
-for x in arr {
-    println(x)
-}
-```
-
-如果需要索引，请使用 `:entries()`:
-
-```python
-for e in arr:entries() {
-    println(e.key + ": " + e.value)
-}
-```
-
-传统的索引遍历依然有效:
-
-```python
-let i = 0
-for i < arr:len() {
-    println(arr[i])
-    i = i + 1
-}
-```
-
----
-
-## 附录
-
-### 关键字列表
-
-| 关键字     | 说明           |
-| ---------- | -------------- |
-| `let`      | 变量声明       |
-| `def`      | 函数定义       |
-| `if`       | 条件语句       |
-| `else`     | 否则分支       |
-| `for`      | 循环           |
-| `return`   | 返回值         |
-| `break`    | 退出循环       |
-| `continue` | 继续下一次迭代 |
-| `try`      | 异常处理       |
-| `catch`    | 捕获异常       |
-| `finally`  | 最终执行       |
-| `throw`    | 抛出异常       |
-| `true`     | 布尔真值       |
-| `false`    | 布尔假值       |
-| `null`     | 空值           |
-
-### 内置函数
-
-| 函数                  | 说明           |
-| --------------------- | -------------- |
-| `print(...)`          | 打印(不换行)   |
-| `println(...)`        | 打印(换行)     |
-| `set_meta(obj, meta)` | 设置对象的元表 |
-| `get_meta(obj)`       | 获取对象的元表 |
-
-### 内置对象
-
-| 对象   | 说明                                             |
-| ------ | ------------------------------------------------ |
-| `Date` | 日期时间对象,使用 `Date.new()` 创建              |
-| `JSON` | JSON 序列化,提供 `stringify()` 和 `parse()` 方法 |
-
-### 数组方法
-
-| 方法              | 说明                                     |
-| ----------------- | ---------------------------------------- |
-| `arr:len()`       | 返回数组长度                             |
-| `arr:push(value)` | 添加元素到末尾, 返回新长度               |
-| `arr:pop()`       | 移除并返回最后一个元素                   |
-| `arr:iter()`      | 返回一个仅产生值的迭代器 (用于 `for-in`) |
-| `arr:entries()`   | 返回一个产生 `{key, value}` 对象的迭代器 |
-
-### 字符串方法
-
-| 方法          | 说明                                         |
-| ------------- | -------------------------------------------- |
-| `str:len()`   | 返回字符串长度                               |
-| `str:upper()` | 转换为大写                                   |
-| `str:lower()` | 转换为小写                                   |
-| `str:trim()`  | 去除首尾空白                                 |
-| `str:iter()`  | 返回一个产生每个字符的迭代器 (用于 `for-in`) |
-
-### 对象方法
-
-| 方法            | 说明                                     |
-| --------------- | ---------------------------------------- |
-| `obj:keys()`    | 返回对象所有键名组成的数组               |
-| `obj:iter()`    | 返回一个仅产生值的迭代器 (用于 `for-in`) |
-| `obj:entries()` | 返回一个产生 `{key, value}` 对象的迭代器 |
-
-### 协程 (Coroutine)
-
-协程是 Chen Lang 处理异步和迭代的核心。
-
-| 方法          | 说明                                          |
-| ------------- | --------------------------------------------- |
-| `co:resume()` | 恢复运行协程                                  |
-| `co:status()` | 返回协程状态 ("suspended", "running", "dead") |
-| `co:iter()`   | 返回协程自身, 以便直接在 `for-in` 中使用      |
-
----
-
-## 当前限制
-
-以下功能目前尚未支持:
-
-- ❌ **闭包** - 内部函数无法捕获外部作用域的变量
-
----
-
-**祝你学习愉快!** 🎉
-
-如有问题,请参考示例代码或查看项目文档。
+🎉 **祝你使用 Chen Lang 编程愉快！**

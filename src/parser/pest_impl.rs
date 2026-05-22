@@ -7,7 +7,7 @@ use pest::iterators::Pair;
 use pest_derive::Parser;
 
 use crate::expression::{
-    Assign, Ast, BinaryOperation, Expression, ForInLoop, FunctionCall,
+    Assign, Ast, BinaryOperation, Expression, ForOfLoop, FunctionCall,
     FunctionDeclaration, If, Literal, Local, Loop, Parameter,
     Return, Statement, TryCatch, TypeAnnotation, Unary,
 };
@@ -54,15 +54,29 @@ fn parse_statement(pair: Pair<Rule>) -> Statement {
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
         Rule::declaration => parse_declaration(inner, loc),
-        Rule::assignment => parse_assignment(inner, loc),
+        Rule::async_declaration => {
+            let inner_decl = inner.into_inner().find(|p| p.as_rule() == Rule::declaration).unwrap();
+            let mut stmt = parse_declaration(inner_decl, loc);
+            if let Statement::Local(ref mut local) = stmt {
+                if let Expression::Function(decl) = local.expression.clone() {
+                    local.expression = Expression::AsyncFunction(decl);
+                }
+            }
+            stmt
+        }
         Rule::for_loop => parse_for_loop(inner, loc),
         Rule::while_loop => parse_while_loop(inner, loc),
         Rule::function_def => Statement::FunctionDeclaration(build_function_declaration(inner)),
+        Rule::async_function_def => {
+            let inner_func = inner.into_inner().find(|p| p.as_rule() == Rule::function_def).unwrap();
+            Statement::AsyncFunctionDeclaration(build_function_declaration(inner_func))
+        }
         Rule::return_stmt => parse_return_stmt(inner, loc),
         Rule::break_stmt => Statement::Break(loc),
         Rule::continue_stmt => Statement::Continue(loc),
         Rule::try_catch => parse_try_catch(inner),
         Rule::throw_stmt => parse_throw_stmt(inner),
+        Rule::assignment => parse_assignment(inner, loc),
         Rule::expression => Statement::Expression(parse_expression(inner)),
         _ => unreachable!("Unexpected statement rule: {:?}", inner.as_rule()),
     }
@@ -138,9 +152,11 @@ fn parse_for_loop(pair: Pair<Rule>, loc: Location) -> Statement {
     let mut var = String::new();
     let mut iterable = Expression::Literal(Literal::Value(Value::Null), loc);
     let mut body = Vec::new();
+    let mut is_async = false;
 
     for p in pair.into_inner() {
         match p.as_rule() {
+            Rule::AWAIT => is_async = true,
             Rule::identifier => var = p.as_str().to_string(),
             Rule::expression => iterable = parse_expression(p),
             Rule::block => body = parse_block(p),
@@ -148,10 +164,11 @@ fn parse_for_loop(pair: Pair<Rule>, loc: Location) -> Statement {
         }
     }
 
-    Statement::ForIn(ForInLoop {
+    Statement::ForOf(ForOfLoop {
         var,
         iterable,
         body,
+        is_async,
         loc,
     })
 }
@@ -388,6 +405,13 @@ fn parse_unary(pair: Pair<Rule>) -> Expression {
                 loc,
             })
         }
+        Rule::AWAIT => {
+            let expr = parse_unary(inner.next().unwrap());
+            Expression::Await {
+                expression: Box::new(expr),
+                loc,
+            }
+        }
         Rule::primary => parse_primary(first),
         _ => unreachable!(),
     }
@@ -421,8 +445,34 @@ fn parse_atom(pair: Pair<Rule>) -> Expression {
         Rule::block => Expression::Block(parse_block(inner), loc),
         Rule::object_literal => parse_object_literal(inner),
         Rule::function_def => Expression::Function(build_function_declaration(inner)),
+        Rule::async_function_def => {
+            let inner_func = inner.into_inner().find(|p| p.as_rule() == Rule::function_def).unwrap();
+            Expression::AsyncFunction(build_function_declaration(inner_func))
+        }
+        Rule::new_expr => parse_new_expr(inner),
         Rule::array_literal => parse_array_literal(inner),
         _ => unreachable!("Unexpected rule in atom: {:?}", inner.as_rule()),
+    }
+}
+
+fn parse_new_expr(pair: Pair<Rule>) -> Expression {
+    let loc = loc_from_pair(&pair);
+    let mut inner = pair.into_inner();
+    let _new_kw = inner.next();
+    let primary_pair = inner.next().unwrap();
+    let constructor = parse_primary(primary_pair);
+
+    let mut args = Vec::new();
+    if let Some(args_pair) = inner.next() {
+        for arg in args_pair.into_inner() {
+            args.push(parse_expression(arg));
+        }
+    }
+
+    Expression::New {
+        constructor: Box::new(constructor),
+        arguments: args,
+        loc,
     }
 }
 
@@ -444,7 +494,8 @@ fn parse_postfix(base: Expression, pair: Pair<Rule>) -> Expression {
             })
         }
         Rule::dot_suffix => {
-            let field = inner.into_inner().next().unwrap().as_str().to_string();
+            let field_pair = inner.into_inner().next().unwrap();
+            let field = field_pair.as_str().to_string();
             Expression::GetField {
                 object: Box::new(base),
                 field,

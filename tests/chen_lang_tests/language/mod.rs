@@ -1,6 +1,7 @@
 mod advanced_type_system_tests;
 mod arithmetic_tests;
 mod array_tests;
+mod async_await_tests;
 mod closure_tests;
 mod complex_tests;
 mod control_flow_tests;

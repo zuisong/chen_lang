@@ -235,7 +235,7 @@ impl<'a> Compiler<'a> {
                     location: self.program.instructions.len() as i32,
                     narguments: 0,
                     nlocals: 0,
-                    upvalues: Vec::new(),
+                    upvalues: Vec::new(), is_async: false
                 },
             );
         }
@@ -252,7 +252,7 @@ impl<'a> Compiler<'a> {
                 self.emit(Instruction::Pop, loc);
             }
             Statement::Loop(e) => self.compile_loop(e),
-            Statement::ForIn(e) => self.compile_for_in(e),
+            Statement::ForOf(e) => self.compile_for_of(e),
             Statement::Assign(e) => self.compile_assign(e),
             Statement::Break(loc) => {
                 let end_label = self
@@ -300,6 +300,7 @@ impl<'a> Compiler<'a> {
                 self.compile_expression(value);
                 self.emit(Instruction::Throw, loc);
             }
+            Statement::AsyncFunctionDeclaration(fd) => self.compile_async_function_def(fd),
         }
     }
 
@@ -317,6 +318,9 @@ impl<'a> Compiler<'a> {
             Expression::GetField { loc, .. } => *loc,
             Expression::Index { loc, .. } => *loc,
             Expression::Function(fd) => fd.loc,
+            Expression::AsyncFunction(fd) => fd.loc,
+            Expression::Await { loc, .. } => *loc,
+            Expression::New { loc, .. } => *loc,
             Expression::MethodCall(mc) => mc.loc,
         }
     }
@@ -330,7 +334,7 @@ impl<'a> Compiler<'a> {
 
         self.emit(Instruction::Jump(skip_label.clone()), loc);
 
-        self.compile_declaration(fd);
+        self.compile_declaration(fd, false);
 
         self.program.syms.insert(
             skip_label,
@@ -338,12 +342,43 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
-                upvalues: Vec::new(),
+                upvalues: Vec::new(), is_async: false
             },
         );
 
         let var_location = self.define_variable(func_name.clone());
         self.emit(Instruction::Closure(format!("func_{}", func_name)), loc);
+        match var_location {
+            VarLocation::Local(offset) => self.emit(Instruction::MovePlusFP(offset as usize), loc),
+            VarLocation::Global(name) => self.emit(Instruction::Store(name), loc),
+            _ => panic!("Cannot define function in Upvalue or This location"),
+        }
+    }
+
+    fn compile_async_function_def(&mut self, fd: FunctionDeclaration) {
+        let loc = fd.loc;
+        let func_name = fd.name.clone().expect("Statement function must have a name");
+
+        let unique_id = self.unique_id();
+        let skip_label = format!("skip_async_func_{}_{}", func_name, unique_id);
+
+        self.emit(Instruction::Jump(skip_label.clone()), loc);
+
+        self.compile_declaration(fd, true);
+
+        self.program.syms.insert(
+            skip_label,
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+                upvalues: Vec::new(), is_async: false
+            },
+        );
+
+        let var_location = self.define_variable(func_name.clone());
+        self.emit(Instruction::Closure(format!("func_{}", func_name)), loc);
+        // Async functions should be marked so they return a Promise when called
         match var_location {
             VarLocation::Local(offset) => self.emit(Instruction::MovePlusFP(offset as usize), loc),
             VarLocation::Global(name) => self.emit(Instruction::Store(name), loc),
@@ -421,7 +456,7 @@ impl<'a> Compiler<'a> {
                 let skip_label = format!("skip_func_{}_{}", func_name, unique_id);
 
                 self.emit(Instruction::Jump(skip_label.clone()), loc);
-                self.compile_declaration(fd);
+                self.compile_declaration(fd, false);
 
                 self.program.syms.insert(
                     skip_label,
@@ -429,11 +464,53 @@ impl<'a> Compiler<'a> {
                         location: self.program.instructions.len() as i32,
                         narguments: 0,
                         nlocals: 0,
-                        upvalues: Vec::new(),
+                        upvalues: Vec::new(), is_async: false
                     },
                 );
 
                 self.emit(Instruction::Closure(format!("func_{}", func_name)), loc);
+            }
+            Expression::AsyncFunction(mut fd) => {
+                let loc = fd.loc;
+                let func_name = fd.name.take().unwrap_or_else(|| format!("async_anon_{}", self.unique_id()));
+                fd.name = Some(func_name.clone());
+
+                let unique_id = self.unique_id();
+                let skip_label = format!("skip_async_func_{}_{}", func_name, unique_id);
+
+                self.emit(Instruction::Jump(skip_label.clone()), loc);
+                self.compile_declaration(fd, true);
+
+                self.program.syms.insert(
+                    skip_label,
+                    Symbol {
+                        location: self.program.instructions.len() as i32,
+                        narguments: 0,
+                        nlocals: 0,
+                        upvalues: Vec::new(), is_async: false
+                    },
+                );
+
+                self.emit(Instruction::Closure(format!("func_{}", func_name)), loc);
+                // Wrap closure with an instruction that makes it return a Promise when called
+            }
+            Expression::Await { expression, loc } => {
+                self.compile_expression(*expression);
+                // Await expects a Promise on stack, then yields control
+                self.emit(Instruction::Yield, loc);
+            }
+            Expression::New {
+                constructor,
+                arguments,
+                loc,
+            } => {
+                let len = arguments.len();
+                self.compile_expression(*constructor);
+                for arg in arguments {
+                    self.compile_expression(arg);
+                }
+                // We use CallStack for now, VM should handle 'new' if it's a native class or object
+                self.emit(Instruction::CallStack(len), loc);
             }
         }
     }
@@ -589,7 +666,7 @@ impl<'a> Compiler<'a> {
         self.emit(Instruction::Return, loc);
     }
 
-    fn compile_declaration(&mut self, fd: FunctionDeclaration) {
+    fn compile_declaration(&mut self, fd: FunctionDeclaration, is_async: bool) {
         let loc = fd.loc;
         let function_index = self.program.instructions.len() as i32;
         let narguments = fd.parameters.len();
@@ -635,6 +712,7 @@ impl<'a> Compiler<'a> {
                 nlocals,
                 narguments,
                 upvalues,
+                is_async,
             },
         );
     }
@@ -659,7 +737,7 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 nlocals: 0,
                 narguments: 0,
-                upvalues: Vec::new(),
+                upvalues: Vec::new(), is_async: false
             },
         );
 
@@ -675,7 +753,7 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 nlocals: 0,
                 narguments: 0,
-                upvalues: Vec::new(),
+                upvalues: Vec::new(), is_async: false
             },
         );
     }
@@ -692,7 +770,7 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
-                upvalues: Vec::new(),
+                upvalues: Vec::new(), is_async: false
             },
         );
 
@@ -719,31 +797,93 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
-                upvalues: Vec::new(),
+                upvalues: Vec::new(), is_async: false
             },
         );
     }
 
-    fn compile_for_in(&mut self, for_in: ForInLoop) {
-        let loc = for_in.loc;
+    fn compile_for_of(&mut self, for_of: ForOfLoop) {
+        let loc = for_of.loc;
         let unique_id = self.unique_id();
-        let loop_start = format!("for_in_start_{}", unique_id);
-        let loop_end = format!("for_in_end_{}", unique_id);
+        let loop_start = format!("for_of_start_{}", unique_id);
+        let loop_end = format!("for_of_end_{}", unique_id);
         let iter_var = format!("@iter_{}", unique_id);
 
         self.begin_scope();
 
-        self.compile_expression(for_in.iterable);
-        self.emit(Instruction::GetMethod("iter".to_string()), loc);
-        self.emit(Instruction::CallMethodStack(0), loc);
-        let iter_loc = self.define_variable(iter_var);
-        match iter_loc {
-            VarLocation::Local(offset) => {
-                self.emit(Instruction::MovePlusFP(offset as usize), loc);
-            }
-            _ => unreachable!(),
+        // 1. Obtain the iterator
+        if for_of.is_async {
+            let iter_expr_var = format!("@iter_expr_{}", unique_id);
+            let iter_expr_loc = self.define_variable(iter_expr_var);
+            self.compile_expression(for_of.iterable);
+            let iter_expr_offset = match iter_expr_loc {
+                VarLocation::Local(offset) => {
+                    self.emit(Instruction::MovePlusFP(offset as usize), loc);
+                    offset
+                }
+                _ => unreachable!(),
+            };
+
+            let fallback_label = format!("for_of_fallback_{}", unique_id);
+            let got_iterator_label = format!("for_of_got_iter_{}", unique_id);
+
+            // Try asyncIter
+            self.emit(Instruction::DupPlusFP(iter_expr_offset), loc);
+            self.emit(Instruction::GetMethod("asyncIter".to_string()), loc);
+            self.emit(Instruction::Dup, loc);
+            self.emit(Instruction::Push(crate::value::Value::Null), loc);
+            self.emit(Instruction::Equal, loc);
+            self.emit(Instruction::JumpIfTrue(fallback_label.clone()), loc);
+
+            // Found asyncIter method, call it
+            self.emit(Instruction::CallMethodStack(0), loc);
+            self.emit(Instruction::Jump(got_iterator_label.clone()), loc);
+
+            // Fallback to sync iter
+            self.program.syms.insert(
+                fallback_label.clone(),
+                Symbol {
+                    location: self.program.instructions.len() as i32,
+                    narguments: 0,
+                    nlocals: 0,
+                    upvalues: Vec::new(),
+                    is_async: false,
+                },
+            );
+            self.emit(Instruction::Pop, loc); // Pop the Null method
+            self.emit(Instruction::Pop, loc); // Pop the iterable receiver
+            self.emit(Instruction::DupPlusFP(iter_expr_offset), loc);
+            self.emit(Instruction::GetMethod("iter".to_string()), loc);
+            self.emit(Instruction::CallMethodStack(0), loc);
+
+            // Got iterator label
+            self.program.syms.insert(
+                got_iterator_label.clone(),
+                Symbol {
+                    location: self.program.instructions.len() as i32,
+                    narguments: 0,
+                    nlocals: 0,
+                    upvalues: Vec::new(),
+                    is_async: false,
+                },
+            );
+        } else {
+            self.compile_expression(for_of.iterable);
+            self.emit(Instruction::GetMethod("iter".to_string()), loc);
+            self.emit(Instruction::CallMethodStack(0), loc);
         }
 
+        // Store iterator in a local variable
+        let iter_loc = self.define_variable(iter_var);
+        let iter_offset = match iter_loc {
+            VarLocation::Local(offset) => {
+                self.emit(Instruction::MovePlusFP(offset as usize), loc);
+                offset
+            }
+            _ => unreachable!(),
+        };
+
+        // 2. Loop start
         self.program.syms.insert(
             loop_start.clone(),
             Symbol {
@@ -751,60 +891,48 @@ impl<'a> Compiler<'a> {
                 narguments: 0,
                 nlocals: 0,
                 upvalues: Vec::new(),
+                is_async: false,
             },
         );
 
-        self.emit(Instruction::Load("coroutine".to_string()), loc);
-        self.emit(Instruction::GetField("status".to_string()), loc);
-        match iter_loc {
-            VarLocation::Local(offset) => {
-                self.emit(Instruction::DupPlusFP(offset), loc);
-            }
-            _ => unreachable!(),
-        }
-        self.emit(Instruction::CallStack(1), loc);
-        self.emit(Instruction::Push(crate::value::Value::string("dead".to_string())), loc);
-        self.emit(Instruction::Equal, loc);
-        self.emit(Instruction::JumpIfTrue(loop_end.clone()), loc);
+        // Call next()
+        self.emit(Instruction::DupPlusFP(iter_offset), loc);
+        self.emit(Instruction::GetMethod("next".to_string()), loc);
+        self.emit(Instruction::CallMethodStack(0), loc);
 
-        self.emit(Instruction::Load("coroutine".to_string()), loc);
-        self.emit(Instruction::GetField("resume".to_string()), loc);
-        match iter_loc {
-            VarLocation::Local(offset) => {
-                self.emit(Instruction::DupPlusFP(offset), loc);
-            }
-            _ => unreachable!(),
+        // If async, await the result
+        if for_of.is_async {
+            self.emit(Instruction::Yield, loc);
         }
-        self.emit(Instruction::CallStack(1), loc);
 
-        self.emit(Instruction::Load("coroutine".to_string()), loc);
-        self.emit(Instruction::GetField("status".to_string()), loc);
-        match iter_loc {
-            VarLocation::Local(offset) => {
-                self.emit(Instruction::DupPlusFP(offset), loc);
-            }
-            _ => unreachable!(),
-        }
-        self.emit(Instruction::CallStack(1), loc);
-        self.emit(Instruction::Push(crate::value::Value::string("dead".to_string())), loc);
-        self.emit(Instruction::Equal, loc);
-        let continue_label = format!("for_in_continue_{}", unique_id);
-        self.emit(Instruction::JumpIfFalse(continue_label.clone()), loc);
+        // Check if done
+        self.emit(Instruction::Dup, loc);
+        self.emit(Instruction::GetField("done".to_string()), loc);
+
+        let loop_body_label = format!("for_of_body_{}", unique_id);
+        self.emit(Instruction::JumpIfFalse(loop_body_label.clone()), loc);
+
+        // If done is true, pop result and jump to end
         self.emit(Instruction::Pop, loc);
         self.emit(Instruction::Jump(loop_end.clone()), loc);
 
+        // Loop body label
         self.program.syms.insert(
-            continue_label.clone(),
+            loop_body_label.clone(),
             Symbol {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
                 upvalues: Vec::new(),
+                is_async: false,
             },
         );
 
+        // Get value and assign it to the loop variable
+        self.emit(Instruction::GetField("value".to_string()), loc);
+
         self.begin_scope();
-        let var_loc = self.define_variable(for_in.var);
+        let var_loc = self.define_variable(for_of.var);
         match var_loc {
             VarLocation::Local(offset) => {
                 self.emit(Instruction::MovePlusFP(offset as usize), loc);
@@ -820,7 +948,7 @@ impl<'a> Compiler<'a> {
             end: loop_end.clone(),
         });
 
-        for stmt in for_in.body {
+        for stmt in for_of.body {
             self.compile_statement(stmt);
         }
 
@@ -829,6 +957,7 @@ impl<'a> Compiler<'a> {
 
         self.emit(Instruction::Jump(loop_start.clone()), loc);
 
+        // Loop end label
         self.program.syms.insert(
             loop_end.clone(),
             Symbol {
@@ -836,8 +965,10 @@ impl<'a> Compiler<'a> {
                 narguments: 0,
                 nlocals: 0,
                 upvalues: Vec::new(),
+                is_async: false,
             },
         );
+
         self.end_scope(loc, false);
     }
 
@@ -870,7 +1001,7 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
-                upvalues: Vec::new(),
+                upvalues: Vec::new(), is_async: false
             },
         );
 
@@ -910,7 +1041,7 @@ impl<'a> Compiler<'a> {
                     location: self.program.instructions.len() as i32,
                     narguments: 0,
                     nlocals: 0,
-                    upvalues: Vec::new(),
+                    upvalues: Vec::new(), is_async: false
                 },
             );
 
@@ -927,7 +1058,7 @@ impl<'a> Compiler<'a> {
                 location: self.program.instructions.len() as i32,
                 narguments: 0,
                 nlocals: 0,
-                upvalues: Vec::new(),
+                upvalues: Vec::new(), is_async: false
             },
         );
     }

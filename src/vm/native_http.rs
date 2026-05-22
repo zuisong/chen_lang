@@ -1,4 +1,3 @@
-#[allow(unused_imports)]
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::str::FromStr;
@@ -6,7 +5,7 @@ use std::str::FromStr;
 use indexmap::IndexMap;
 
 use crate::value::{NativeContext, NativeFnType, Table, Value, ValueError, ValueType};
-use crate::vm::{Fiber, FiberState, VM, VMRuntimeError};
+use crate::vm::{VM, VMRuntimeError};
 
 fn value_to_header_map(value: &Value) -> Result<reqwest::header::HeaderMap, String> {
     let mut headers = reqwest::header::HeaderMap::new();
@@ -84,94 +83,122 @@ pub fn create_http_object() -> Value {
             None
         };
 
-        // Unified Async Logic
-        {
-            // Capture Current Fiber
-            let current_fiber_rc = if let Some(c) = &vm.current_fiber {
-                c.clone()
-            } else {
-                let f = Rc::new(RefCell::new(Fiber::new()));
-                vm.current_fiber = Some(f.clone());
-                f
+        let promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+        let promise_val = Value::Promise(promise.clone());
+
+        let ready_queue = vm.async_state.ready_queue.clone();
+        let pending_tasks = vm.async_state.pending_tasks.clone();
+        let notify = vm.async_state.notify.clone();
+
+        *pending_tasks.borrow_mut() += 1;
+
+        // Spawn Async Task
+        tokio::task::spawn_local(async move {
+            let client = reqwest::Client::new();
+
+            let method = match reqwest::Method::from_str(&method_str) {
+                Ok(m) => m,
+                Err(e) => {
+                    let mut p = promise.borrow_mut();
+                    let reactions = p.reject(Value::string(format!("HTTP invalid method: {}", e)));
+                    let mut q = ready_queue.borrow_mut();
+                    for reaction in reactions {
+                        if let crate::promise::Reaction::ResumeFiber(f) = reaction {
+                            q.push_back((f, Err(VMRuntimeError::UncaughtException(format!("HTTP invalid method: {}", e)))));
+                        }
+                    }
+                    *pending_tasks.borrow_mut() -= 1;
+                    notify.notify_one();
+                    return;
+                }
             };
 
-            let mut current_fiber = current_fiber_rc.borrow_mut();
+            let mut builder = client.request(method, &url_str);
 
-            // Increment PC to point to next instruction upon resume
-            vm.pc += 1;
+            if let Some(b) = body_str {
+                builder = builder.body(b);
+            }
 
-            vm.save_state_to_fiber(&mut current_fiber);
-            current_fiber.state = FiberState::Suspended;
-            drop(current_fiber);
-
-            let fiber_for_future = current_fiber_rc.clone();
-
-            // Spawn Async Task
-            vm.async_state.spawn_future(
-                async move {
-                    let client = reqwest::Client::new();
-
-                    let method = match reqwest::Method::from_str(&method_str) {
-                        Ok(m) => m,
-                        Err(e) => return Err(VMRuntimeError::UncaughtException(format!("HTTP invalid method: {}", e))),
-                    };
-
-                    let mut builder = client.request(method, &url_str);
-
-                    if let Some(b) = body_str {
-                        builder = builder.body(b);
-                    }
-
-                    if let Some(h) = headers_arg {
-                        match value_to_header_map(&h) {
-                            Ok(headers) => builder = builder.headers(headers),
-                            Err(e) => {
-                                return Err(VMRuntimeError::UncaughtException(format!("HTTP header error: {}", e)));
+            if let Some(h) = headers_arg {
+                match value_to_header_map(&h) {
+                    Ok(headers) => builder = builder.headers(headers),
+                    Err(e) => {
+                        let mut p = promise.borrow_mut();
+                        let reactions = p.reject(Value::string(format!("HTTP header error: {}", e)));
+                        let mut q = ready_queue.borrow_mut();
+                        for reaction in reactions {
+                            if let crate::promise::Reaction::ResumeFiber(f) = reaction {
+                                q.push_back((f, Err(VMRuntimeError::UncaughtException(format!("HTTP header error: {}", e)))));
                             }
+                        }
+                        *pending_tasks.borrow_mut() -= 1;
+                        notify.notify_one();
+                        return;
+                    }
+                }
+            }
+
+            let resp_res = builder.send().await;
+
+            let result = match resp_res {
+                Ok(resp) => {
+                    let status = resp.status().as_u16() as i32;
+                    let headers = resp.headers().clone();
+                    let text = resp.text().await.unwrap_or_default();
+
+                    // Construct Response Object (Table)
+                    let mut response_data = IndexMap::new();
+                    response_data.insert("status".to_string(), Value::int(status));
+                    response_data.insert("body".to_string(), Value::string(text));
+
+                    let mut headers_data = IndexMap::new();
+                    for (k, v) in headers.iter() {
+                        if let Ok(val_str) = v.to_str() {
+                            headers_data.insert(k.to_string(), Value::string(val_str.to_string()));
                         }
                     }
 
-                    let resp_res = builder.send().await;
+                    response_data.insert(
+                        "headers".to_string(),
+                        Value::Object(Rc::new(RefCell::new(Table {
+                            data: headers_data,
+                            metatable: None,
+                        }))),
+                    );
 
-                    match resp_res {
-                        Ok(resp) => {
-                            let status = resp.status().as_u16() as i32;
-                            let headers = resp.headers().clone();
-                            let text = resp.text().await.unwrap_or_default();
+                    Ok(Value::Object(Rc::new(RefCell::new(Table {
+                        data: response_data,
+                        metatable: None,
+                    }))))
+                }
+                Err(e) => Err(VMRuntimeError::UncaughtException(format!("HTTP request error: {}", e))),
+            };
 
-                            // Construct Response Object (Table)
-                            let mut response_data = IndexMap::new();
-                            response_data.insert("status".to_string(), Value::int(status));
-                            response_data.insert("body".to_string(), Value::string(text));
-
-                            let mut headers_data = IndexMap::new();
-                            for (k, v) in headers.iter() {
-                                if let Ok(val_str) = v.to_str() {
-                                    headers_data.insert(k.to_string(), Value::string(val_str.to_string()));
-                                }
-                            }
-
-                            response_data.insert(
-                                "headers".to_string(),
-                                Value::Object(Rc::new(RefCell::new(Table {
-                                    data: headers_data,
-                                    metatable: None,
-                                }))),
-                            );
-
-                            Ok(Value::Object(Rc::new(RefCell::new(Table {
-                                data: response_data,
-                                metatable: None,
-                            }))))
+            let mut p = promise.borrow_mut();
+            let mut q = ready_queue.borrow_mut();
+            match result {
+                Ok(val) => {
+                    let reactions = p.resolve(val.clone());
+                    for reaction in reactions {
+                        if let crate::promise::Reaction::ResumeFiber(f) = reaction {
+                            q.push_back((f, Ok(val.clone())));
                         }
-                        Err(e) => Err(VMRuntimeError::UncaughtException(format!("HTTP request error: {}", e))),
                     }
-                },
-                fiber_for_future,
-            );
+                }
+                Err(err) => {
+                    let reactions = p.reject(Value::string(err.to_string()));
+                    for reaction in reactions {
+                        if let crate::promise::Reaction::ResumeFiber(f) = reaction {
+                            q.push_back((f, Err(err.clone())));
+                        }
+                    }
+                }
+            }
+            *pending_tasks.borrow_mut() -= 1;
+            notify.notify_one();
+        });
 
-            Err(VMRuntimeError::Yield)
-        }
+        Ok(promise_val)
     };
 
     if let Value::Object(obj) = &http_obj {

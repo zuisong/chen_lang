@@ -166,23 +166,7 @@ for (let char of s) {
     assert!(output.contains("C"));
 }
 
-#[test]
-fn test_for_of_coroutine() {
-    let code = r#"
-let create = Chen.coroutine.create
-let yield = Chen.coroutine.yield
-let co = create(function() {
-    yield(100)
-    yield(200)
-})
-for (let x of co) {
-    console.print(x)
-}
-"#;
-    let output = run_chen_lang_code(code).unwrap();
-    assert!(output.contains("100"));
-    assert!(output.contains("200"));
-}
+
 
 #[test]
 fn test_for_of_break() {

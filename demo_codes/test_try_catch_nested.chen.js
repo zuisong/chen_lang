@@ -1,4 +1,4 @@
-# Nested try-catch
+// Nested try-catch
 try {
     console.log("Outer try")
 

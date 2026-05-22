@@ -1,4 +1,4 @@
-# Try-catch with finally
+// Try-catch with finally
 let cleanup_called = false
 
 try {

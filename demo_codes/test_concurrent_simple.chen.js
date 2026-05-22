@@ -1,8 +1,7 @@
-# 简单的并发测试 - 不使用 HTTP
-let coroutine = Chen.coroutine
+// 简单的并发测试 - 不使用 HTTP
 console.log("测试并发协程...")
 
-function task(name, count) {
+async function task(name, count) {
     let i = 0
     while (i < count) {
         console.log(name + ": " + i)
@@ -11,21 +10,17 @@ function task(name, count) {
     return name + " done"
 }
 
-# 创建协程
-let co1 = coroutine.create(function() { return task("Task1", 3) })
-let co2 = coroutine.create(function() { return task("Task2", 3) })
+async function main() {
+    console.log("启动异步任务...")
+    let p1 = task("Task1", 3)
+    let p2 = task("Task2", 3)
 
-console.log("启动协程...")
+    console.log("等待完成...")
+    let results = await Promise.all([p1, p2])
 
-# 非阻塞启动
-coroutine.spawn(co1)
-coroutine.spawn(co2)
+    console.log("完成！")
+    console.log("结果 1: " + results[0])
+    console.log("结果 2: " + results[1])
+}
 
-console.log("等待完成...")
-
-# 等待所有协程完成
-let results = coroutine.await_all([co1, co2])
-
-console.log("完成！")
-console.log("结果 1: " + results[0])
-console.log("结果 2: " + results[1])
+main()

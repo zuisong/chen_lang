@@ -87,5 +87,35 @@ impl AsyncState {
             *pending.borrow_mut() -= 1;
             notify.notify_one();
         });
-    }
-}
+        }
+
+        pub fn resolve_promise(&self, promise_rc: Rc<RefCell<crate::promise::Promise>>, value: Value) {
+            let reactions = promise_rc.borrow_mut().resolve(value.clone());
+            self.schedule_reactions(reactions, Ok(value));
+        }
+
+        pub fn reject_promise(&self, promise_rc: Rc<RefCell<crate::promise::Promise>>, reason: Value) {
+            let reactions = promise_rc.borrow_mut().reject(reason.clone());
+            self.schedule_reactions(reactions, Err(VMRuntimeError::UncaughtException(reason.to_string())));
+        }
+        pub fn schedule_reactions(&self, reactions: Vec<crate::promise::Reaction>, result: Result<Value, VMRuntimeError>) {
+        let queue = self.ready_queue.clone();
+        let notify = self.notify.clone();
+        let mut q = queue.borrow_mut();
+        for reaction in reactions {
+            match reaction {
+                crate::promise::Reaction::ResumeFiber(fiber) => {
+                    q.push_back((fiber, result.clone()));
+                    notify.notify_one();
+                }
+                crate::promise::Reaction::Callback { .. } => {
+                    // TODO
+                }
+                crate::promise::Reaction::Finally { .. } => {
+                    // TODO
+                }
+            }
+        }
+        }
+        }
+

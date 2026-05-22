@@ -1,5 +1,5 @@
 function NewPoint(x, y) {
-    # 嵌套定义函数
+    // 嵌套定义函数
     function point_str() {
         return "(" + this.x + "," + this.y + "," + this.now.format('%Y-%m-%d %H:%M:%S') + ")"
     }
@@ -18,5 +18,5 @@ function NewPoint(x, y) {
 }
 
 let p = NewPoint(10, 20)
-console.log(p.str()) # 像调用对象方法一样
+console.log(p.str()) // 像调用对象方法一样
 console.log(JSON.stringify(p))

@@ -720,7 +720,7 @@ console.log(person.city)"#;
     fn test_js_runtime_globals_are_available() {
         let values = run_capture_values(
             r#"
-            capture(Chen != null, Chen.fs != null, Chen.process != null, Chen.timer != null, Chen.date != null, Chen.coroutine != null)
+            capture(Chen != null, Chen.fs != null, Chen.process != null, Chen.timer != null, Chen.date != null)
             "#,
         )
         .unwrap();
@@ -728,7 +728,6 @@ console.log(person.city)"#;
         assert_eq!(
             values,
             vec![
-                Value::bool(true),
                 Value::bool(true),
                 Value::bool(true),
                 Value::bool(true),
@@ -772,7 +771,7 @@ console.log(person.city)"#;
     fn test_js_extracted_chen_runtime_methods_work_without_receiver() {
         let output = crate::run_captured(
             r#"
-            let sleep = Chen.timer.sleepMs
+            let sleep = Chen.timer.sleep
             let exec = Chen.process.exec
             sleep(0)
             console.print(exec("printf ok").stdout.trim())
@@ -883,7 +882,7 @@ console.log(person.city)"#;
     fn test_js_runtime_api_aliases_exist() {
         let values = run_capture_values(
             r#"
-            capture(Chen.timer.sleepMs != null, Chen.http == null || Chen.http.fetch != null, Chen.date.now != null, Chen.process.exec != null)
+            capture(Chen.timer.sleep != null, Chen.http == null || Chen.http.fetch != null, Chen.date.now != null, Chen.process.exec != null)
             "#,
         )
         .unwrap();

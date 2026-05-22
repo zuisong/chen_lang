@@ -9,6 +9,7 @@ pub struct Symbol {
     pub narguments: usize,
     pub nlocals: usize,
     pub upvalues: Vec<(bool, usize)>, // (is_local, index)
+    pub is_async: bool,
 }
 
 /// 指令集 - 简化后的统一指令
@@ -86,6 +87,10 @@ pub enum Instruction {
     Import(String),               // 导入模块（stdlib 或文件）
     PushExceptionHandler(String), // 压入异常处理器（catch label）
     PopExceptionHandler,          // 弹出异常处理器
+
+    // Async support
+    AsyncCallStack(usize), // 异步调用栈：调用 async 函数（函数对象在 args 之下）
+    Yield,                 // 挂起：挂起当前执行并将控制权交还调度器
 }
 
 /// 程序表示

@@ -1,4 +1,4 @@
-# Function with exception
+// Function with exception
 function divide(a, b) {
     if (b == 0) {
         throw "Division by zero"

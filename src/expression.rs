@@ -61,6 +61,19 @@ pub enum Expression {
     },
     /// 函数定义表达式 (匿名函数/Lambda)
     Function(FunctionDeclaration),
+    /// 异步函数定义表达式
+    AsyncFunction(FunctionDeclaration),
+    /// Await 表达式: await expr
+    Await {
+        expression: Box<Expression>,
+        loc: Location,
+    },
+    /// New 表达式: new constructor(args)
+    New {
+        constructor: Box<Expression>,
+        arguments: Vec<Expression>,
+        loc: Location,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -77,6 +90,8 @@ pub enum TypeAnnotation {
         arguments: Vec<TypeAnnotation>,
     },
     Union(Vec<TypeAnnotation>),
+    /// Promise<T>
+    Promise(Box<TypeAnnotation>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -122,11 +137,13 @@ pub enum Statement {
     Expression(Expression),
     Loop(Loop),
     FunctionDeclaration(FunctionDeclaration),
+    /// 异步函数定义: async function name(args) { body }
+    AsyncFunctionDeclaration(FunctionDeclaration),
     Return(Return),
     Local(Local),
     Assign(Assign),
-    /// For-In 循环: for (let var of iterable) { body }
-    ForIn(ForInLoop),
+    /// For-Of 循环: for (let var of iterable) { body }
+    ForOf(ForOfLoop),
     /// 设置属性: obj.field = value
     SetField {
         object: Expression,
@@ -182,15 +199,16 @@ pub struct Loop {
     pub loc: Location,
 }
 
-/// For-In 循环语句
+/// For-Of 循环语句
 #[derive(Debug, PartialEq, Clone)]
-pub struct ForInLoop {
+pub struct ForOfLoop {
     /// 循环变量名
     pub var: String,
     /// 可迭代对象表达式 (例如一个协程或数组)
     pub iterable: Expression,
     /// 循环体
     pub body: Vec<Statement>,
+    pub is_async: bool,
     pub loc: Location,
 }
 

@@ -23,10 +23,10 @@ fn test_timer_sleep() {
     let sleep = timer.sleep
     let now = date.now
     let start = now()
-    sleep(100)
+    await sleep(100)
     let end = now()
     let diff = end - start
-    
+
     // We can't assert exact time, but it should be > 50ms and < 2000ms
     if (diff >= 50) {
         return "OK"
@@ -46,8 +46,8 @@ fn test_async_interleaving() {
 
     let code = r#"
     let timer = Chen.timer
-    timer.sleep(10)
-    timer.sleep(10)
+    await timer.sleep(10)
+    await timer.sleep(10)
     return "Done"
     "#;
     assert_eq!(run_code(code), "Done");
@@ -57,16 +57,12 @@ fn test_async_interleaving() {
 fn test_spawn_closure_with_sleep() {
     let code = r#"
     let timer = Chen.timer
-    let co = Chen.coroutine.create(function() {
-        // 匿名函数直接调用 native async，这会触发 Yield
-        timer.sleep(50)
+    async function run() {
+        await timer.sleep(50)
         return "WakeUp"
-    })
-    
-    Chen.coroutine.spawn(co)
-    let results = Chen.coroutine.await_all([co])
-    
-    return results[0]
+    }
+    let p = run()
+    return await p
     "#;
 
     assert_eq!(run_code(code), "WakeUp");
@@ -77,17 +73,14 @@ fn test_spawn_closure_captures_and_sleep() {
     let code = r#"
     let timer = Chen.timer
     let msg = "Capturing"
-    
-    let co = Chen.coroutine.create(function() {
-        timer.sleep(10)
+    async function run() {
+        await timer.sleep(10)
         return msg + " Works"
-    })
-    
-    Chen.coroutine.spawn(co)
-    let results = Chen.coroutine.await_all([co])
-    
-    return results[0]
+    }
+    let p = run()
+    return await p
     "#;
 
     assert_eq!(run_code(code), "Capturing Works");
 }
+

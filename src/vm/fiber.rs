@@ -10,6 +10,10 @@ pub struct ExceptionHandler {
     pub catch_label: String,
     pub stack_size: usize,
     pub fp: usize,
+    pub call_stack_len: usize,
+    pub program: Option<Rc<Program>>,
+    pub closure: Option<Rc<ObjClosure>>,
+    pub this_binding: Option<Value>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,6 +55,12 @@ pub struct Fiber {
     pub is_spawned: bool,
     /// 支持原生协程：存储要在协程中运行的原生函数
     pub native_function: Option<Rc<Box<crate::value::NativeFnType>>>,
+    /// 与此协程关联的 Promise（如果是 async 函数创建的）
+    pub associated_promise: Option<Rc<RefCell<crate::promise::Promise>>>,
+    /// 如果此 fiber 是 finally 回调，在正常结束时需恢复此初始状态，而不是使用其返回值
+    pub finally_initial_state: Option<crate::promise::PromiseState>,
+    /// 如果此 fiber 异常退出，需要自动 reject 的 Promise
+    pub reject_on_error_promise: Option<Rc<RefCell<crate::promise::Promise>>>,
 }
 
 impl Default for Fiber {
@@ -76,6 +86,9 @@ impl Fiber {
             skip_push_on_resume: false,
             is_spawned: false,
             native_function: None,
+            associated_promise: None,
+            finally_initial_state: None,
+            reject_on_error_promise: None,
         }
     }
 }

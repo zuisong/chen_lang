@@ -69,11 +69,7 @@ declare namespace Chen {
     /**
      * Suspends execution for the given milliseconds.
      */
-    function sleep(ms: number): void;
-    /**
-     * Alias for sleep.
-     */
-    function sleepMs(ms: number): void;
+    function sleep(ms: number): Promise<null>;
   }
 
   /**
@@ -115,40 +111,6 @@ declare namespace Chen {
      * Executes a shell command and returns its output.
      */
     function exec(command: string): { code: number, stdout: string, stderr: string };
-  }
-
-  /**
-   * Coroutine handling.
-   */
-  namespace coroutine {
-    /**
-     * Creates a new coroutine from a function.
-     */
-    function create(fn: Function, ...args: any[]): any;
-    /**
-     * Resumes execution of a coroutine.
-     */
-    function resume(co: any, ...args: any[]): any;
-    /**
-     * Returns the status of a coroutine.
-     */
-    function status(co: any): "running" | "suspended" | "dead";
-    /**
-     * Yields execution of the current coroutine.
-     */
-    function yield(...args: any[]): any;
-    /**
-     * Spawns a coroutine to run independently.
-     */
-    function spawn(co: any, ...args: any[]): any;
-    /**
-     * Waits for all given coroutines to complete.
-     */
-    function await_all(coroutines: any[]): any[];
-    /**
-     * Returns the coroutine itself for iteration.
-     */
-    function iter(co: any): any;
   }
 
   /**
@@ -194,13 +156,34 @@ declare namespace console {
    */
   function log(...args: any[]): void;
   /**
+   * Alias for log.
+   */
+  function info(...args: any[]): void;
+  /**
+   * Alias for log.
+   */
+  function warn(...args: any[]): void;
+  /**
+   * Alias for log.
+   */
+  function error(...args: any[]): void;
+  /**
+   * Alias for log.
+   */
+  function debug(...args: any[]): void;
+  /**
    * Prints arguments without a newline.
    */
   function print(...args: any[]): void;
   /**
    * Reads a line from standard input.
+   * @deprecated non-standard, use Chen.io.readline if needed
    */
   function readLine(): string;
+}
+
+interface ChenIterator<T> {
+  next(): { value: T | null, done: boolean };
 }
 
 /**
@@ -208,28 +191,36 @@ declare namespace console {
  */
 interface ObjectConstructor {
   /**
-   * Returns a coroutine iterator over the object.
+   * Returns an iterator over the object keys.
    */
-  iter(obj: object): any;
+  iter(obj: object): ChenIterator<string>;
 }
 
 // Built-in prototypes extension
 interface Array<T> {
   /**
-   * Returns the length of the array.
+   * The length of the array.
    */
-  len(): number;
+  readonly length: number;
   /**
-   * Returns a coroutine iterator for the array.
+   * Returns an iterator for the array.
    */
-  iter(): any;
+  iter(): ChenIterator<T>;
+  /**
+   * Adds an element to the end of the array.
+   */
+  push(val: T): number;
+  /**
+   * Removes and returns the last element of the array.
+   */
+  pop(): T | null;
 }
 
 interface String {
   /**
-   * Returns the length of the string.
+   * The length of the string.
    */
-  len(): number;
+  readonly length: number;
   /**
    * Removes whitespace from both ends of the string.
    */
@@ -239,11 +230,19 @@ interface String {
    */
   upper(): string;
   /**
+   * Converts all characters to uppercase.
+   */
+  toUpperCase(): string;
+  /**
    * Converts all characters to lowercase.
    */
   lower(): string;
   /**
-   * Returns a coroutine iterator for the string.
+   * Converts all characters to lowercase.
    */
-  iter(): any;
+  toLowerCase(): string;
+  /**
+   * Returns an iterator for the string characters.
+   */
+  iter(): ChenIterator<string>;
 }

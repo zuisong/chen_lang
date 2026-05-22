@@ -76,8 +76,10 @@ pub enum Value {
     /// 用于标准库和内置函数，由 Rust 代码实现。
     NativeFunction(Rc<Box<NativeFnType>>),
 
-    /// 协程
-    Coroutine(Rc<RefCell<crate::vm::Fiber>>),
+
+
+    /// Promise
+    Promise(Rc<RefCell<crate::promise::Promise>>),
     Null,
 }
 
@@ -154,6 +156,7 @@ impl Value {
             Value::Int(0) => false,
             Value::Float(f) if *f == Decimal::ZERO => false,
             Value::String(s) if s.is_empty() => false,
+            Value::Promise(_) => true,
             _ => true,
         }
     }
@@ -168,8 +171,16 @@ impl Value {
             Value::Object(_) => ValueType::Object,
             Value::Fn(_) => ValueType::Function,
             Value::NativeFunction(_) => ValueType::Function,
-            Value::Coroutine(_) => ValueType::Coroutine,
+            Value::Promise(_) => ValueType::Promise,
             Value::Null => ValueType::Null,
+        }
+    }
+
+    /// 获取 Promise
+    pub fn as_promise(&self) -> Option<Rc<RefCell<crate::promise::Promise>>> {
+        match self {
+            Value::Promise(p) => Some(p.clone()),
+            _ => None,
         }
     }
 
@@ -210,7 +221,7 @@ impl PartialEq for Value {
             // 函数比较
             (Value::Fn(a), Value::Fn(b)) => Rc::ptr_eq(a, b),
             (Value::NativeFunction(a), Value::NativeFunction(b)) => Rc::ptr_eq(a, b),
-            (Value::Coroutine(a), Value::Coroutine(b)) => Rc::ptr_eq(a, b),
+            (Value::Promise(a), Value::Promise(b)) => Rc::ptr_eq(a, b),
             // 混合类型比较：int和float可以比较
             (Value::Int(a), Value::Float(b)) => Decimal::from(*a) == *b,
             (Value::Float(a), Value::Int(b)) => *a == Decimal::from(*b),
@@ -244,7 +255,7 @@ impl fmt::Display for Value {
             Value::Object(obj) => write!(f, "{}", obj.borrow()),
             Value::Fn(closure) => write!(f, "<fn {}>", closure.name),
             Value::NativeFunction(_) => write!(f, "<native function>"),
-            Value::Coroutine(fiber) => write!(f, "<coroutine: {:?}>", fiber.borrow().state),
+            Value::Promise(_) => write!(f, "<promise>"),
             Value::Null => write!(f, "null"),
         }
     }
@@ -260,7 +271,7 @@ impl Debug for Value {
             Value::Object(obj) => write!(f, "Object({:.?})", obj.borrow()),
             Value::Fn(closure) => write!(f, "Fn({})", closure.name),
             Value::NativeFunction(_) => write!(f, "NativeFunction(<native fn>)"),
-            Value::Coroutine(fiber) => write!(f, "Coroutine({:?})", fiber.borrow().state),
+            Value::Promise(p) => write!(f, "Promise({:?})", p.borrow().state),
             Value::Null => write!(f, "Null"),
         }
     }
@@ -275,7 +286,7 @@ pub enum ValueType {
     String,
     Object,
     Function,
-    Coroutine,
+    Promise,
     Null,
 }
 
@@ -700,6 +711,100 @@ impl Value {
 
                 Value::null()
             }
+            Value::Promise(promise_rc) => {
+                if key == "then" {
+                    let p = promise_rc.clone();
+                    Value::NativeFunction(Rc::new(Box::new(move |vm: &mut crate::vm::VM, ctx: crate::value::NativeContext| {
+                        let on_fulfilled = ctx.args.get(0).cloned().filter(|v| matches!(v, Value::Fn(_) | Value::NativeFunction(_)));
+                        let on_rejected = ctx.args.get(1).cloned().filter(|v| matches!(v, Value::Fn(_) | Value::NativeFunction(_)));
+                        
+                        let next_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+                        let reaction = crate::promise::Reaction::Callback {
+                            on_fulfilled,
+                            on_rejected,
+                            next_promise: next_promise.clone(),
+                        };
+                        
+                        let state = p.borrow().state.clone();
+                        match state {
+                            crate::promise::PromiseState::Pending => {
+                                p.borrow_mut().reactions.push(reaction);
+                            }
+                            _ => {
+                                vm.schedule_reaction(reaction, &state);
+                            }
+                        }
+                        
+                        Ok(Value::Promise(next_promise))
+                    }) as Box<NativeFnType>))
+                } else if key == "catch" {
+                    let p = promise_rc.clone();
+                    Value::NativeFunction(Rc::new(Box::new(move |vm: &mut crate::vm::VM, ctx: crate::value::NativeContext| {
+                        let on_rejected = ctx.args.get(0).cloned().filter(|v| matches!(v, Value::Fn(_) | Value::NativeFunction(_)));
+                        
+                        let next_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+                        let reaction = crate::promise::Reaction::Callback {
+                            on_fulfilled: None,
+                            on_rejected,
+                            next_promise: next_promise.clone(),
+                        };
+                        
+                        let state = p.borrow().state.clone();
+                        match state {
+                            crate::promise::PromiseState::Pending => {
+                                p.borrow_mut().reactions.push(reaction);
+                            }
+                            _ => {
+                                vm.schedule_reaction(reaction, &state);
+                            }
+                        }
+                        
+                        Ok(Value::Promise(next_promise))
+                    }) as Box<NativeFnType>))
+                } else if key == "finally" {
+                    let p = promise_rc.clone();
+                    Value::NativeFunction(Rc::new(Box::new(move |vm: &mut crate::vm::VM, ctx: crate::value::NativeContext| {
+                        let on_finally = ctx.args.get(0).cloned().filter(|v| matches!(v, Value::Fn(_) | Value::NativeFunction(_)));
+                        
+                        let next_promise = Rc::new(RefCell::new(crate::promise::Promise::new()));
+                        
+                        if let Some(on_finally_fn) = on_finally {
+                            let reaction = crate::promise::Reaction::Finally {
+                                on_finally: on_finally_fn,
+                                next_promise: next_promise.clone(),
+                            };
+                            let state = p.borrow().state.clone();
+                            match state {
+                                crate::promise::PromiseState::Pending => {
+                                    p.borrow_mut().reactions.push(reaction);
+                                }
+                                _ => {
+                                    vm.schedule_reaction(reaction, &state);
+                                }
+                            }
+                        } else {
+                            let state = p.borrow().state.clone();
+                            match state {
+                                crate::promise::PromiseState::Pending => {
+                                    let reaction = crate::promise::Reaction::Callback {
+                                        on_fulfilled: None,
+                                        on_rejected: None,
+                                        next_promise: next_promise.clone(),
+                                    };
+                                    p.borrow_mut().reactions.push(reaction);
+                                }
+                                _ => {
+                                    vm.settle_promise(next_promise.clone(), state);
+                                }
+                            }
+                        }
+                        
+                        Ok(Value::Promise(next_promise))
+                    }) as Box<NativeFnType>))
+                } else {
+                    Value::null()
+                }
+            }
             Value::Fn(closure) => {
                 if key == "__name" {
                     return Ok(OpResult::Value(Value::string(closure.name.clone())));
@@ -718,7 +823,7 @@ impl Value {
                     Value::String(_) => "string",
                     Value::Object(_) => "object",
                     Value::Fn(_) | Value::NativeFunction(_) => "function",
-                    Value::Coroutine(_) => "coroutine",
+                    Value::Promise(_) => "promise",
                     Value::Null => "null",
                 }
                 .to_string(),

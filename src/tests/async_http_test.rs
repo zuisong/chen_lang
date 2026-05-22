@@ -30,7 +30,7 @@ fn test_http_get_async() {
         r#"
     let http = Chen.http
     let url = "{}/hello"
-    let resp = http.request("GET", url)
+    let resp = await http.request("GET", url)
     return resp.body
     "#,
         url
@@ -57,7 +57,7 @@ fn test_http_get_json_async() {
         r#"
     let http = Chen.http
     let url = "{}/data"
-    let resp = http.request("GET", url)
+    let resp = await http.request("GET", url)
     let data = JSON.parse(resp.body)
     return data.status
     "#,
@@ -74,7 +74,7 @@ fn test_http_request_async_error_propagates() {
     let code = r#"
     let http = Chen.http
     try {
-        http.request("BAD METHOD", "http://example.com")
+        await http.request("BAD METHOD", "http://example.com")
         return "NO_ERROR"
     } catch (err) {
         return "CAUGHT: " + err

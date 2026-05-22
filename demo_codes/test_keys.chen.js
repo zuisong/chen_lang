@@ -1,4 +1,3 @@
-let coroutine = Chen.coroutine
 let obj = { a: 1, b: 2 }
 let keys = Object.keys(obj)
 console.log("Object keys:", keys)

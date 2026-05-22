@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::value::NativeContext;
 use super::*;
-use crate::vm::native_coroutine::native_coroutine_yield;
+
 
 pub fn create_array_prototype() -> Value {
     use native_array_prototype::*;
@@ -22,14 +22,6 @@ pub fn create_array_prototype() -> Value {
     table.data.insert(
         "pop".to_string(),
         Value::NativeFunction(Rc::new(Box::new(native_array_pop) as Box<NativeFnType>)),
-    );
-    table.data.insert(
-        "len".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_array_len) as Box<NativeFnType>)),
-    );
-    table.data.insert(
-        "length".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_array_len) as Box<NativeFnType>)),
     );
     table.data.insert(
         "iter".to_string(),
@@ -98,17 +90,6 @@ pub fn native_array_pop(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRun
     Ok(Value::Null)
 }
 
-pub fn native_array_len(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
-    let Ok(obj) = array_receiver(&ctx, "length") else {
-        return Ok(Value::Int(0));
-    };
-    if let Value::Object(table_rc) = obj {
-        let table = table_rc.borrow();
-        return Ok(Value::Int(table.data.len() as i32));
-    }
-    Ok(Value::Int(0))
-}
-
 pub fn native_array_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
     let table_rc = match ctx.this.as_ref().or_else(|| ctx.args.first()) {
         Some(Value::Object(t)) => t.clone(),
@@ -121,8 +102,9 @@ pub fn native_array_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRu
     };
     let index = Rc::new(RefCell::new(0));
 
-    let iter_body = move |vm: &mut VM, _ctx: NativeContext| {
+    let next_body = move |_vm: &mut VM, _ctx: NativeContext| {
         let mut idx = index.borrow_mut();
+        let mut result_data = IndexMap::new();
         if *idx < len {
             let val = {
                 let table = table_rc.borrow();
@@ -133,16 +115,25 @@ pub fn native_array_iter(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRu
                     .unwrap_or(Value::Null)
             };
             *idx += 1;
-            return native_coroutine_yield(vm, vec![val]);
+            result_data.insert("value".to_string(), val);
+            result_data.insert("done".to_string(), Value::Bool(false));
+        } else {
+            result_data.insert("value".to_string(), Value::Null);
+            result_data.insert("done".to_string(), Value::Bool(true));
         }
-        Ok(Value::Null)
+        Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data: result_data, metatable: None }))))
     };
 
-    let mut fiber = Fiber::new();
-    let nf_rc = Rc::new(Box::new(iter_body) as Box<NativeFnType>);
-    fiber.native_function = Some(nf_rc.clone());
-    fiber.stack.push(Value::NativeFunction(nf_rc));
-    Ok(Value::Coroutine(Rc::new(RefCell::new(fiber))))
+    let mut data = IndexMap::new();
+    data.insert(
+        "next".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(next_body) as Box<NativeFnType>)),
+    );
+    data.insert(
+        "iter".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(native_iter_self) as Box<NativeFnType>)),
+    );
+    Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data, metatable: None }))))
 }
 
 pub fn native_array_entries(_vm: &mut VM, ctx: NativeContext) -> Result<Value, VMRuntimeError> {
@@ -157,8 +148,9 @@ pub fn native_array_entries(_vm: &mut VM, ctx: NativeContext) -> Result<Value, V
     };
     let index = Rc::new(RefCell::new(0));
 
-    let iter_body = move |vm: &mut VM, _ctx: NativeContext| {
+    let next_body = move |_vm: &mut VM, _ctx: NativeContext| {
         let mut idx = index.borrow_mut();
+        let mut result_data = IndexMap::new();
         if *idx < len {
             let val = {
                 let table = table_rc.borrow();
@@ -169,20 +161,29 @@ pub fn native_array_entries(_vm: &mut VM, ctx: NativeContext) -> Result<Value, V
                     .unwrap_or(Value::Null)
             };
 
-            let mut data = IndexMap::new();
-            data.insert("key".to_string(), Value::Int(*idx as i32));
-            data.insert("value".to_string(), val);
-            let pair = Value::Object(Rc::new(RefCell::new(crate::value::Table { data, metatable: None })));
+            let mut pair_data = IndexMap::new();
+            pair_data.insert("key".to_string(), Value::Int(*idx as i32));
+            pair_data.insert("value".to_string(), val);
+            let pair = Value::Object(Rc::new(RefCell::new(crate::value::Table { data: pair_data, metatable: None })));
 
             *idx += 1;
-            return native_coroutine_yield(vm, vec![pair]);
+            result_data.insert("value".to_string(), pair);
+            result_data.insert("done".to_string(), Value::Bool(false));
+        } else {
+            result_data.insert("value".to_string(), Value::Null);
+            result_data.insert("done".to_string(), Value::Bool(true));
         }
-        Ok(Value::Null)
+        Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data: result_data, metatable: None }))))
     };
 
-    let mut fiber = Fiber::new();
-    let nf_rc = Rc::new(Box::new(iter_body) as Box<NativeFnType>);
-    fiber.native_function = Some(nf_rc.clone());
-    fiber.stack.push(Value::NativeFunction(nf_rc));
-    Ok(Value::Coroutine(Rc::new(RefCell::new(fiber))))
+    let mut data = IndexMap::new();
+    data.insert(
+        "next".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(next_body) as Box<NativeFnType>)),
+    );
+    data.insert(
+        "iter".to_string(),
+        Value::NativeFunction(Rc::new(Box::new(native_iter_self) as Box<NativeFnType>)),
+    );
+    Ok(Value::Object(Rc::new(RefCell::new(crate::value::Table { data, metatable: None }))))
 }
