@@ -43,8 +43,8 @@ pub enum Expression {
     Identifier(String, Location),
     Block(Vec<Statement>, Location),
     If(If),
-    /// 对象字面量: { k: v, ... }
-    ObjectLiteral(Vec<(String, Expression)>, Location),
+    /// 对象字面量: { key: value, ... }
+    ObjectLiteral(Vec<(Expression, Expression)>, Location),
     /// 数组字面量
     ArrayLiteral(Vec<Expression>, Location),
     /// 属性访问: obj.field

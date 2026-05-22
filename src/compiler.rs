@@ -425,10 +425,11 @@ impl<'a> Compiler<'a> {
             Expression::If(if_expr) => self.compile_if(if_expr),
             Expression::ObjectLiteral(fields, loc) => {
                 self.emit(Instruction::NewObject, loc);
-                for (key, val) in fields {
+                for (key_expr, val_expr) in fields {
                     self.emit(Instruction::Dup, loc);
-                    self.compile_expression(val);
-                    self.emit(Instruction::SetField(key), loc);
+                    self.compile_expression(key_expr);
+                    self.compile_expression(val_expr);
+                    self.emit(Instruction::SetIndex, loc);
                 }
             }
             Expression::ArrayLiteral(elements, loc) => {

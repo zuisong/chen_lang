@@ -521,17 +521,19 @@ fn parse_object_literal(pair: Pair<Rule>) -> Expression {
         if p.as_rule() == Rule::pair {
             let mut inner = p.into_inner();
             let key_pair = inner.next().unwrap();
-            let key = match key_pair.as_rule() {
-                Rule::identifier => key_pair.as_str().to_string(),
+            let key_loc = loc_from_pair(&key_pair);
+            let key_expr = match key_pair.as_rule() {
+                Rule::identifier => Expression::Literal(crate::expression::Literal::String(key_pair.as_str().to_string()), key_loc),
                 Rule::string => {
                     let s = key_pair.as_str();
-                    s[1..s.len() - 1].to_string()
+                    Expression::Literal(crate::expression::Literal::String(s[1..s.len() - 1].to_string()), key_loc)
                 }
-                Rule::integer => key_pair.as_str().to_string(),
+                Rule::integer => Expression::Literal(crate::expression::Literal::String(key_pair.as_str().to_string()), key_loc),
+                Rule::computed_property => parse_expression(key_pair.into_inner().next().unwrap()),
                 _ => unreachable!(),
             };
             let value = parse_expression(inner.next().unwrap());
-            fields.push((key, value));
+            fields.push((key_expr, value));
         }
     }
     Expression::ObjectLiteral(fields, loc)

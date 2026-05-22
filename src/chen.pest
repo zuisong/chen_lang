@@ -91,7 +91,8 @@ new_expr = { NEW ~ primary ~ "(" ~ NEWLINE* ~ arguments? ~ NEWLINE* ~ ")" }
 
 object_literal = { "{" ~ NEWLINE* ~ (pair ~ ("," ~ NEWLINE* ~ pair)*)? ~ NEWLINE* ~ "}" }
 array_literal = { "[" ~ NEWLINE* ~ (expression ~ ("," ~ NEWLINE* ~ expression)*)? ~ NEWLINE* ~ "]" }
-pair = { (identifier | integer | string) ~ ":" ~ NEWLINE* ~ expression }
+pair = { (identifier | integer | string | computed_property) ~ ":" ~ NEWLINE* ~ expression }
+computed_property = { "[" ~ NEWLINE* ~ expression ~ NEWLINE* ~ "]" }
 
 // 语句分隔符 - 使用换行
 stmt_sep = _{ (NEWLINE | WHITESPACE)+ }

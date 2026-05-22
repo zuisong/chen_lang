@@ -413,7 +413,8 @@ impl TypeChecker {
             }
             Expression::ObjectLiteral(fields, _) => {
                 let mut value_type = Type::Unknown;
-                for (_, value) in fields {
+                for (key, value) in fields {
+                    self.check_expression(key)?;
                     let current = self.check_expression(value)?;
                     value_type = self.merge_types(&value_type, &current);
                 }
