@@ -8,7 +8,7 @@ fn test_import_stdlib_io_json() {
 
         local data = { name = "Chen", version = 0.1 }
         local json_str = JSON.stringify(data)
-        io.println("JSON: " + json_str)
+        io.write("JSON: " + json_str)
     "#
     .to_string();
 
@@ -37,7 +37,7 @@ fn test_import_stdlib_date() {
         local now = Date:new()
         -- Just check if it's not nil and works
         if now ~= nil then
-            io.print("Date ok")
+            io.write("Date ok")
         end
     "#
     .to_string();

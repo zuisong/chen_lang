@@ -1,6 +1,3 @@
-local io = require("stdlib/io")
-local print = io.print
-local println = io.println
 local JSON = require("stdlib/json")
 
 -- StdLib: JSON Processing
@@ -11,12 +8,12 @@ local data = {
 }
 
 local jsonStr = JSON.stringify(data)
-println("Serialized JSON:")
-println(jsonStr)
+print("Serialized JSON:")
+print(jsonStr)
 
 local parsed = JSON.parse(jsonStr)
-println("Parsed JSON Name: " + parsed.name)
-println("Parsed JSON Version: " + parsed.version)
+print("Parsed JSON Name: " + parsed.name)
+print("Parsed JSON Version: " + parsed.version)
 
 -- Test more decimal precision cases
 local test_cases = {
@@ -25,5 +22,5 @@ local test_cases = {
     complex = 3.14159 * 2
 }
 
-println("\nTest Cases:")
-println(JSON.stringify(test_cases))
+print("\nTest Cases:")
+print(JSON.stringify(test_cases))

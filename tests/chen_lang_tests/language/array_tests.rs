@@ -12,9 +12,9 @@ fn test_array_creation() {
     run_code_and_check(
         r#"
         local arr = [10, 20, 30]
-        println(arr[0])
-        println(arr[1])
-        println(arr[2])
+        print(arr[0])
+        print(arr[1])
+        print(arr[2])
     "#,
         &["10", "20", "30"],
     );
@@ -25,9 +25,9 @@ fn test_array_indexing() {
     run_code_and_check(
         r#"
         local arr = [10, 20]
-        println(arr[0])
+        print(arr[0])
         arr[1] = 50
-        println(arr[1])
+        print(arr[1])
     "#,
         &["10", "50"],
     );
@@ -39,7 +39,7 @@ fn test_sparse_array() {
         r#"
         local arr = [1]
         arr[10] = "sparse"
-        println(arr[10]) 
+        print(arr[10]) 
     "#,
         &["sparse"],
     );
@@ -50,9 +50,9 @@ fn test_mixed_array() {
     run_code_and_check(
         r#"
         local arr = [1, "two", true]
-        println(arr[0])
-        println(arr[1])
-        println(arr[2])
+        print(arr[0])
+        print(arr[1])
+        print(arr[2])
     "#,
         &["1", "two", "true"],
     );
@@ -64,8 +64,8 @@ fn test_array_push() {
         r#"
         local arr = [10, 20]
         local new_len = arr:push(30)
-        println(new_len)
-        println(arr[2])
+        print(new_len)
+        print(arr[2])
     "#,
         &["3", "30"],
     );
@@ -77,10 +77,10 @@ fn test_array_pop() {
         r#"
         local arr = [10, 20]
         local val = arr:pop()
-        println(val)
+        print(val)
         local removed = arr[1] 
         if removed == nil then
-            println("Removed")
+            print("Removed")
         end
     "#,
         &["20", "Removed"],
@@ -92,7 +92,7 @@ fn test_array_len() {
     run_code_and_check(
         r#"
         local arr = [1, 2, 300]
-        println(arr:len())
+        print(arr:len())
     "#,
         &["3"],
     );
@@ -103,7 +103,7 @@ fn test_array_type_tag() {
     run_code_and_check(
         r#"
         local arr = []
-        println(arr.__type)
+        print(arr.__type)
     "#,
         &["Array"],
     );
@@ -117,9 +117,9 @@ fn test_array_like_object_creation() {
         arr[0] = "first"
         arr[1] = "second"
         arr[2] = "third"
-        println(arr[0])
-        println(arr[1])
-        println(arr[2])
+        print(arr[0])
+        print(arr[1])
+        print(arr[2])
     "#,
         &["first", "second", "third"],
     );
@@ -134,7 +134,7 @@ fn test_array_like_index_access() {
         arr[1] = 20
         arr[2] = 30
         local sum = arr[0] + arr[1] + arr[2]
-        println(sum)
+        print(sum)
     "#,
         &["60"],
     );
@@ -150,9 +150,9 @@ fn test_array_like_index_assignment() {
         arr[2] = 3
         arr[0] = 100
         arr[1] = 200
-        println(arr[0])
-        println(arr[1])
-        println(arr[2])
+        print(arr[0])
+        print(arr[1])
+        print(arr[2])
     "#,
         &["100", "200", "3"],
     );
@@ -168,7 +168,7 @@ fn test_array_like_dynamic_indexing() {
         arr[2] = "c"
         local i = 0
         while i < 3 do
-            println(arr[i])
+            print(arr[i])
             i = i + 1
         end
     "#,
@@ -183,8 +183,8 @@ fn test_array_like_sparse_array() {
         local sparse = {}
         sparse[0] = "start"
         sparse[100] = "end"
-        println(sparse[0])
-        println(sparse[100])
+        print(sparse[0])
+        print(sparse[100])
     "#,
         &["start", "end"],
     );
@@ -199,10 +199,10 @@ fn test_array_like_mixed_keys() {
         mixed[1] = "second element"
         mixed.name = "my array"
         mixed.length = 2
-        println(mixed[0])
-        println(mixed[1])
-        println(mixed.name)
-        println(mixed.length)
+        print(mixed[0])
+        print(mixed[1])
+        print(mixed.name)
+        print(mixed.length)
     "#,
         &["first element", "second element", "my array", "2"],
     );
@@ -221,10 +221,10 @@ fn test_array_like_nested() {
         local matrix = {}
         matrix[0] = row0
         matrix[1] = row1
-        println(matrix[0][0])
-        println(matrix[0][1])
-        println(matrix[1][0])
-        println(matrix[1][1])
+        print(matrix[0][0])
+        print(matrix[0][1])
+        print(matrix[1][0])
+        print(matrix[1][1])
     "#,
         &["1", "2", "3", "4"],
     );
@@ -245,7 +245,7 @@ fn test_array_like_iteration() {
             sum = sum + arr[i]
             i = i + 1
         end
-        println(sum)
+        print(sum)
     "#,
         &["100"],
     );
@@ -260,7 +260,7 @@ fn test_array_like_with_strings() {
         names[1] = "Bob"
         names[2] = "Charlie"
         local greeting = "Hello, " + names[0] + "!"
-        println(greeting)
+        print(greeting)
     "#,
         &["Hello, Alice!"],
     );

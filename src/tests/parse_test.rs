@@ -7,9 +7,9 @@ fn parse() {
  while i < 100 do
 
      if i % 2 == 0 then
-         println(i .. " is even")
+         print(i .. " is even")
      else
-         println(i .. " is odd")
+         print(i .. " is odd")
      end
      i = i + 1
  end

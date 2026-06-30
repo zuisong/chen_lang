@@ -9,7 +9,7 @@ fn test_basic_closure_capture() {
         end
     end
     local add5 = make_adder(5)
-    println(add5(10))
+    print(add5(10))
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "15");
@@ -25,7 +25,7 @@ fn test_closure_multiple_upvalues() {
         end
     end
     local s = make_sandwich("rye")
-    println(s("turkey"))
+    print(s("turkey"))
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "rye with turkey and cheddar");
@@ -43,7 +43,7 @@ fn test_nested_closures() {
     end
     local f1 = outer(100)
     local f2 = f1(20)
-    println(f2(3))
+    print(f2(3))
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "123");
@@ -60,9 +60,9 @@ fn test_closure_mutation() {
         end
     end
     local counter = make_counter()
-    println(counter())
-    println(counter())
-    println(counter())
+    print(counter())
+    print(counter())
+    print(counter())
     "#;
     let output = run_chen_lang_code(code).unwrap();
     let lines: Vec<&str> = output.trim().lines().collect();
@@ -79,7 +79,7 @@ fn test_global_closure_assignment() {
     local f = function()
         return captured
     end
-    println(f())
+    print(f())
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "success");
@@ -95,9 +95,9 @@ fn test_closure_in_loop() {
         funcs:push(function() return val end)
         i = i + 1
     end
-    println(funcs[0]())
-    println(funcs[1]())
-    println(funcs[2]())
+    print(funcs[0]())
+    print(funcs[1]())
+    print(funcs[2]())
     "#;
     let output = run_chen_lang_code(code).unwrap();
     let lines: Vec<&str> = output.trim().lines().collect();
@@ -117,7 +117,7 @@ fn test_closure_across_files_simulated() {
         return f()
     end
     local c = a("hello")
-    println(b(c))
+    print(b(c))
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "hello");

@@ -5,8 +5,8 @@ fn test_import_custom_module_simple() {
     let source = r#"
         local io = require("stdlib/io")
         local mod = require("tests/fixtures/temp_module.chen.luau")
-        io.println(mod.name)
-        io.println(mod.greet("World"))
+        io.write(mod.name)
+        io.write(mod.greet("World"))
     "#;
 
     let output = run_captured(&source.to_string()).unwrap();
@@ -21,7 +21,7 @@ fn test_import_custom_module_relative_path() {
     let source = r#"
         local io = require("stdlib/io")
         local math = require("tests/fixtures/math_utils.chen.luau")
-        io.print(math.add(10, 20))
+        io.write(math.add(10, 20))
     "#;
 
     let output = run_captured(&source.to_string()).unwrap();
@@ -48,10 +48,10 @@ fn test_call_imported_function() {
     let source = r#"
         local io = require("stdlib/io")
         local math = require("tests/fixtures/math_utils.chen.luau")
-        io.println("Before call")
+        io.write("Before call")
         local result = math.add(10, 20)
-        io.println("After call")
-        io.println(result)
+        io.write("After call")
+        io.write(result)
     "#;
     let output = run_captured(&source.to_string()).unwrap();
     assert!(output.contains("Before call"));

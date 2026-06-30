@@ -39,9 +39,9 @@ fn test_if_statement_scope() {
 local x = "global"
 if true then
     local x = "local"
-    println(x)
+    print(x)
 end
-println(x)
+print(x)
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -58,10 +58,10 @@ fn test_for_loop_scope() {
 local i = 1
 while i <= 3 do
     local temp = i
-    println(temp)
+    print(temp)
     i = i + 1
 end
-println(i)
+print(i)
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -84,9 +84,9 @@ fn test_simple_block_assignment() {
     end
     local x = calc()
     if x == 30 then
-        println("Test 1 Passed")
+        print("Test 1 Passed")
     else
-        println("Test 1 Failed: Expected 30, got " + x)
+        print("Test 1 Failed: Expected 30, got " + x)
     end
     "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -106,9 +106,9 @@ fn test_nested_blocks() {
     end
     local y = outer()
     if y == 15 then
-        println("Test 2 Passed")
+        print("Test 2 Passed")
     else
-        println("Test 2 Failed: Expected 15, got " + y)
+        print("Test 2 Failed: Expected 15, got " + y)
     end
     "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -119,7 +119,7 @@ fn test_nested_blocks() {
 fn test_block_with_if_else() {
     let code = r#"
     local z = if true then 1 else 0 end
-    println("Test 3 (If statement): " + z)
+    print("Test 3 (If statement): " + z)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert!(output.contains("Test 3 (If statement):"));
@@ -133,7 +133,7 @@ fn test_block_ending_with_assignment() {
         f = f + 1
     end
     local w = get_w()
-    println("Test 4 (Assignment): " + w)
+    print("Test 4 (Assignment): " + w)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert!(output.contains("Test 4 (Assignment):"));
@@ -145,7 +145,7 @@ fn test_empty_block() {
     local empty = function()
     end
     local v = empty()
-    println("Test 5 (Empty): " + v)
+    print("Test 5 (Empty): " + v)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert!(output.contains("Test 5 (Empty):"));
@@ -158,7 +158,7 @@ fn test_block_value_simple() {
         return 5 + 10
     end
     local result = calc()
-    println(result)
+    print(result)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "15");
@@ -173,7 +173,7 @@ fn test_block_value_with_variables() {
         return x + y
     end
     local result = calc()
-    println(result)
+    print(result)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "30");
@@ -189,9 +189,9 @@ local calc_ab = function()
 end
 local x = calc_ab()
 if x == 30 then
-    println("Test 1 Passed")
+    print("Test 1 Passed")
 else
-    println("Test 1 Failed: Expected 30, got " + x)
+    print("Test 1 Failed: Expected 30, got " + x)
 end
 
 local outer = function()
@@ -204,25 +204,25 @@ local outer = function()
 end
 local y = outer()
 if y == 15 then
-    println("Test 2 Passed")
+    print("Test 2 Passed")
 else
-    println("Test 2 Failed: Expected 15, got " + y)
+    print("Test 2 Failed: Expected 15, got " + y)
 end
 
 local z = if true then 1 else 0 end
-println("Test 3 (If statement): " + z)
+print("Test 3 (If statement): " + z)
 
 local get_w = function()
     local f = 1
     f = f + 1
 end
 local w = get_w()
-println("Test 4 (Assignment): " + w)
+print("Test 4 (Assignment): " + w)
 
 local empty = function()
 end
 local v = empty()
-println("Test 5 (Empty): " + v)
+print("Test 5 (Empty): " + v)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert!(output.contains("Test 1 Passed"));

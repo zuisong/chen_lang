@@ -1,6 +1,3 @@
-local io = require("stdlib/io")
-local print = io.print
-local println = io.println
 local JSON = require("stdlib/json")
 
 local data = {
@@ -9,4 +6,4 @@ local data = {
     small = 0.000000001
 }
 local json_str = JSON.stringify(data)
-println(json_str)
+print(json_str)

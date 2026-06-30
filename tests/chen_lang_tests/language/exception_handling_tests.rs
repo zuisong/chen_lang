@@ -6,9 +6,9 @@ fn test_try_catch_basic() {
     try {
         error("Something went wrong!")
     } catch e {
-        println("Caught error: " + e)
+        print("Caught error: " + e)
     }
-    println("Program continues...")
+    print("Program continues...")
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Caught error: Something went wrong!"));
@@ -21,16 +21,16 @@ fn test_try_catch_with_finally() {
     local cleanup_called = false
     
     try {
-        println("In try block")
+        print("In try block")
         error("Error occurred")
     } catch e {
-        println("In catch block: " + e)
+        print("In catch block: " + e)
     } finally {
-        println("In finally block")
+        print("In finally block")
         cleanup_called = true
     }
     
-    println("Cleanup called: " + cleanup_called)
+    print("Cleanup called: " + cleanup_called)
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("In try block"));
@@ -51,15 +51,15 @@ fn test_try_catch_in_function() {
     
     try {
         local result = divide(10, 2)
-        println("Result: " + result)
+        print("Result: " + result)
         
         local bad_result = divide(10, 0)
-        println("This should not print")
+        print("This should not print")
     } catch e {
-        println("Caught: " + e)
+        print("Caught: " + e)
     }
     
-    println("Program completed")
+    print("Program completed")
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Result: 5"));
@@ -72,22 +72,22 @@ fn test_try_catch_in_function() {
 fn test_nested_try_catch() {
     let code = r#"
     try {
-        println("Outer try")
+        print("Outer try")
         
         try {
-            println("Inner try")
+            print("Inner try")
             error("Inner error")
         } catch inner_error {
-            println("Inner catch: " + inner_error)
+            print("Inner catch: " + inner_error)
             error("Outer error")
         }
         
-        println("This should not print")
+        print("This should not print")
     } catch outer_error {
-        println("Outer catch: " + outer_error)
+        print("Outer catch: " + outer_error)
     }
     
-    println("Done")
+    print("Done")
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Outer try"));
@@ -104,7 +104,7 @@ fn test_try_catch_without_error_variable() {
     try {
         error("Some error")
     } catch {
-        println("Error caught (no variable)")
+        print("Error caught (no variable)")
     }
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
@@ -117,7 +117,7 @@ fn test_throw_string() {
     try {
         error("Error message")
     } catch e {
-        println("Caught: " + e)
+        print("Caught: " + e)
     }
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
@@ -130,7 +130,7 @@ fn test_throw_number() {
     try {
         error(42)
     } catch e {
-        println("Caught: " + e)
+        print("Caught: " + e)
     }
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
@@ -143,15 +143,15 @@ fn test_finally_executes_on_success() {
     local finally_ran = false
     
     try {
-        println("Try block")
+        print("Try block")
     } catch e {
-        println("This should not run")
+        print("This should not run")
     } finally {
-        println("Finally block")
+        print("Finally block")
         finally_ran = true
     }
     
-    println("Finally ran: " + finally_ran)
+    print("Finally ran: " + finally_ran)
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Try block"));
@@ -168,18 +168,18 @@ fn test_multiple_throws_in_sequence() {
     try {
         error("First")
     } catch e {
-        println("Caught first: " + e)
+        print("Caught first: " + e)
         count = count + 1
     }
     
     try {
         error("Second")
     } catch e {
-        println("Caught second: " + e)
+        print("Caught second: " + e)
         count = count + 1
     }
     
-    println("Count: " + count)
+    print("Count: " + count)
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Caught first: First"));

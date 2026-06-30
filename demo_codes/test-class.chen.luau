@@ -1,6 +1,3 @@
-local io = require("stdlib/io")
-local print = io.print
-local println = io.println
 local JSON = require("stdlib/json")
 local Date = require("stdlib/date")
 
@@ -15,8 +12,8 @@ local function NewPoint(x, y)
         str = point_str
     }
     local d = Date:new()
-    println(d.__type)
-    println(d:format('%Y'))
+    print(d.__type)
+    print(d:format('%Y'))
 
     local instance = { x = x, y = y, now = d }
     set_meta(instance, { __index = methods })
@@ -25,5 +22,5 @@ local function NewPoint(x, y)
 end
 
 local p = NewPoint(10, 20)
-println(p:str()) -- 像调用对象方法一样
-println(JSON.stringify(p))
+print(p:str()) -- 像调用对象方法一样
+print(JSON.stringify(p))

@@ -6,8 +6,8 @@ fn test_date() {
     local Date = require("stdlib/date")
     local io = require("stdlib/io")
     local d = Date:new()
-    io.println(d.__type)
-    io.println(d:format('%Y'))
+    io.write(d.__type)
+    io.write(d:format('%Y'))
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Date"));
@@ -20,9 +20,9 @@ fn test_json() {
     local JSON = require("stdlib/json")
     local io = require("stdlib/io")
     local obj = JSON.parse('{"a": 1}')
-    io.println(obj.a)
+    io.write(obj.a)
     local s = JSON.stringify(obj)
-    io.println(s)
+    io.write(s)
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("1"));
@@ -41,7 +41,7 @@ fn test_json_float_precision() {
         multiply = 3.14159 * 2
     }
     local json_str = JSON.stringify(data)
-    io.println(json_str)
+    io.write(json_str)
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
 
@@ -71,7 +71,7 @@ fn test_json_roundtrip_precision() {
     local original = { value = 0.1 + 2 }
     local json_str = JSON.stringify(original)
     local parsed = JSON.parse(json_str)
-    io.println(parsed.value)
+    io.write(parsed.value)
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
 
@@ -97,7 +97,7 @@ fn test_json_nested_floats() {
         array = [0.1, 0.2, 0.3]
     }
     local json_str = JSON.stringify(data)
-    io.println(json_str)
+    io.write(json_str)
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
 
@@ -118,7 +118,7 @@ fn test_json_large_precision() {
         small = 0.000000001
     }
     local json_str = JSON.stringify(data)
-    io.println(json_str)
+    io.write(json_str)
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
 
@@ -137,7 +137,7 @@ fn test_json_large_precision() {
 fn test_simple_stdlib_import() {
     let source = r#"
         local io = require("stdlib/io")
-        io.println("test")
+        io.write("test")
     "#;
     let output = run_chen_lang_code(source).unwrap();
     assert!(output.contains("test"));

@@ -1,7 +1,3 @@
-local io = require("stdlib/io")
-local print = io.print
-local println = io.println
-
 -- 这里是注释,
 -- 注释以# 开始, 到行尾结束
 -- if 和 for 里面的表达式运算结果都是bool类型
@@ -12,6 +8,6 @@ while i<=9 do
         print(j + "x" + i + "=" + i*j + " ")
         j = j + 1
     end
-    println("")
+    print("")
     i=i+1
 end

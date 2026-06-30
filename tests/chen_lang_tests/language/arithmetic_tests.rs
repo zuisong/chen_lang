@@ -3,8 +3,7 @@ use crate::common::run_chen_lang_code;
 #[test]
 fn test_simple_arithmetic() {
     let code = r#"
-local io = require("stdlib/io")
-local print = io.print
+local print = print
 local i = 1
 local j = 2
 local k = i + j
@@ -18,8 +17,7 @@ print(k)
 #[test]
 fn test_modulo_operation() {
     let code = r#"
-local io = require("stdlib/io")
-local print = io.print
+local print = print
 local a = 10
 local b = 3
 local result = a % b
@@ -33,8 +31,7 @@ print(result)
 #[test]
 fn test_complex_expression() {
     let code = r#"
-local io = require("stdlib/io")
-local print = io.print
+local print = print
 local a = 2
 local b = 3
 local c = 4
@@ -52,8 +49,6 @@ print(result2)
 #[test]
 fn test_metatable_add_operator() {
     let code = r#"
-        local io = require("stdlib/io")
-        local print = io.print
         local PointMeta = {
             __add = function(a, b)
                 return { x = a.x + b.x, y = a.y + b.y }
@@ -79,8 +74,6 @@ fn test_metatable_add_operator() {
 #[test]
 fn test_metatable_add_symmetric_lookup() {
     let code = r#"
-        local io = require("stdlib/io")
-        local print = io.print
         local VectorMeta = {
             __add = function(a, b)
                 return { x = a.x + b.x, y = a.y + b.y }
@@ -105,8 +98,6 @@ fn test_metatable_add_symmetric_lookup() {
 #[test]
 fn test_metatable_subtract_operator() {
     let code = r#"
-        local io = require("stdlib/io")
-        local print = io.print
         local PointMeta = {
             __sub = function(a, b)
                 return { x = a.x - b.x, y = a.y - b.y }
@@ -132,8 +123,6 @@ fn test_metatable_subtract_operator() {
 #[test]
 fn test_metatable_multiply_operator() {
     let code = r#"
-        local io = require("stdlib/io")
-        local print = io.print
         local PointMeta = {
             __mul = function(a, b)
                 return { x = a.x * b.x, y = a.y * b.y }
@@ -159,8 +148,6 @@ fn test_metatable_multiply_operator() {
 #[test]
 fn test_metatable_subtract_symmetric_lookup() {
     let code = r#"
-        local io = require("stdlib/io")
-        local print = io.print
         local VectorMeta = {
             __sub = function(a, b)
                 return { x = a.x - b.x, y = a.y - b.y }
@@ -185,8 +172,6 @@ fn test_metatable_subtract_symmetric_lookup() {
 #[test]
 fn test_metatable_multiply_symmetric_lookup() {
     let code = r#"
-        local io = require("stdlib/io")
-        local print = io.print
         local VectorMeta = {
             __mul = function(a, b)
                 return { x = a.x * b.x, y = a.y * b.y }

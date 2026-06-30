@@ -10,7 +10,7 @@ pub fn create_io_object() -> Value {
     if let Value::Object(obj) = &io_obj {
         let mut obj = obj.borrow_mut();
 
-        let print_fn = |vm: &mut VM, args: Vec<Value>| {
+        let write_fn = |vm: &mut VM, args: Vec<Value>| {
             for val in args {
                 write!(vm.stdout, "{}", val).unwrap();
             }
@@ -45,7 +45,7 @@ pub fn create_io_object() -> Value {
         };
 
         obj.data
-            .insert("print".to_string(), Value::NativeFunction(Rc::new(Box::new(print_fn))));
+            .insert("write".to_string(), Value::NativeFunction(Rc::new(Box::new(write_fn))));
         obj.data.insert(
             "println".to_string(),
             Value::NativeFunction(Rc::new(Box::new(println_fn))),

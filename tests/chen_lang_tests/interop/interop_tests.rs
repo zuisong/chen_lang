@@ -30,7 +30,7 @@ fn test_call_rust_object_method() {
     counter.increment()
     counter.increment()
     local val = counter.get()
-    io.print(val)
+    io.write(val)
     "#;
 
     // 2. Setup the VM with the mapped object
@@ -84,7 +84,7 @@ fn test_call_rust_object_method() {
 fn test_rust_object_with_args() {
     let code = r#"
     local result = calculator.add(10, 20)
-    io.print(result)
+    io.write(result)
     "#;
 
     let output = run_chen_lang_code_with_setup(code, |vm| {

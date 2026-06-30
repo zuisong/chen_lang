@@ -87,20 +87,11 @@ impl VM {
             for val in args {
                 write!(vm.stdout, "{}", val).unwrap();
             }
-            vm.stdout.flush().unwrap();
-            Ok(Value::null())
-        };
-        variables.insert("print".to_string(), Value::NativeFunction(Rc::new(Box::new(print_fn))));
-
-        let println_fn = |vm: &mut VM, args: Vec<Value>| {
-            for val in args {
-                write!(vm.stdout, "{}", val).unwrap();
-            }
             writeln!(vm.stdout).unwrap();
             vm.stdout.flush().unwrap();
             Ok(Value::null())
         };
-        variables.insert("println".to_string(), Value::NativeFunction(Rc::new(Box::new(println_fn))));
+        variables.insert("print".to_string(), Value::NativeFunction(Rc::new(Box::new(print_fn))));
 
         let require_fn = |vm: &mut VM, args: Vec<Value>| {
             let err = |msg: &str| {

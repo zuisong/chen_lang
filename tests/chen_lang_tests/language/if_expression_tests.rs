@@ -4,7 +4,7 @@ use crate::common::run_chen_lang_code;
 fn test_if_expression_true_branch() {
     let code = r#"
     local a = if true then 10 else 20 end
-    println("a should be 10: " + a)
+    print("a should be 10: " + a)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert!(output.contains("a should be 10: 10"));
@@ -14,7 +14,7 @@ fn test_if_expression_true_branch() {
 fn test_if_expression_false_branch() {
     let code = r#"
     local b = if false then 10 else 20 end
-    println("b should be 20: " + b)
+    print("b should be 20: " + b)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert!(output.contains("b should be 20: 20"));
@@ -28,7 +28,7 @@ fn test_nested_if_expression() {
     else
         300
     end
-    println("c should be 200: " + c)
+    print("c should be 200: " + c)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert!(output.contains("c should be 200: 200"));
@@ -38,7 +38,7 @@ fn test_nested_if_expression() {
 fn test_if_expression_without_else() {
     let code = r#"
     local d = if false then 10 end
-    println("d should be nil: " + d)
+    print("d should be nil: " + d)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert!(output.contains("d should be nil: nil"));
@@ -53,7 +53,7 @@ fn test_if_expression_with_block_logic() {
     else
         0
     end
-    println("e should be 10: " + e)
+    print("e should be 10: " + e)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert!(output.contains("e should be 10: 10"));
@@ -63,7 +63,7 @@ fn test_if_expression_with_block_logic() {
 fn test_if_expression_in_binary_operation() {
     let code = r#"
     local f = 10 + if true then 5 else 0 end
-    println("f should be 15: " + f)
+    print("f should be 15: " + f)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert!(output.contains("f should be 15: 15"));
@@ -73,7 +73,7 @@ fn test_if_expression_in_binary_operation() {
 fn test_if_expression_as_function_argument() {
     let code = r#"
     function check(val)
-        println("val is: " + val)
+        print("val is: " + val)
     end
     check(if true then "yes" else "no" end)
     "#;
@@ -87,10 +87,10 @@ fn test_all_if_expressions() {
     let code = r#"
 -- Test if as an expression
 local a = if true then 10 else 20 end
-println("a should be 10: " + a)
+print("a should be 10: " + a)
 
 local b = if false then 10 else 20 end
-println("b should be 20: " + b)
+print("b should be 20: " + b)
 
 -- Test nested if expression
 local c = if true then
@@ -98,11 +98,11 @@ local c = if true then
 else
     300
 end
-println("c should be 200: " + c)
+print("c should be 200: " + c)
 
 -- Test if expression without else (should return nil)
 local d = if false then 10 end
-println("d should be nil: " + d)
+print("d should be nil: " + d)
 
 -- Test if expression with block logic
 local e = if true then
@@ -111,15 +111,15 @@ local e = if true then
 else
     0
 end
-println("e should be 10: " + e)
+print("e should be 10: " + e)
 
 -- Test if expression in binary operation
 local f = 10 + if true then 5 else 0 end
-println("f should be 15: " + f)
+print("f should be 15: " + f)
 
 -- Test if expression as function argument
 function check(val)
-    println("val is: " + val)
+    print("val is: " + val)
 end
 check(if true then "yes" else "no" end)
     "#;
@@ -146,7 +146,7 @@ fn test_if_else_if_expression() {
             "large"
         end
     end
-    println("result should be medium: " + result)
+    print("result should be medium: " + result)
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert!(output.contains("result should be medium: medium"));

@@ -8,7 +8,7 @@ function func()
 end
 local x = 1
 x = func()
-println(x)
+print(x)
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -19,12 +19,12 @@ println(x)
 fn test_simple_test() {
     let code = r#"
 function test()
-    println("hello")
+    print("hello")
     return 42
 end
 local x = 0
 x = test()
-println("done")
+print("done")
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -41,9 +41,9 @@ function fibonacci(n)
     end
     return fibonacci(n-1) + fibonacci(n-2)
 end
-println(fibonacci(1))
-println(fibonacci(2))
-println(fibonacci(3))
+print(fibonacci(1))
+print(fibonacci(2))
+print(fibonacci(3))
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -61,7 +61,7 @@ fn test_anonymous_function_variable() {
         local add_one = function(x)
             return x + 1
         end
-        println(add_one(10))
+        print(add_one(10))
     "#,
     )
     .expect("failed");
@@ -75,7 +75,7 @@ fn test_immediate_invocation() {
         local result = function(x, y)
             return x * y
         end (5, 6)
-        println(result)
+        print(result)
     "#,
     )
     .expect("failed");
@@ -91,7 +91,7 @@ fn test_high_order_function() {
         end
         
         local res = apply(function(x) return x * 2 end, 21)
-        println(res)
+        print(res)
     "#,
     )
     .expect("failed");
@@ -104,7 +104,7 @@ fn test_implicit_return_add() {
     function add(a, b)
         a + b
     end
-    println(add(1, 2))
+    print(add(1, 2))
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "3");
@@ -116,7 +116,7 @@ fn test_explicit_return() {
     function explicit_return(a)
         return a * 2
     end
-    println(explicit_return(10))
+    print(explicit_return(10))
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "20");
@@ -127,7 +127,7 @@ fn test_empty_function_returns_null() {
     let code = r#"
     function empty()
     end
-    println(empty())
+    print(empty())
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "nil");
@@ -139,7 +139,7 @@ fn test_statement_end_returns_null() {
     function statement_end()
         local x = 1
     end
-    println(statement_end())
+    print(statement_end())
     "#;
     let output = run_chen_lang_code(code).unwrap();
     assert_eq!(output.trim(), "nil");
@@ -152,21 +152,21 @@ fn test_all_implicit_returns() {
 function add(a, b)
     a + b
 end
-println(add(1, 2))
+print(add(1, 2))
 
 function explicit_return(a)
     return a * 2
 end
-println(explicit_return(10))
+print(explicit_return(10))
 
 function empty()
 end
-println(empty())
+print(empty())
 
 function statement_end()
     local x = 1
 end
-println(statement_end())
+print(statement_end())
     "#;
     let output = run_chen_lang_code(code).unwrap();
     let lines: Vec<&str> = output.trim().lines().collect();

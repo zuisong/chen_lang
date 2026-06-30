@@ -36,9 +36,9 @@ fn test_if_else_example() {
 local i = 0
 while i <= 99 do
     if i%2 == 0 then
-        println(i + " 是偶数 ")
+        print(i + " 是偶数 ")
     else
-        println(i + " 是奇数 ")
+        print(i + " 是奇数 ")
     end
     i = i + 1
 end

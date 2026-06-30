@@ -16,7 +16,7 @@ fn test_http_get() {
     local http = require("stdlib/http")
     local io = require("stdlib/io")
     local res = http.request("GET", "{}/hello")
-    io.print(res.body)
+    io.write(res.body)
     "#,
         url
     );
@@ -42,7 +42,7 @@ fn test_http_post() {
     local http = require("stdlib/http")
     local io = require("stdlib/io")
     local res = http.request("POST", "{}/echo", "hello")
-    io.print(res.body)
+    io.write(res.body)
     "#,
         url
     );
@@ -68,9 +68,9 @@ fn test_http_request_method() {
     local http = require("stdlib/http")
     local io = require("stdlib/io")
     local res = http.request("PUT", url + "/update", "new_data")
-    io.println(res.status)
-    io.println(res.headers['x-custom-header'])
-    io.print(res.body)
+    io.write(res.status)
+    io.write(res.headers['x-custom-header'])
+    io.write(res.body)
     "#;
 
     let output = run_chen_lang_code_with_setup(code, |vm| {
@@ -102,7 +102,7 @@ fn test_http_request_with_headers() {
     local headers = {{}}
     headers["X-Auth"] = "secret123"
     local res = http.request("GET", "{}/headers", nil, headers)
-    io.print(res.body)
+    io.write(res.body)
     "#,
         url
     );

@@ -1,3 +1,3 @@
 local io = require("stdlib/io")
-io.print("Module Loaded")
+print("Module Loaded")
 return { val = 1 }

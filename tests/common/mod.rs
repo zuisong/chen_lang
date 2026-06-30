@@ -3,8 +3,6 @@ use chen_lang::{report_error, run_captured, run_captured_with_vm_setup};
 /// 创建临时文件并运行chen_lang
 pub fn run_chen_lang_code(code: &str) -> Result<String, Box<dyn std::error::Error>> {
     let prelude = r#"local io = require("stdlib/io")
-local print = io.print
-local println = io.println
 "#;
     let full_code = format!("{}{}", prelude, code);
 
@@ -22,8 +20,6 @@ where
     F: FnOnce(&mut chen_lang::vm::VM),
 {
     let prelude = r#"local io = require("stdlib/io")
-local print = io.print
-local println = io.println
 "#;
     let full_code = format!("{}{}", prelude, code);
 

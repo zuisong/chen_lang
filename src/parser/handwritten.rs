@@ -184,6 +184,9 @@ impl Parser {
         let start_loc = self.peek_location();
 
         if self.match_keyword(Keyword::LOCAL) {
+            if self.check(&Token::Keyword(Keyword::FUNCTION)) {
+                return self.parse_local_function();
+            }
             return self.parse_local();
         }
         if self.match_keyword(Keyword::FUNCTION) {
@@ -361,6 +364,19 @@ impl Parser {
             }));
         }
         Ok(stmts)
+    }
+
+    /// `local function name(params) body end`
+    fn parse_local_function(&mut self) -> Result<Vec<Statement>, ParseError> {
+        self.consume(&Token::Keyword(Keyword::FUNCTION), "Expected 'function' after 'local'")?;
+        let decl = self.parse_function_definition()?;
+        if decl.name.is_none() {
+            return Err(ParseError::Message {
+                msg: "Expected function name after 'local function'".to_string(),
+                loc: self.peek_location(),
+            });
+        }
+        Ok(vec![Statement::FunctionDeclaration(decl)])
     }
 
     /// `return [expr [, expr]*]`

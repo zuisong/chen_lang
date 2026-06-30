@@ -8,7 +8,7 @@ fn test_fs_read_write() {
         local path = "test_file.txt"
         fs.write_file(path, "Hello Chen Lang")
         local content = fs.read_file(path)
-        io.print(content)
+        io.write(content)
         fs.remove(path)
     "#;
 
@@ -28,7 +28,7 @@ fn test_fs_read_dir() {
         fs.write_file(dir .. "/f1.txt", "1")
         fs.write_file(dir .. "/f2.txt", "2")
         local entries = fs.read_dir(dir)
-        io.println(entries:len())
+        io.write(entries:len())
         fs.remove(dir)
     "#;
     let result = run_captured(code.to_string());
@@ -79,7 +79,7 @@ fn test_process_exec() {
         local process = require("stdlib/process")
         local io = require("stdlib/io")
         local res = process.exec("echo hello")
-        io.print(res.stdout:trim())
+        print(res.stdout:trim())
     "#;
     let result = run_captured(code.to_string());
     assert!(result.is_ok());

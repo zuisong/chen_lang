@@ -60,8 +60,8 @@ mod object_tests {
     fn test_object_basics() {
         let code = r#"local io = require("stdlib/io")
 local obj = { name = "Chen", age = 25 }
-io.println(obj.name)
-io.println(obj.age)"#;
+io.write(obj.name)
+io.write(obj.age)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -76,7 +76,7 @@ io.println(obj.age)"#;
         let code = r#"local io = require("stdlib/io")
 local obj = { name = "Alice" }
 obj.city = "Shanghai"
-io.println(obj.city)"#;
+io.write(obj.city)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -90,7 +90,7 @@ io.println(obj.city)"#;
         let code = r#"local io = require("stdlib/io")
 local obj = { name = "Bob" }
 obj["country"] = "China"
-io.println(obj["country"])"#;
+io.write(obj["country"])"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -103,7 +103,7 @@ io.println(obj["country"])"#;
     fn test_nested_objects() {
         let code = r#"local io = require("stdlib/io")
 local person = { name = "Eve", address = { city = "Beijing", zip = 100000 } }
-io.println(person.address.city)"#;
+io.write(person.address.city)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -125,9 +125,9 @@ local Animal = {
 local dog = { name = "Buddy" }
 setmetatable(dog, Animal)
 
-io.println(dog.name)
-io.println(dog.speak)
-io.println(dog.legs)"#;
+io.write(dog.name)
+io.write(dog.speak)
+io.write(dog.legs)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -144,7 +144,7 @@ io.println(dog.legs)"#;
 local proto = { __index = { greet = "Hello" } }
 local obj = { name = "Alice" }
 setmetatable(obj, proto)
-io.println(obj.greet)"#;
+io.write(obj.greet)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -159,7 +159,7 @@ io.println(obj.greet)"#;
 local proto = { value = 100 }
 local obj = { value = 10 }
 setmetatable(obj, proto)
-io.println(obj.value)"#;
+io.write(obj.value)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -178,7 +178,7 @@ io.println(obj.value)"#;
 local obj1 = { value = 10 }
 local obj2 = obj1
 obj2.value = 20
-io.println(obj1.value)"#;
+io.write(obj1.value)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -193,9 +193,9 @@ io.println(obj1.value)"#;
 local person = { name = "Grace" }
 person.age = 28
 person.city = "Shanghai"
-io.println(person.name)
-io.println(person.age)
-io.println(person.city)"#;
+io.write(person.name)
+io.write(person.age)
+io.write(person.city)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
@@ -237,12 +237,12 @@ io.println(person.city)"#;
             n = nil,
             o = { nested = true }
         }
-        io.println(obj.i)
-        io.println(obj.f)
-        io.println(obj.b)
-        io.println(obj.s)
-        io.println(obj.n)
-        io.println(obj.o.nested)
+        io.write(obj.i)
+        io.write(obj.f)
+        io.write(obj.b)
+        io.write(obj.s)
+        io.write(obj.n)
+        io.write(obj.o.nested)
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -269,8 +269,8 @@ io.println(person.city)"#;
         -- Chain: child -> parent
         setmetatable(child, parent)
 
-        io.println("Age: " .. child.age)
-        io.println("Name: " .. child.name)
+        io.write("Age: " .. child.age)
+        io.write("Name: " .. child.name)
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -289,34 +289,34 @@ io.println(person.city)"#;
 
         -- 1. Initial should be nil
         if getmetatable(obj) == nil then
-            io.println("Initial: nil")
+            io.write("Initial: nil")
         else
-            io.println("Initial: not nil")
+            io.write("Initial: not nil")
         end
 
         -- 2. Set meta
         setmetatable(obj, meta)
         local m = getmetatable(obj)
         if m == meta then
-            io.println("Meta match: true")
+            io.write("Meta match: true")
         else
-            io.println("Meta match: false")
+            io.write("Meta match: false")
         end
 
-        io.println("Field x: " .. obj.x)
+        io.write("Field x: " .. obj.x)
 
         -- 3. Clear meta
         setmetatable(obj, nil)
         if getmetatable(obj) == nil then
-            io.println("Cleared: nil")
+            io.write("Cleared: nil")
         else
-            io.println("Cleared: not nil")
+            io.write("Cleared: not nil")
         end
 
         if obj.x == nil then
-            io.println("Field x cleared: nil")
+            io.write("Field x cleared: nil")
         else
-            io.println("Field x cleared: " .. obj.x)
+            io.write("Field x cleared: " .. obj.x)
         end
         "#;
 
@@ -341,7 +341,7 @@ io.println(person.city)"#;
         local obj = { }
         obj.say = greet
 
-        io.println(obj:say("World"))
+        io.write(obj:say("World"))
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -357,8 +357,8 @@ io.println(person.city)"#;
         local b = { name = "B" }
         a.next = b
         b.prev = a
-        io.println(a.next.name)
-        io.println(a.next.prev.name)
+        io.write(a.next.name)
+        io.write(a.next.prev.name)
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -380,7 +380,7 @@ io.println(person.city)"#;
         local obj = { }
         setmetatable(obj, { __index = proto })
 
-        io.println(obj:speak())
+        io.write(obj:speak())
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -400,9 +400,9 @@ io.println(person.city)"#;
         counter.inc = increment
 
         counter:inc()
-        io.println(counter.count)
+        io.write(counter.count)
         counter:inc()
-        io.println(counter.count)
+        io.write(counter.count)
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -438,7 +438,7 @@ io.println(person.city)"#;
         end
 
         local p = NewPoint(10, 20)
-        io.println(p:str())
+        io.write(p:str())
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -530,7 +530,7 @@ fn test_nested_function_class() {
         end
 
         local p = NewPoint(10, 20)
-        io.println(p:str())
+        io.write(p:str())
         "#;
 
     let result = crate::run_captured(code.to_string());

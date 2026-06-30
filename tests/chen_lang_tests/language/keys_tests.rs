@@ -2,7 +2,6 @@ use chen_lang::run_captured as run_captured_orig;
 
 fn run_captured(code: String) -> Result<String, chen_lang::ChenError> {
     let prelude = r#"local io = require("stdlib/io")
-local println = io.println
 "#;
     run_captured_orig(format!("{}{}", prelude, code))
 }
@@ -14,11 +13,11 @@ fn test_object_keys_basic() {
         local keys = obj:keys()
         
         -- Verify length
-        println(keys:len())
+        print(keys:len())
         
         -- Verify content (order might vary but IndexMap preserves insertion order)
-        println(keys[0])
-        println(keys[1])
+        print(keys[0])
+        print(keys[1])
     "#;
 
     let output = run_captured(code.to_string()).unwrap();
@@ -35,7 +34,7 @@ fn test_object_keys_iteration() {
         local i = 0
         while i < keys:len() do
             local k = keys[i]
-            println(k, "=", obj[k])
+            print(k, "=", obj[k])
             i = i + 1
         end
     "#;
@@ -51,9 +50,9 @@ fn test_array_keys() {
     let code = r#"
         local arr = [100, 200]
         local keys = arr:keys()
-        println(keys:len())
-        println(keys[0])
-        println(keys[1])
+        print(keys:len())
+        print(keys[0])
+        print(keys[1])
     "#;
 
     let output = run_captured(code.to_string()).unwrap();
@@ -67,7 +66,7 @@ fn test_empty_object_keys() {
     let code = r#"
         local obj = {}
         local keys = obj:keys()
-        println(keys:len())
+        print(keys:len())
     "#;
 
     let output = run_captured(code.to_string()).unwrap();
@@ -99,8 +98,8 @@ fn test_object_static_keys() {
     let code = r#"
         local obj = { first = 1, second = 2 }
         local keys = Object.keys(obj)
-        println(keys[0])
-        println(keys[1])
+        print(keys[0])
+        print(keys[1])
     "#;
 
     let output = run_captured(code.to_string()).unwrap();

@@ -1,7 +1,3 @@
-local io = require("stdlib/io")
-local print = io.print
-local println = io.println
-
 -- Pattern: Custom Objects (Point with methods and operators)
 
 -- Define Point prototype (shared methods and metamethods)
@@ -49,24 +45,24 @@ end
 local p1 = new_Point(10, 20)
 local p2 = new_Point(3, 5)
 
-println("Original Points:")
-println(p1:to_string())
-println(p2:to_string())
+print("Original Points:")
+print(p1:to_string())
+print(p2:to_string())
 
 -- Call a method to modify state
 p1:move_by(5, -10)
-println("p1 after move_by(5, -10):")
-println(p1:to_string())
+print("p1 after move_by(5, -10):")
+print(p1:to_string())
 
 -- Use overloaded operators
 local p3_add = p1 + p2
-println("p1 + p2 (overloaded +):")
-println(p3_add:to_string())
+print("p1 + p2 (overloaded +):")
+print(p3_add:to_string())
 
 local p4_sub = p1 - p2
-println("p1 - p2 (overloaded -):")
-println(p4_sub:to_string())
+print("p1 - p2 (overloaded -):")
+print(p4_sub:to_string())
 
 local p5_mul = new_Point(2,3) * new_Point(4,5)
-println("p5_mul (overloaded *):")
-println(p5_mul:to_string())
+print("p5_mul (overloaded *):")
+print(p5_mul:to_string())

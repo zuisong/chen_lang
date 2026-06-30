@@ -1,9 +1,7 @@
-local io = require("stdlib/io")
-
 -- 1. Test condition-based loop (Go-style while)
 local i = 0
 while i < 5 do
-    io.println("for i < 5: " + i)
+    print("for i < 5: " + i)
     i = i + 1
 end
 
@@ -13,40 +11,40 @@ while true do
     if k >= 3 then
         break
     end
-    io.println("infinite for k: " + k)
+    print("infinite for k: " + k)
     k = k + 1
 end
 
-io.println("--- Array.iter() (Values only) ---")
+print("--- Array.iter() (Values only) ---")
 local arr = [10, 20, 30]
 for x in arr do
-    io.println("arr x: " + x)
+    print("arr x: " + x)
 end
 
-io.println("--- Array.entries() (Key-Value pairs) ---")
+print("--- Array.entries() (Key-Value pairs) ---")
 for entry in arr:entries() do
-    io.println("index: " + entry.key + ", value: " + entry.value)
+    print("index: " + entry.key + ", value: " + entry.value)
 end
 
-io.println("--- Object.iter() (Values only) ---")
+print("--- Object.iter() (Values only) ---")
 local obj = { a = 1, b = 2 }
 for v in obj do
-    io.println("obj v: " + v)
+    print("obj v: " + v)
 end
 
-io.println("--- Object.entries() (Key-Value pairs) ---")
+print("--- Object.entries() (Key-Value pairs) ---")
 for entry in obj:entries() do
-    io.println("entry key: " + entry.key + ", value: " + entry.value)
+    print("entry key: " + entry.key + ", value: " + entry.value)
 end
 
-io.println("--- Object.keys() ---")
+print("--- Object.keys() ---")
 local keys = obj:keys()
 for k in keys do
-    io.println("key: " + k)
+    print("key: " + k)
 end
 
-io.println("--- String.iter() ---")
+print("--- String.iter() ---")
 local s = "ABC"
 for char in s do
-    io.println("char: " + char)
+    print("char: " + char)
 end

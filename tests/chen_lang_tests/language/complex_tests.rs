@@ -25,16 +25,14 @@ while i<=9 do
         print(j + "x" + i + "=" + temp_prod + " ")
         j = j + 1
     end
-    println("")
+    print("")
     i=i+1
 end
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
-    println!("{}", output);
-    let lines: Vec<&str> = output.lines().collect();
-    assert!(lines[0].contains("1x1=1"));
-    assert!(lines[8].contains("9x9=81"));
+    assert!(output.contains("1x1=1"));
+    assert!(output.contains("9x9=81"));
 }
 
 #[test]
@@ -46,17 +44,17 @@ function aaa(n)
     while i ~= 0 do
         i = i - 1
         if (i%2~=0) or (i%3==0) then
-            println(i)
+            print(i)
             sum = sum + i
         end
     end
-    println("100以内的 奇数或者是能被三整除的偶数 之和是")
-    println(sum)
+    print("100以内的 奇数或者是能被三整除的偶数 之和是")
+    print(sum)
     return sum
 end
 local sum = 0
 sum = aaa(100)
-println(sum)
+print(sum)
 "#;
 
     let output = run_chen_lang_code(code).unwrap();

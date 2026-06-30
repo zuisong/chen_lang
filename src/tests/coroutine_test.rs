@@ -95,7 +95,7 @@ fn test_scheduler_simulation() {
         local io = require("stdlib/io")
         local i = 0
         while i < 3 do
-             io.print("Task A: " .. i)
+             io.write("Task A: " .. i)
              coroutine.yield(i)
              i = i + 1
         end
