@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
+use crate::expression::Repeat;
 use crate::expression::*;
 use crate::tokenizer::{Location, Operator};
 use crate::vm::{Instruction, Program, Symbol};
-use crate::expression::Repeat;
 
 // A scope holds the local variables for a block or function.
 struct Scope {
@@ -510,6 +510,7 @@ impl<'a> Compiler<'a> {
                 self.compile_expression(*unary.expr);
                 match unary.operator {
                     Operator::Not => self.emit(Instruction::Not, loc),
+                    Operator::Len => self.emit(Instruction::Length, loc),
                     _ => panic!("Unsupported unary operator"),
                 }
             }

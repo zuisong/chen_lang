@@ -3,11 +3,11 @@ use crate::common::run_chen_lang_code;
 #[test]
 fn test_try_catch_basic() {
     let code = r#"
-    try {
+    try
         error("Something went wrong!")
-    } catch e {
+    catch e
         print("Caught error: " + e)
-    }
+    end
     print("Program continues...")
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
@@ -20,15 +20,15 @@ fn test_try_catch_with_finally() {
     let code = r#"
     local cleanup_called = false
     
-    try {
+    try
         print("In try block")
         error("Error occurred")
-    } catch e {
+    catch e
         print("In catch block: " + e)
-    } finally {
+    finally
         print("In finally block")
         cleanup_called = true
-    }
+    end
     
     print("Cleanup called: " + cleanup_called)
     "#;
@@ -49,15 +49,15 @@ fn test_try_catch_in_function() {
         return a / b
     end
     
-    try {
+    try
         local result = divide(10, 2)
         print("Result: " + result)
         
         local bad_result = divide(10, 0)
         print("This should not print")
-    } catch e {
+    catch e
         print("Caught: " + e)
-    }
+    end
     
     print("Program completed")
     "#;
@@ -71,21 +71,21 @@ fn test_try_catch_in_function() {
 #[test]
 fn test_nested_try_catch() {
     let code = r#"
-    try {
+    try
         print("Outer try")
         
-        try {
+        try
             print("Inner try")
             error("Inner error")
-        } catch inner_error {
+        catch inner_error
             print("Inner catch: " + inner_error)
             error("Outer error")
-        }
+        end
         
         print("This should not print")
-    } catch outer_error {
+    catch outer_error
         print("Outer catch: " + outer_error)
-    }
+    end
     
     print("Done")
     "#;
@@ -101,11 +101,11 @@ fn test_nested_try_catch() {
 #[test]
 fn test_try_catch_without_error_variable() {
     let code = r#"
-    try {
+    try
         error("Some error")
-    } catch {
+    catch
         print("Error caught (no variable)")
-    }
+    end
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Error caught (no variable)"));
@@ -114,11 +114,11 @@ fn test_try_catch_without_error_variable() {
 #[test]
 fn test_throw_string() {
     let code = r#"
-    try {
+    try
         error("Error message")
-    } catch e {
+    catch e
         print("Caught: " + e)
-    }
+    end
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Caught: Error message"));
@@ -127,11 +127,11 @@ fn test_throw_string() {
 #[test]
 fn test_throw_number() {
     let code = r#"
-    try {
+    try
         error(42)
-    } catch e {
+    catch e
         print("Caught: " + e)
-    }
+    end
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
     assert!(output.contains("Caught: 42"));
@@ -142,14 +142,14 @@ fn test_finally_executes_on_success() {
     let code = r#"
     local finally_ran = false
     
-    try {
+    try
         print("Try block")
-    } catch e {
+    catch e
         print("This should not run")
-    } finally {
+    finally
         print("Finally block")
         finally_ran = true
-    }
+    end
     
     print("Finally ran: " + finally_ran)
     "#;
@@ -165,19 +165,19 @@ fn test_multiple_throws_in_sequence() {
     let code = r#"
     local count = 0
     
-    try {
+    try
         error("First")
-    } catch e {
+    catch e
         print("Caught first: " + e)
         count = count + 1
-    }
+    end
     
-    try {
+    try
         error("Second")
-    } catch e {
+    catch e
         print("Caught second: " + e)
         count = count + 1
-    }
+    end
     
     print("Count: " + count)
     "#;

@@ -59,7 +59,9 @@ impl VM {
                                         self.stack.truncate(handler.stack_size);
                                         self.fp = handler.fp;
                                         self.stack.push(error_value);
-                                        if let Some(target) = self.program.as_ref().and_then(|p| p.syms.get(&handler.catch_label)) {
+                                        if let Some(target) =
+                                            self.program.as_ref().and_then(|p| p.syms.get(&handler.catch_label))
+                                        {
                                             self.pc = (target.location as usize) - 1;
                                             self.pc = self.pc.saturating_add(1);
                                         } else {
@@ -556,6 +558,15 @@ impl VM {
             Instruction::Not => {
                 let value = self.stack.pop().unwrap_or(Value::null());
                 let result = value.not();
+                self.stack.push(result);
+            }
+
+            Instruction::Length => {
+                let value = self.stack.pop().unwrap_or(Value::null());
+                let result = match value.len() {
+                    Ok(n) => Value::int(n),
+                    Err(e) => return Err(VMRuntimeError::ValueError(e)),
+                };
                 self.stack.push(result);
             }
 

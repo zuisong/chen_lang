@@ -80,6 +80,9 @@ pub enum Instruction {
     // Array creation (Syntactic sugar for object with numeric keys)
     BuildArray(usize), // 从栈顶 n 个元素构建数组对象
 
+    // Length operator (#)
+    Length,
+
     // Exception handling
     PushExceptionHandler(String), // 压入异常处理器（catch label）
     PopExceptionHandler,          // 弹出异常处理器

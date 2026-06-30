@@ -619,6 +619,29 @@ impl Value {
     pub fn not(&self) -> Value {
         Value::bool(!self.is_truthy())
     }
+
+    pub fn len(&self) -> Result<i32, ValueError> {
+        match self {
+            Value::String(s) => Ok(s.chars().count() as i32),
+            Value::Object(table_rc) => {
+                let table = table_rc.borrow();
+                let mut max_idx = -1i32;
+                for key in table.data.keys() {
+                    if let Ok(n) = key.parse::<i32>() {
+                        if n >= 0 && n >= max_idx {
+                            max_idx = n;
+                        }
+                    }
+                }
+                Ok(max_idx + 1)
+            }
+            _ => Err(ValueError::InvalidOperation {
+                operator: "len".to_string(),
+                left_type: self.get_type(),
+                right_type: ValueType::Null,
+            }),
+        }
+    }
 }
 
 /// Metatable support methods

@@ -70,5 +70,3 @@ fn test_handwritten_floats() {
     let tokens = tokenizer_handwritten(code).unwrap();
     assert_matches!(tokens[0].0, crate::tokenizer::Token::Float(_));
 }
-
-

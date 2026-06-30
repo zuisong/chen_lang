@@ -94,9 +94,7 @@ impl VM {
         variables.insert("print".to_string(), Value::NativeFunction(Rc::new(Box::new(print_fn))));
 
         let require_fn = |vm: &mut VM, args: Vec<Value>| {
-            let err = |msg: &str| {
-                Err(crate::vm::VMRuntimeError::UncaughtException(msg.to_string()))
-            };
+            let err = |msg: &str| Err(crate::vm::VMRuntimeError::UncaughtException(msg.to_string()));
             if args.is_empty() {
                 return err("require() expects a module path");
             }
@@ -111,9 +109,13 @@ impl VM {
                     "stdlib/fs" => crate::vm::native_fs::create_fs_object(),
                     "stdlib/http" => {
                         #[cfg(feature = "http")]
-                        { crate::vm::native_http::create_http_object() }
+                        {
+                            crate::vm::native_http::create_http_object()
+                        }
                         #[cfg(not(feature = "http"))]
-                        { Value::Null }
+                        {
+                            Value::Null
+                        }
                     }
                     "stdlib/process" => crate::vm::native_process::create_process_object(),
                     "stdlib/io" => crate::vm::native_io::create_io_object(),
@@ -155,7 +157,10 @@ impl VM {
                 }
             }
         };
-        variables.insert("require".to_string(), Value::NativeFunction(Rc::new(Box::new(require_fn))));
+        variables.insert(
+            "require".to_string(),
+            Value::NativeFunction(Rc::new(Box::new(require_fn))),
+        );
 
         let error_fn = |_vm: &mut VM, args: Vec<Value>| {
             let msg = if args.is_empty() {

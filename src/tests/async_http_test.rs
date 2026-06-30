@@ -74,12 +74,12 @@ fn test_http_get_json_async() {
 fn test_http_request_async_error_propagates() {
     let code = r#"
     local http = require("stdlib/http")
-    try {
+    try
         http.request("BAD METHOD", "http://example.com")
         return "NO_ERROR"
-    } catch err {
+    catch err
         return "CAUGHT: " .. err
-    }
+    end
     "#;
 
     let result = run_code(code);

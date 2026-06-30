@@ -16,8 +16,8 @@
 use thiserror::Error;
 
 use crate::expression::{
-    Assign, Ast, BinaryOperation, Expression, ForInLoop, FunctionCall, FunctionDeclaration, If,
-    Literal, Local, Loop, MethodCall, Repeat, Return, Statement, TryCatch, Unary,
+    Assign, Ast, BinaryOperation, Expression, ForInLoop, FunctionCall, FunctionDeclaration, If, Literal, Local, Loop,
+    MethodCall, Repeat, Return, Statement, TryCatch, Unary,
 };
 use crate::tokenizer::Keyword;
 use crate::tokenizer::Location;
@@ -58,10 +58,7 @@ pub struct Parser {
 impl Parser {
     /// Create a new parser from a vector of tokens.
     pub fn new(tokens: Vec<(Token, Location)>) -> Self {
-        Self {
-            tokens,
-            current: 0,
-        }
+        Self { tokens, current: 0 }
     }
 
     /// Parse the tokens into an AST (list of statements).
@@ -266,11 +263,7 @@ impl Parser {
         Ok(vec![Statement::Expression(expr)])
     }
 
-    fn emit_assignment(
-        &self,
-        target: Expression,
-        value: Expression,
-    ) -> Result<Statement, ParseError> {
+    fn emit_assignment(&self, target: Expression, value: Expression) -> Result<Statement, ParseError> {
         let loc = self.peek_location();
         match target {
             Expression::Identifier(name, id_loc) => Ok(Statement::Assign(Assign {
@@ -383,10 +376,10 @@ impl Parser {
     fn parse_return(&mut self) -> Result<Vec<Statement>, ParseError> {
         let start_loc = self.peek_location();
         let exprs = self.parse_expression_list()?;
-        let expr = exprs.into_iter().next().unwrap_or(Expression::Literal(
-            Literal::Value(Value::Null),
-            start_loc,
-        ));
+        let expr = exprs
+            .into_iter()
+            .next()
+            .unwrap_or(Expression::Literal(Literal::Value(Value::Null), start_loc));
         Ok(vec![Statement::Return(Return {
             expression: expr,
             loc: start_loc,
@@ -448,10 +441,7 @@ impl Parser {
 
         self.skip_newlines();
         let body = self.parse_block(&[Keyword::END])?;
-        self.consume(
-            &Token::Keyword(Keyword::END),
-            "Expected 'end' after function body",
-        )?;
+        self.consume(&Token::Keyword(Keyword::END), "Expected 'end' after function body")?;
 
         Ok(FunctionDeclaration {
             name,
@@ -467,16 +457,10 @@ impl Parser {
         let condition = self.parse_expression_logic()?;
 
         self.skip_newlines();
-        self.consume(
-            &Token::Keyword(Keyword::DO),
-            "Expected 'do' after while condition",
-        )?;
+        self.consume(&Token::Keyword(Keyword::DO), "Expected 'do' after while condition")?;
         self.skip_newlines();
         let body = self.parse_block(&[Keyword::END])?;
-        self.consume(
-            &Token::Keyword(Keyword::END),
-            "Expected 'end' after while block",
-        )?;
+        self.consume(&Token::Keyword(Keyword::END), "Expected 'end' after while block")?;
 
         Ok(vec![Statement::Loop(Loop {
             test: condition,
@@ -491,10 +475,7 @@ impl Parser {
 
         self.skip_newlines();
         let body = self.parse_block(&[Keyword::UNTIL])?;
-        self.consume(
-            &Token::Keyword(Keyword::UNTIL),
-            "Expected 'until' after repeat block",
-        )?;
+        self.consume(&Token::Keyword(Keyword::UNTIL), "Expected 'until' after repeat block")?;
         let condition = self.parse_expression_logic()?;
 
         Ok(vec![Statement::Repeat(Repeat {
@@ -538,16 +519,10 @@ impl Parser {
             }
         };
 
-        self.consume(
-            &Token::Operator(Operator::Assign),
-            "Expected '=' after loop variable",
-        )?;
+        self.consume(&Token::Operator(Operator::Assign), "Expected '=' after loop variable")?;
         let start = self.parse_expression_logic()?;
 
-        self.consume(
-            &Token::COMMA,
-            "Expected ',' after start value in for loop",
-        )?;
+        self.consume(&Token::COMMA, "Expected ',' after start value in for loop")?;
         self.skip_newlines();
         let end = self.parse_expression_logic()?;
 
@@ -559,16 +534,10 @@ impl Parser {
         };
 
         self.skip_newlines();
-        self.consume(
-            &Token::Keyword(Keyword::DO),
-            "Expected 'do' after for loop header",
-        )?;
+        self.consume(&Token::Keyword(Keyword::DO), "Expected 'do' after for loop header")?;
         self.skip_newlines();
         let body = self.parse_block(&[Keyword::END])?;
-        self.consume(
-            &Token::Keyword(Keyword::END),
-            "Expected 'end' after for loop body",
-        )?;
+        self.consume(&Token::Keyword(Keyword::END), "Expected 'end' after for loop body")?;
 
         // Desugar to:
         //   local var = start
@@ -615,23 +584,14 @@ impl Parser {
             unreachable!()
         };
 
-        self.consume(
-            &Token::Keyword(Keyword::IN),
-            "Expected 'in' after variable name",
-        )?;
+        self.consume(&Token::Keyword(Keyword::IN), "Expected 'in' after variable name")?;
         let iterable = self.parse_expression_logic()?;
 
         self.skip_newlines();
-        self.consume(
-            &Token::Keyword(Keyword::DO),
-            "Expected 'do' after for-in iterable",
-        )?;
+        self.consume(&Token::Keyword(Keyword::DO), "Expected 'do' after for-in iterable")?;
         self.skip_newlines();
         let body = self.parse_block(&[Keyword::END])?;
-        self.consume(
-            &Token::Keyword(Keyword::END),
-            "Expected 'end' after for-in block",
-        )?;
+        self.consume(&Token::Keyword(Keyword::END), "Expected 'end' after for-in block")?;
 
         Ok(vec![Statement::ForIn(ForInLoop {
             var: var_name,
@@ -646,13 +606,8 @@ impl Parser {
         let start_loc = self.peek_location();
         self.skip_newlines();
         let body = self.parse_block(&[Keyword::END])?;
-        self.consume(
-            &Token::Keyword(Keyword::END),
-            "Expected 'end' after do block",
-        )?;
-        Ok(vec![Statement::Expression(Expression::Block(
-            body, start_loc,
-        ))])
+        self.consume(&Token::Keyword(Keyword::END), "Expected 'end' after do block")?;
+        Ok(vec![Statement::Expression(Expression::Block(body, start_loc))])
     }
 
     /// `if expr then block {elseif expr then block} [else block] end`
@@ -662,10 +617,7 @@ impl Parser {
         let condition = self.parse_expression_logic()?;
 
         self.skip_newlines();
-        self.consume(
-            &Token::Keyword(Keyword::THEN),
-            "Expected 'then' after if condition",
-        )?;
+        self.consume(&Token::Keyword(Keyword::THEN), "Expected 'then' after if condition")?;
         self.skip_newlines();
         let then_body = self.parse_block(&[Keyword::ELSEIF, Keyword::ELSE, Keyword::END])?;
 
@@ -698,20 +650,15 @@ impl Parser {
         }
     }
 
-    /// `try { body } catch [name] { body } [finally { body }]` (compatibility)
+    /// `try body catch [name] body [finally body] end` (Luau style)
     fn parse_try_catch(&mut self) -> Result<Vec<Statement>, ParseError> {
         let start_loc = self.peek_location();
 
         self.skip_newlines();
-        self.consume(&Token::LBig, "Expected '{' after 'try'")?;
-        let try_body = self.parse_block(&[])?;
-        self.consume(&Token::RBig, "Expected '}' after try block")?;
+        let try_body = self.parse_block(&[Keyword::CATCH, Keyword::END, Keyword::FINALLY])?;
 
         self.skip_newlines();
-        self.consume(
-            &Token::Keyword(Keyword::CATCH),
-            "Expected 'catch' after try block",
-        )?;
+        self.consume(&Token::Keyword(Keyword::CATCH), "Expected 'catch' after try block")?;
 
         let error_name = if let Some(Token::Identifier(name)) = self.peek() {
             let n = name.clone();
@@ -722,19 +669,18 @@ impl Parser {
         };
 
         self.skip_newlines();
-        self.consume(&Token::LBig, "Expected '{' after 'catch'")?;
-        let catch_body = self.parse_block(&[])?;
-        self.consume(&Token::RBig, "Expected '}' after catch block")?;
+        let catch_body = self.parse_block(&[Keyword::FINALLY, Keyword::END])?;
 
         let finally_body = if self.match_keyword(Keyword::FINALLY) {
             self.skip_newlines();
-            self.consume(&Token::LBig, "Expected '{' after 'finally'")?;
-            let body = self.parse_block(&[])?;
-            self.consume(&Token::RBig, "Expected '}' after finally block")?;
+            let body = self.parse_block(&[Keyword::END])?;
             Some(body)
         } else {
             None
         };
+
+        self.skip_newlines();
+        self.consume(&Token::Keyword(Keyword::END), "Expected 'end' after try-catch block")?;
 
         Ok(vec![Statement::TryCatch(TryCatch {
             try_body,
@@ -757,8 +703,7 @@ impl Parser {
         let mut left = self.parse_logical_and()?;
         loop {
             let op_loc = self.peek_location();
-            let matched = self.match_keyword(Keyword::OR)
-                || self.match_token(&Token::Operator(Operator::Or));
+            let matched = self.match_keyword(Keyword::OR) || self.match_token(&Token::Operator(Operator::Or));
             if !matched {
                 break;
             }
@@ -778,8 +723,7 @@ impl Parser {
         let mut left = self.parse_equality()?;
         loop {
             let op_loc = self.peek_location();
-            let matched = self.match_keyword(Keyword::AND)
-                || self.match_token(&Token::Operator(Operator::And));
+            let matched = self.match_keyword(Keyword::AND) || self.match_token(&Token::Operator(Operator::And));
             if !matched {
                 break;
             }
@@ -826,7 +770,9 @@ impl Parser {
         loop {
             let op_loc = self.peek_location();
             let op = match self.peek() {
-                Some(Token::Operator(op)) if matches!(op, Operator::Gt | Operator::GtE | Operator::Lt | Operator::LtE) => {
+                Some(Token::Operator(op))
+                    if matches!(op, Operator::Gt | Operator::GtE | Operator::Lt | Operator::LtE) =>
+                {
                     Some(*op)
                 }
                 _ => None,
@@ -924,8 +870,7 @@ impl Parser {
     fn parse_unary(&mut self) -> Result<Expression, ParseError> {
         let start_loc = self.peek_location();
 
-        let matched_not = self.match_keyword(Keyword::NOT)
-            || self.match_token(&Token::Operator(Operator::Not));
+        let matched_not = self.match_keyword(Keyword::NOT) || self.match_token(&Token::Operator(Operator::Not));
         if matched_not {
             let right = self.parse_unary()?;
             return Ok(Expression::Unary(Unary {
@@ -938,10 +883,7 @@ impl Parser {
         if self.match_token(&Token::Operator(Operator::Subtract)) {
             let right = self.parse_unary()?;
             return Ok(Expression::BinaryOperation(BinaryOperation {
-                left: Box::new(Expression::Literal(
-                    Literal::Value(Value::Int(0)),
-                    start_loc,
-                )),
+                left: Box::new(Expression::Literal(Literal::Value(Value::Int(0)), start_loc)),
                 operator: Operator::Subtract,
                 right: Box::new(right),
                 loc: start_loc,
@@ -1048,10 +990,7 @@ impl Parser {
     fn parse_primary(&mut self) -> Result<Expression, ParseError> {
         let start_loc = self.peek_location();
         self.skip_newlines();
-        let token = self
-            .advance()
-            .ok_or(ParseError::UnexpectedEndOfInput)?
-            .clone();
+        let token = self.advance().ok_or(ParseError::UnexpectedEndOfInput)?.clone();
 
         match token {
             Token::Int(i) => Ok(Expression::Literal(Literal::Value(Value::Int(i)), start_loc)),
@@ -1066,18 +1005,9 @@ impl Parser {
                 Ok(Expression::Function(decl))
             }
             Token::Keyword(Keyword::IF) => self.parse_if_tail(),
-            Token::Keyword(Keyword::NIL) => Ok(Expression::Literal(
-                Literal::Value(Value::Null),
-                start_loc,
-            )),
-            Token::Keyword(Keyword::TRUE) => Ok(Expression::Literal(
-                Literal::Value(Value::Bool(true)),
-                start_loc,
-            )),
-            Token::Keyword(Keyword::FALSE) => Ok(Expression::Literal(
-                Literal::Value(Value::Bool(false)),
-                start_loc,
-            )),
+            Token::Keyword(Keyword::NIL) => Ok(Expression::Literal(Literal::Value(Value::Null), start_loc)),
+            Token::Keyword(Keyword::TRUE) => Ok(Expression::Literal(Literal::Value(Value::Bool(true)), start_loc)),
+            Token::Keyword(Keyword::FALSE) => Ok(Expression::Literal(Literal::Value(Value::Bool(false)), start_loc)),
             Token::LParen => {
                 self.skip_newlines();
                 let expr = self.parse_expression_logic()?;
@@ -1085,10 +1015,7 @@ impl Parser {
                 self.consume(&Token::RParen, "Expected ')' after expression")?;
                 Ok(expr)
             }
-            _ => Err(ParseError::UnexpectedToken {
-                token,
-                loc: start_loc,
-            }),
+            _ => Err(ParseError::UnexpectedToken { token, loc: start_loc }),
         }
     }
 
@@ -1106,16 +1033,11 @@ impl Parser {
                 if let Some(Token::Identifier(key_name)) = self.peek() {
                     // Look ahead for '=' (skip newlines)
                     let mut lookahead = self.current + 1;
-                    while lookahead < self.tokens.len()
-                        && self.tokens[lookahead].0 == Token::NewLine
-                    {
+                    while lookahead < self.tokens.len() && self.tokens[lookahead].0 == Token::NewLine {
                         lookahead += 1;
                     }
                     if lookahead < self.tokens.len()
-                        && matches!(
-                            self.tokens[lookahead].0,
-                            Token::Operator(Operator::Assign)
-                        )
+                        && matches!(self.tokens[lookahead].0, Token::Operator(Operator::Assign))
                     {
                         // It's a key-value pair
                         let key = key_name.clone();

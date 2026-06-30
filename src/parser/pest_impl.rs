@@ -577,5 +577,3 @@ fn parse_try_catch(pair: Pair<Rule>) -> Statement {
         loc,
     })
 }
-
-
