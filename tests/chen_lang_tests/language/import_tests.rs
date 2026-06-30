@@ -3,11 +3,11 @@ use chen_lang::run_captured;
 #[test]
 fn test_import_stdlib_io_json() {
     let source = r#"
-        let io = import("stdlib/io")
-        let JSON = import("stdlib/json")
+        local io = require("stdlib/io")
+        local JSON = require("stdlib/json")
 
-        let data = ${ name: "Chen", version: 0.1 }
-        let json_str = JSON.stringify(data)
+        local data = { name = "Chen", version = 0.1 }
+        local json_str = JSON.stringify(data)
         io.println("JSON: " + json_str)
     "#
     .to_string();
@@ -19,9 +19,9 @@ fn test_import_stdlib_io_json() {
 #[test]
 fn test_no_import_fail() {
     let source = r#"
-        # No import for json
-        let data = ${ name: "Chen" }
-        let json_str = JSON.stringify(data)
+        -- No import for json
+        local data = { name = "Chen" }
+        local json_str = JSON.stringify(data)
     "#
     .to_string();
 
@@ -32,13 +32,13 @@ fn test_no_import_fail() {
 #[test]
 fn test_import_stdlib_date() {
     let source = r#"
-        let io = import("stdlib/io")
-        let Date = import("stdlib/date")
-        let now = Date:new()
-        # Just check if it's not null and works
-        if now != null {
+        local io = require("stdlib/io")
+        local Date = require("stdlib/date")
+        local now = Date:new()
+        -- Just check if it's not nil and works
+        if now ~= nil then
             io.print("Date ok")
-        }
+        end
     "#
     .to_string();
     let output = run_captured(source).unwrap();

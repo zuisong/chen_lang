@@ -5,8 +5,8 @@ use crate::common::run_chen_lang_code;
 #[test]
 fn test_integer_arithmetic() {
     let code = r#"
-let x = 5
-let y = 3
+local x = 5
+local y = 3
 print(x + y)
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -16,8 +16,8 @@ print(x + y)
 #[test]
 fn test_float_arithmetic() {
     let code = r#"
-let x = 3.14
-let y = 2.0
+local x = 3.14
+local y = 2.0
 print(x * y)
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -27,8 +27,8 @@ print(x * y)
 #[test]
 fn test_string_concatenation() {
     let code = r#"
-let hello = "Hello"
-let world = " World"
+local hello = "Hello"
+local world = " World"
 print(hello + world)
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -38,9 +38,9 @@ print(hello + world)
 #[test]
 fn test_mixed_type_arithmetic() {
     let code = r#"
-let int_val = 5
-let float_val = 2.5
-let result = int_val + float_val
+local int_val = 5
+local float_val = 2.5
+local result = int_val + float_val
 print(result)
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -50,9 +50,9 @@ print(result)
 #[test]
 fn test_float_division() {
     let code = r#"
-let x = 7.0
-let y = 2.0
-let result = x / y
+local x = 7.0
+local y = 2.0
+local result = x / y
 print(result)
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -62,9 +62,9 @@ print(result)
 #[test]
 fn test_negative_float() {
     let code = r#"
-let x = -3.14
-let y = 2.0
-let result = x * y
+local x = -3.14
+local y = 2.0
+local result = x * y
 print(result)
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -74,9 +74,9 @@ print(result)
 #[test]
 fn test_variable_assignment_with_float() {
     let code = r#"
-let pi = 3.14159
-let radius = 2.0
-let area = pi * radius * radius
+local pi = 3.14159
+local radius = 2.0
+local area = pi * radius * radius
 print(area)
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -86,9 +86,9 @@ print(area)
 #[test]
 fn test_string_with_numbers() {
     let code = r#"
-let prefix = "Result: "
-let number = 42
-let message = prefix + "42"
+local prefix = "Result: "
+local number = 42
+local message = prefix + "42"
 print(message)
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -98,10 +98,10 @@ print(message)
 #[test]
 fn test_complex_float_expression() {
     let code = r#"
-let a = 1.5
-let b = 2.0
-let c = 3.0
-let result = a + b * c - 0.5
+local a = 1.5
+local b = 2.0
+local c = 3.0
+local result = a + b * c - 0.5
 print(result)
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -112,9 +112,9 @@ print(result)
 #[test]
 fn test_zero_float() {
     let code = r#"
-let x = 0.0
-let y = 5.0
-let result = x + y
+local x = 0.0
+local y = 5.0
+local result = x + y
 print(result)
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -124,9 +124,9 @@ print(result)
 #[test]
 fn test_float_comparison() {
     let code = r#"
-let a = 3.14
-let b = 3.14
-let equal = a == b
+local a = 3.14
+local b = 3.14
+local equal = a == b
 print(equal)
 "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -136,9 +136,9 @@ print(equal)
 #[test]
 fn test_mixed_comparison() {
     let code = r#"
-let int_val = 5
-let float_val = 5.0
-let equal = int_val == float_val
+local int_val = 5
+local float_val = 5.0
+local equal = int_val == float_val
 print(equal)
 "#;
     let output = run_chen_lang_code(code).unwrap();

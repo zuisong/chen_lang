@@ -59,13 +59,7 @@ pub enum Expression {
         index: Box<Expression>,
         loc: Location,
     },
-    /// 函数定义表达式 (匿名函数/Lambda)
     Function(FunctionDeclaration),
-    /// Import 表达式: import("path")
-    Import {
-        path: String,
-        loc: Location,
-    },
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -105,9 +99,9 @@ pub enum Statement {
     Return(Return),
     Local(Local),
     Assign(Assign),
-    /// For-In 循环: for var in iterable { body }
     ForIn(ForInLoop),
-    /// 设置属性: obj.field = value
+    /// Repeat-Until 循环
+    Repeat(Repeat),
     SetField {
         object: Expression,
         field: String,
@@ -125,11 +119,6 @@ pub enum Statement {
     Continue(Location),
     /// Try-Catch-Finally 异常处理
     TryCatch(TryCatch),
-    /// Throw 抛出异常
-    Throw {
-        value: Expression,
-        loc: Location,
-    },
 }
 
 pub type Ast = Vec<Statement>;
@@ -171,6 +160,14 @@ pub struct ForInLoop {
     pub iterable: Expression,
     /// 循环体
     pub body: Vec<Statement>,
+    pub loc: Location,
+}
+
+/// Repeat-Until 循环
+#[derive(Debug, PartialEq, Clone)]
+pub struct Repeat {
+    pub body: Vec<Statement>,
+    pub test: Expression,
     pub loc: Location,
 }
 

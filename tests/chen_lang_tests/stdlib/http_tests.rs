@@ -13,9 +13,9 @@ fn test_http_get() {
 
     let code = format!(
         r#"
-    let http = import("stdlib/http")
-    let io = import("stdlib/io")
-    let res = http.request("GET", "{}/hello")
+    local http = require("stdlib/http")
+    local io = require("stdlib/io")
+    local res = http.request("GET", "{}/hello")
     io.print(res.body)
     "#,
         url
@@ -39,9 +39,9 @@ fn test_http_post() {
 
     let code = format!(
         r#"
-    let http = import("stdlib/http")
-    let io = import("stdlib/io")
-    let res = http.request("POST", "{}/echo", "hello")
+    local http = require("stdlib/http")
+    local io = require("stdlib/io")
+    local res = http.request("POST", "{}/echo", "hello")
     io.print(res.body)
     "#,
         url
@@ -65,9 +65,9 @@ fn test_http_request_method() {
         .create();
 
     let code = r#"
-    let http = import("stdlib/http")
-    let io = import("stdlib/io")
-    let res = http.request("PUT", url + "/update", "new_data")
+    local http = require("stdlib/http")
+    local io = require("stdlib/io")
+    local res = http.request("PUT", url + "/update", "new_data")
     io.println(res.status)
     io.println(res.headers['x-custom-header'])
     io.print(res.body)
@@ -97,11 +97,11 @@ fn test_http_request_with_headers() {
 
     let code = format!(
         r#"
-    let http = import("stdlib/http")
-    let io = import("stdlib/io")
-    let headers = ${{}}
+    local http = require("stdlib/http")
+    local io = require("stdlib/io")
+    local headers = {{}}
     headers["X-Auth"] = "secret123"
-    let res = http.request("GET", "{}/headers", null, headers)
+    local res = http.request("GET", "{}/headers", nil, headers)
     io.print(res.body)
     "#,
         url

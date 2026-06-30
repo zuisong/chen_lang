@@ -3,7 +3,7 @@ use crate::common::run_chen_lang_code;
 #[test]
 fn test_multiline_simple_addition() {
     let code = r#"
-    let x = 1 + 
+    local x = 1 + 
         2
     println(x)
     "#;
@@ -14,11 +14,11 @@ fn test_multiline_simple_addition() {
 #[test]
 fn test_multiline_block_expression() {
     let code = r#"
-    let y = {
-        let a = 10
-        a * 
-        2
-    }
+    local calc = function()
+        local a = 10
+        return a * 2
+    end
+    local y = calc()
     println(y)
     "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -28,7 +28,7 @@ fn test_multiline_block_expression() {
 #[test]
 fn test_multiline_complex_expression() {
     let code = r#"
-    let z = 1 + 2 * 3 +
+    local z = 1 + 2 * 3 +
             4
     println(z)
     "#;
@@ -38,20 +38,19 @@ fn test_multiline_complex_expression() {
 
 #[test]
 fn test_all_multiline_expressions() {
-    // Run the complete test file
     let code = r#"
-let x = 1 + 
+local x = 1 + 
     2
 println(x)
 
-let y = {
-    let a = 10
-    a * 
-    2
-}
+local calc = function()
+    local a = 10
+    return a * 2
+end
+local y = calc()
 println(y)
 
-let z = 1 + 2 * 3 +
+local z = 1 + 2 * 3 +
         4
 println(z)
     "#;

@@ -3,16 +3,16 @@ use crate::parser;
 #[test]
 fn parse() {
     let code: String = r#"
- let i = 0
- for i<100{
+ local i = 0
+ while i < 100 do
 
-     if i%2 == 0{
-         println(i + " 是偶数")
-     }else{
-         println(i + " 是奇数")
-     }
-     i = i+1
- }
+     if i % 2 == 0 then
+         println(i .. " is even")
+     else
+         println(i .. " is odd")
+     end
+     i = i + 1
+ end
  "#
     .to_string();
 
@@ -23,7 +23,4 @@ fn parse() {
     assert!(res.is_ok());
     let statements = res.unwrap();
     assert!(!statements.is_empty());
-
-    // Detailed AST structure verification is covered by parser_comprehensive_test.rs
-    // This test ensures that a larger block of code parses without error.
 }

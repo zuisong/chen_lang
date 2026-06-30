@@ -1,8 +1,8 @@
 use chen_lang::run_captured as run_captured_orig;
 
 fn run_captured(code: String) -> Result<String, chen_lang::ChenError> {
-    let prelude = r#"let io = import("stdlib/io")
-let println = io.println
+    let prelude = r#"local io = require("stdlib/io")
+local println = io.println
 "#;
     run_captured_orig(format!("{}{}", prelude, code))
 }
@@ -10,13 +10,13 @@ let println = io.println
 #[test]
 fn test_object_keys_basic() {
     let code = r#"
-        let obj = ${ a: 1, b: 2 }
-        let keys = obj:keys()
+        local obj = { a = 1, b = 2 }
+        local keys = obj:keys()
         
-        # Verify length
+        -- Verify length
         println(keys:len())
         
-        # Verify content (order might vary but IndexMap preserves insertion order)
+        -- Verify content (order might vary but IndexMap preserves insertion order)
         println(keys[0])
         println(keys[1])
     "#;
@@ -30,14 +30,14 @@ fn test_object_keys_basic() {
 #[test]
 fn test_object_keys_iteration() {
     let code = r#"
-        let obj = ${ x: 10, y: 20, z: 30 }
-        let keys = obj:keys()
-        let i = 0
-        for i < keys:len() {
-            let k = keys[i]
+        local obj = { x = 10, y = 20, z = 30 }
+        local keys = obj:keys()
+        local i = 0
+        while i < keys:len() do
+            local k = keys[i]
             println(k, "=", obj[k])
             i = i + 1
-        }
+        end
     "#;
 
     let output = run_captured(code.to_string()).unwrap();
@@ -49,8 +49,8 @@ fn test_object_keys_iteration() {
 #[test]
 fn test_array_keys() {
     let code = r#"
-        let arr = [100, 200]
-        let keys = arr:keys()
+        local arr = [100, 200]
+        local keys = arr:keys()
         println(keys:len())
         println(keys[0])
         println(keys[1])
@@ -65,8 +65,8 @@ fn test_array_keys() {
 #[test]
 fn test_empty_object_keys() {
     let code = r#"
-        let obj = ${}
-        let keys = obj:keys()
+        local obj = {}
+        local keys = obj:keys()
         println(keys:len())
     "#;
 
@@ -82,14 +82,14 @@ fn test_keys_on_non_object() {
     // In vm.rs, we checked: `if let Value::Object(_) = obj`.
     // So strings should NOT have keys().
     let code = r#"
-        let s = "hello"
-        let k = s.keys()
+        local s = "hello"
+        local k = s.keys()
     "#;
 
     let result = run_captured(code.to_string());
-    // Should fail with TypeMismatch or similar because s.keys is null, and we try to call it?
-    // Wait, if s.keys lookup returns Null (because generic fallback checks Object type),
-    // then `let k = s.keys()` tries to call Null.
+    // Should fail with TypeMismatch or similar because s.keys is nil, and we try to call it?
+    // Wait, if s.keys lookup returns nil (because generic fallback checks Object type),
+    // then `local k = s.keys()` tries to call nil.
     // VM should error "Attempt to call non-function value".
     assert!(result.is_err());
 }
@@ -97,8 +97,8 @@ fn test_keys_on_non_object() {
 #[test]
 fn test_object_static_keys() {
     let code = r#"
-        let obj = ${ first: 1, second: 2 }
-        let keys = Object.keys(obj)
+        local obj = { first = 1, second = 2 }
+        local keys = Object.keys(obj)
         println(keys[0])
         println(keys[1])
     "#;

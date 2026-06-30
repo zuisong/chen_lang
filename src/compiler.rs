@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use crate::expression::*;
 use crate::tokenizer::{Location, Operator};
 use crate::vm::{Instruction, Program, Symbol};
+use crate::expression::Repeat;
 
 // A scope holds the local variables for a block or function.
 struct Scope {
@@ -381,6 +382,7 @@ impl<'a> Compiler<'a> {
             }
             Statement::Loop(e) => self.compile_loop(e),
             Statement::ForIn(e) => self.compile_for_in(e),
+            Statement::Repeat(r) => self.compile_repeat(r),
             Statement::Assign(e) => self.compile_assign(e),
             Statement::Break(loc) => {
                 let end_label = self
@@ -424,10 +426,6 @@ impl<'a> Compiler<'a> {
                 self.emit(Instruction::SetIndex, loc);
             }
             Statement::TryCatch(tc) => self.compile_try_catch(tc),
-            Statement::Throw { value, loc } => {
-                self.compile_expression(value);
-                self.emit(Instruction::Throw, loc);
-            }
         }
     }
 
@@ -445,9 +443,7 @@ impl<'a> Compiler<'a> {
             Expression::GetField { loc, .. } => *loc,
             Expression::Index { loc, .. } => *loc,
             Expression::Function(fd) => fd.loc,
-            // Await removed
             Expression::MethodCall(mc) => mc.loc,
-            Expression::Import { loc, .. } => *loc,
         }
     }
 
@@ -570,10 +566,6 @@ impl<'a> Compiler<'a> {
                     self.emit(Instruction::Closure(format!("func_{}", func_name)), loc);
                 }
             }
-            // Await removed
-            Expression::Import { path, loc } => {
-                self.emit(Instruction::Import(path), loc);
-            }
         }
     }
 
@@ -659,7 +651,10 @@ impl<'a> Compiler<'a> {
             Operator::GtE => Instruction::GreaterThanOrEqual,
             Operator::And => Instruction::And,
             Operator::Or => Instruction::Or,
-            Operator::Assign | Operator::Not => panic!("Unable to compile binary operation: {:?}", bop.operator),
+            Operator::Concat => Instruction::Concat,
+            Operator::FloorDiv => Instruction::FloorDiv,
+            Operator::Len | Operator::Not => panic!("Unable to compile binary operation: {:?}", bop.operator),
+            _ => panic!("Unsupported binary operator: {:?}", bop.operator),
         };
         self.emit(instruction, loc);
     }
@@ -847,6 +842,49 @@ impl<'a> Compiler<'a> {
         self.current_state().loop_stack.pop();
 
         self.emit(Instruction::Jump(loop_start.clone()), loc);
+
+        self.program.syms.insert(
+            loop_end.clone(),
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+                upvalues: Vec::new(),
+            },
+        );
+    }
+
+    fn compile_repeat(&mut self, repeat: Repeat) {
+        let loc = repeat.loc;
+        let unique_id = self.unique_id();
+        let loop_start = format!("repeat_start_{}", unique_id);
+        let loop_end = format!("repeat_end_{}", unique_id);
+
+        self.program.syms.insert(
+            loop_start.clone(),
+            Symbol {
+                location: self.program.instructions.len() as i32,
+                narguments: 0,
+                nlocals: 0,
+                upvalues: Vec::new(),
+            },
+        );
+
+        self.current_state().loop_stack.push(LoopLabels {
+            start: loop_start.clone(),
+            end: loop_end.clone(),
+        });
+
+        self.begin_scope();
+        for stmt in repeat.body {
+            self.compile_statement(stmt);
+        }
+        self.end_scope(loc, false);
+        self.current_state().loop_stack.pop();
+
+        self.compile_expression(repeat.test);
+        self.emit(Instruction::Not, loc);
+        self.emit(Instruction::JumpIfFalse(loop_start.clone()), loc);
 
         self.program.syms.insert(
             loop_end.clone(),

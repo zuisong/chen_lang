@@ -29,6 +29,8 @@ pub enum Instruction {
     Multiply, // 乘法
     Divide,   // 除法
     Modulo,   // 取模
+    Concat,   // 字符串拼接
+    FloorDiv, // 向下取整除法
 
     // 比较操作
     Equal,              // 等于
@@ -79,8 +81,6 @@ pub enum Instruction {
     BuildArray(usize), // 从栈顶 n 个元素构建数组对象
 
     // Exception handling
-    Throw,                        // 抛出异常（从栈顶取值）
-    Import(String),               // 导入模块（stdlib 或文件）
     PushExceptionHandler(String), // 压入异常处理器（catch label）
     PopExceptionHandler,          // 弹出异常处理器
 }

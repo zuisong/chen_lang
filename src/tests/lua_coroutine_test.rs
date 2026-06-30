@@ -14,13 +14,12 @@ fn run_code(code: &str) -> String {
 
 #[test]
 fn test_create_with_args() {
-    // 1. coroutine.create(f, arg) -> resume()
     let code = r#"
-    def f(x) {
-        return "Arg: " + x
-    }
-    let co = coroutine.create(f, 100)
-    let res = coroutine.resume(co)
+    function f(x)
+        return "Arg: " .. x
+    end
+    local co = coroutine.create(f, 100)
+    local res = coroutine.resume(co)
     return res
     "#;
     assert_eq!(run_code(code), "Arg: 100");
@@ -28,13 +27,12 @@ fn test_create_with_args() {
 
 #[test]
 fn test_resume_with_args_start() {
-    // 2. coroutine.create(f) -> resume(co, arg)
     let code = r#"
-    def f(x) {
-        return "Arg: " + x
-    }
-    let co = coroutine.create(f)
-    let res = coroutine.resume(co, 200)
+    function f(x)
+        return "Arg: " .. x
+    end
+    local co = coroutine.create(f)
+    local res = coroutine.resume(co, 200)
     return res
     "#;
     assert_eq!(run_code(code), "Arg: 200");
@@ -42,15 +40,14 @@ fn test_resume_with_args_start() {
 
 #[test]
 fn test_resume_pass_data() {
-    // 3. resume(co, val) -> yield returns val
     let code = r#"
-    def f() {
-        let val = coroutine.yield("start")
-        return "Got: " + val
-    }
-    let co = coroutine.create(f)
-    coroutine.resume(co) # Start, returns "start"
-    let res = coroutine.resume(co, "World")
+    function f()
+        local val = coroutine.yield("start")
+        return "Got: " .. val
+    end
+    local co = coroutine.create(f)
+    coroutine.resume(co) -- Start, returns "start"
+    local res = coroutine.resume(co, "World")
     return res
     "#;
     assert_eq!(run_code(code), "Got: World");
@@ -58,32 +55,30 @@ fn test_resume_pass_data() {
 
 #[test]
 fn test_yield_pass_data() {
-    // 4. yield(val) -> resume returns val
     let code = r#"
-    def f() {
+    function f()
         coroutine.yield("from_yield")
         return 0
-    }
-    let co = coroutine.create(f)
-    let res = coroutine.resume(co)
+    end
+    local co = coroutine.create(f)
+    local res = coroutine.resume(co)
     return res
     "#;
     assert_eq!(run_code(code), "from_yield");
 }
 
 #[test]
-fn test_resume_no_args_is_null() {
-    // 5. resume(co) -> yield returns null
+fn test_resume_no_args_is_nil() {
     let code = r#"
-    def f() {
-        let val = coroutine.yield(1)
-        if val == null { return "Was Null" }
-        return "Not Null"
-    }
-    let co = coroutine.create(f)
+    function f()
+        local val = coroutine.yield(1)
+        if val == nil then return "Was Nil" end
+        return "Not Nil"
+    end
+    local co = coroutine.create(f)
     coroutine.resume(co)
-    let res = coroutine.resume(co) # No args
+    local res = coroutine.resume(co) -- No args
     return res
     "#;
-    assert_eq!(run_code(code), "Was Null");
+    assert_eq!(run_code(code), "Was Nil");
 }

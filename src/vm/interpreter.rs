@@ -4,15 +4,6 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 use tracing::debug;
 
-use super::native_date::create_date_object;
-use super::native_fs::create_fs_object;
-#[cfg(feature = "http")]
-use super::native_http::create_http_object;
-use super::native_io::create_io_object;
-use super::native_json::create_json_object;
-use super::native_process::create_process_object;
-use crate::compiler::compile;
-use crate::parser::parse_from_source;
 use crate::tokenizer::Location;
 use crate::value::{ObjClosure, ObjUpvalue, OpResult, UpvalueState, Value, ValueError, ValueType};
 use crate::vm::fiber::{CallFrame, ExceptionHandler};
@@ -63,22 +54,18 @@ impl VM {
                                     self.stack.push(val);
                                 }
                                 Err(err) => {
-                                    let program = self.program.clone().expect("program should be set");
-                                    self.stack.push(Value::string(err.to_string()));
-                                    if let Err(e) = self.execute_instruction(&Instruction::Throw, &program) {
-                                        return Err(RuntimeErrorWithContext {
-                                            error: e,
-                                            loc: Location {
-                                                line: 0,
-                                                col: 0,
-                                                index: 0,
-                                            },
-                                            pc: self.pc,
-                                        });
+                                    let error_value = Value::string(err.to_string());
+                                    if let Some(handler) = self.exception_handlers.pop() {
+                                        self.stack.truncate(handler.stack_size);
+                                        self.fp = handler.fp;
+                                        self.stack.push(error_value);
+                                        if let Some(target) = self.program.as_ref().and_then(|p| p.syms.get(&handler.catch_label)) {
+                                            self.pc = (target.location as usize) - 1;
+                                            self.pc = self.pc.saturating_add(1);
+                                        } else {
+                                            // No handler, propagate error
+                                        }
                                     }
-                                    // Align with main loop semantics: Throw sets PC to target-1,
-                                    // so we need to advance once before re-entering execute_from.
-                                    self.pc = self.pc.saturating_add(1);
                                 }
                             }
                         }
@@ -260,8 +247,21 @@ impl VM {
                 }
                 Err(error) => {
                     if let VMRuntimeError::Yield = error {
-                        // PC has been handled by the native function if necessary
                         break;
+                    }
+
+                    if let Some(handler) = self.exception_handlers.pop() {
+                        self.stack.truncate(handler.stack_size);
+                        self.fp = handler.fp;
+                        let error_msg = match &error {
+                            VMRuntimeError::UncaughtException(msg) => msg.clone(),
+                            _ => error.to_string(),
+                        };
+                        self.stack.push(Value::string(error_msg));
+                        if let Some(target) = program_clone.syms.get(&handler.catch_label) {
+                            self.pc = target.location as usize;
+                            continue;
+                        }
                     }
 
                     let loc = *program_clone.lines.get(&self.pc).unwrap_or(&Location {
@@ -315,100 +315,6 @@ impl VM {
         match instruction {
             Instruction::Push(value) => {
                 self.stack.push(value.clone());
-            }
-
-            Instruction::Import(path) => {
-                if path.starts_with("stdlib/") {
-                    match path.as_str() {
-                        "stdlib/json" => {
-                            let module = create_json_object();
-                            self.stack.push(module);
-                        }
-                        "stdlib/date" => {
-                            let module = create_date_object();
-                            self.stack.push(module);
-                        }
-                        "stdlib/fs" => {
-                            let module = create_fs_object();
-                            self.stack.push(module);
-                        }
-                        "stdlib/http" => {
-                            #[cfg(feature = "http")]
-                            {
-                                let module = create_http_object();
-                                self.stack.push(module);
-                            }
-                            #[cfg(not(feature = "http"))]
-                            self.stack.push(Value::Null);
-                        }
-                        "stdlib/process" => {
-                            let module = create_process_object();
-                            self.stack.push(module);
-                        }
-                        "stdlib/io" => {
-                            let module = create_io_object();
-                            self.stack.push(module);
-                        }
-                        "stdlib/timer" => {
-                            let module = super::native_timer::create_timer_object();
-                            self.stack.push(module);
-                        }
-                        _ => {
-                            return Err(VMRuntimeError::UndefinedVariable(format!(
-                                "Stdlib module not found: {}",
-                                path
-                            )));
-                        }
-                    }
-                } else {
-                    if let Some(cached_val) = self.module_cache.get(path) {
-                        self.stack.push(cached_val.clone());
-                        return Ok(true);
-                    }
-
-                    let code = match std::fs::read_to_string(path) {
-                        Ok(c) => c,
-                        Err(e) => {
-                            return Err(VMRuntimeError::UncaughtException(format!(
-                                "Failed to import {}: {}",
-                                path, e
-                            )));
-                        }
-                    };
-
-                    let ast = match parse_from_source(&code) {
-                        Ok(a) => a,
-                        Err(e) => {
-                            return Err(VMRuntimeError::UncaughtException(format!(
-                                "Parse error in {}: {}",
-                                path, e
-                            )));
-                        }
-                    };
-
-                    let module_program = compile(&code.chars().collect::<Vec<char>>(), ast);
-
-                    let saved_stack_size = self.stack.len();
-                    let saved_pc = self.pc;
-                    let saved_fp = self.fp;
-
-                    let res = self.execute_rc(Rc::new(module_program));
-
-                    self.pc = saved_pc;
-                    self.fp = saved_fp;
-
-                    match res {
-                        Ok(val) => {
-                            self.stack.truncate(saved_stack_size);
-                            self.module_cache.insert(path.clone(), val.clone());
-                            self.stack.push(val);
-                        }
-                        Err(e) => {
-                            self.stack.truncate(saved_stack_size);
-                            return Err(e.error);
-                        }
-                    }
-                }
             }
 
             Instruction::BuildArray(count) => {
@@ -577,6 +483,20 @@ impl VM {
                 self.stack.push(result);
             }
 
+            Instruction::Concat => {
+                let right = self.stack.pop().unwrap_or(Value::null());
+                let left = self.stack.pop().unwrap_or(Value::null());
+                let result = Value::string(format!("{}{}", left, right));
+                self.stack.push(result);
+            }
+
+            Instruction::FloorDiv => {
+                let right = self.stack.pop().unwrap_or(Value::null());
+                let left = self.stack.pop().unwrap_or(Value::null());
+                let result = left.floor_div(&right)?;
+                self.stack.push(result);
+            }
+
             Instruction::Equal => {
                 let right = self.stack.pop().unwrap_or(Value::null());
                 let left = self.stack.pop().unwrap_or(Value::null());
@@ -674,10 +594,10 @@ impl VM {
 
             Instruction::Call(func_name, arg_count) => {
                 return match func_name.as_str() {
-                    "set_meta" => {
+                    "set_meta" | "setmetatable" => {
                         if *arg_count != 2 {
                             return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                                operator: "set_meta".to_string(),
+                                operator: func_name.to_string(),
                                 left_type: ValueType::Null,
                                 right_type: ValueType::Null,
                             }));
@@ -688,10 +608,10 @@ impl VM {
                         self.stack.push(Value::null());
                         Ok(true)
                     }
-                    "get_meta" => {
+                    "get_meta" | "getmetatable" => {
                         if *arg_count != 1 {
                             return Err(VMRuntimeError::ValueError(ValueError::InvalidOperation {
-                                operator: "get_meta".to_string(),
+                                operator: func_name.to_string(),
                                 left_type: ValueType::Null,
                                 right_type: ValueType::Null,
                             }));
@@ -1171,28 +1091,6 @@ impl VM {
                         right_type: ValueType::Null,
                     })),
                 };
-            }
-
-            Instruction::Throw => {
-                let error_value = self.stack.pop().unwrap_or(Value::string("Unknown error".to_string()));
-
-                if let Some(handler) = self.exception_handlers.pop() {
-                    self.stack.truncate(handler.stack_size);
-                    self.fp = handler.fp;
-                    self.stack.push(error_value);
-
-                    return if let Some(target) = program.syms.get(&handler.catch_label) {
-                        self.pc = (target.location as usize) - 1;
-                        Ok(true)
-                    } else {
-                        Err(VMRuntimeError::UndefinedLabel(format!(
-                            "catch label: {}",
-                            handler.catch_label
-                        )))
-                    };
-                }
-
-                return Err(VMRuntimeError::UncaughtException(error_value.to_string()));
             }
 
             Instruction::PushExceptionHandler(catch_label) => {

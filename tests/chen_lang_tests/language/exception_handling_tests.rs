@@ -4,9 +4,9 @@ use crate::common::run_chen_lang_code;
 fn test_try_catch_basic() {
     let code = r#"
     try {
-        throw "Something went wrong!"
-    } catch error {
-        println("Caught error: " + error)
+        error("Something went wrong!")
+    } catch e {
+        println("Caught error: " + e)
     }
     println("Program continues...")
     "#;
@@ -18,13 +18,13 @@ fn test_try_catch_basic() {
 #[test]
 fn test_try_catch_with_finally() {
     let code = r#"
-    let cleanup_called = false
+    local cleanup_called = false
     
     try {
         println("In try block")
-        throw "Error occurred"
-    } catch error {
-        println("In catch block: " + error)
+        error("Error occurred")
+    } catch e {
+        println("In catch block: " + e)
     } finally {
         println("In finally block")
         cleanup_called = true
@@ -42,21 +42,21 @@ fn test_try_catch_with_finally() {
 #[test]
 fn test_try_catch_in_function() {
     let code = r#"
-    def divide(a, b) {
-        if b == 0 {
-            throw "Division by zero"
-        }
-        a / b
-    }
+    function divide(a, b)
+        if b == 0 then
+            error("Division by zero")
+        end
+        return a / b
+    end
     
     try {
-        let result = divide(10, 2)
+        local result = divide(10, 2)
         println("Result: " + result)
         
-        let bad_result = divide(10, 0)
+        local bad_result = divide(10, 0)
         println("This should not print")
-    } catch error {
-        println("Caught: " + error)
+    } catch e {
+        println("Caught: " + e)
     }
     
     println("Program completed")
@@ -76,10 +76,10 @@ fn test_nested_try_catch() {
         
         try {
             println("Inner try")
-            throw "Inner error"
+            error("Inner error")
         } catch inner_error {
             println("Inner catch: " + inner_error)
-            throw "Outer error"
+            error("Outer error")
         }
         
         println("This should not print")
@@ -102,7 +102,7 @@ fn test_nested_try_catch() {
 fn test_try_catch_without_error_variable() {
     let code = r#"
     try {
-        throw "Some error"
+        error("Some error")
     } catch {
         println("Error caught (no variable)")
     }
@@ -115,7 +115,7 @@ fn test_try_catch_without_error_variable() {
 fn test_throw_string() {
     let code = r#"
     try {
-        throw "Error message"
+        error("Error message")
     } catch e {
         println("Caught: " + e)
     }
@@ -128,7 +128,7 @@ fn test_throw_string() {
 fn test_throw_number() {
     let code = r#"
     try {
-        throw 42
+        error(42)
     } catch e {
         println("Caught: " + e)
     }
@@ -140,7 +140,7 @@ fn test_throw_number() {
 #[test]
 fn test_finally_executes_on_success() {
     let code = r#"
-    let finally_ran = false
+    local finally_ran = false
     
     try {
         println("Try block")
@@ -163,17 +163,17 @@ fn test_finally_executes_on_success() {
 #[test]
 fn test_multiple_throws_in_sequence() {
     let code = r#"
-    let count = 0
+    local count = 0
     
     try {
-        throw "First"
+        error("First")
     } catch e {
         println("Caught first: " + e)
         count = count + 1
     }
     
     try {
-        throw "Second"
+        error("Second")
     } catch e {
         println("Caught second: " + e)
         count = count + 1

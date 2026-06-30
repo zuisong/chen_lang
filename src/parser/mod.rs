@@ -52,7 +52,7 @@ pub enum ParserError {
 /// ```ignore
 /// use chen_lang::parser;
 ///
-/// let code = "let x = 10";
+/// let code = "local x = 10";
 /// let ast = parser::parse_from_source(code)?;
 /// ```
 #[cfg(not(feature = "pest-parser"))]
@@ -73,7 +73,7 @@ mod tests {
 
     #[test]
     fn test_unified_parser() {
-        let code = "let x = 10";
+        let code = "local x = 10";
         let ast = parse_from_source(code);
         assert!(ast.is_ok());
     }

@@ -3,12 +3,10 @@ use crate::parser;
 use crate::tokenizer::Operator;
 use crate::value::Value;
 
-// Helper to parse a string into statements
 fn parse_code(code: &str) -> Result<Vec<Statement>, parser::ParserError> {
     parser::parse_from_source(code)
 }
 
-// Helper to parse a single expression string
 fn parse_expr_str(code: &str) -> Expression {
     let stmts = parse_code(code).expect("Parsing failed");
     assert_eq!(stmts.len(), 1, "Expected exactly one statement");
@@ -20,7 +18,6 @@ fn parse_expr_str(code: &str) -> Expression {
 
 #[test]
 fn test_operator_precedence_mul_add() {
-    // 1 + 2 * 3 should be 1 + (2 * 3)
     let expr = parse_expr_str("1 + 2 * 3");
 
     if let Expression::BinaryOperation(bin_op) = expr {
@@ -29,13 +26,11 @@ fn test_operator_precedence_mul_add() {
             (Expression::Literal(Literal::Value(Value::Int(1)), _), Expression::BinaryOperation(right_op)) => {
                 assert_eq!(right_op.operator, Operator::Multiply);
 
-                // Check left operand (2)
                 if let Expression::Literal(Literal::Value(Value::Int(2)), _) = *right_op.left {
                 } else {
                     panic!("Expected 2")
                 }
 
-                // Check right operand (3)
                 if let Expression::Literal(Literal::Value(Value::Int(3)), _) = *right_op.right {
                 } else {
                     panic!("Expected 3")
@@ -50,7 +45,6 @@ fn test_operator_precedence_mul_add() {
 
 #[test]
 fn test_operator_precedence_paren() {
-    // (1 + 2) * 3 should be (1 + 2) * 3
     let expr = parse_expr_str("(1 + 2) * 3");
 
     if let Expression::BinaryOperation(bin_op) = expr {
@@ -77,18 +71,15 @@ fn test_operator_precedence_paren() {
 
 #[test]
 fn test_logical_precedence() {
-    // true || false && true  =>  true || (false && true)
-    let expr = parse_expr_str("true || false && true");
+    let expr = parse_expr_str("true or false and true");
 
     if let Expression::BinaryOperation(bin_op) = expr {
         assert_eq!(bin_op.operator, Operator::Or);
-        // left is true
         if let Expression::Literal(Literal::Value(Value::Bool(true)), _) = *bin_op.left {
         } else {
             panic!("Left should be true");
         }
 
-        // right is false && true
         if let Expression::BinaryOperation(right_op) = *bin_op.right {
             assert_eq!(right_op.operator, Operator::And);
         } else {
@@ -101,7 +92,7 @@ fn test_logical_precedence() {
 
 #[test]
 fn test_if_expression() {
-    let expr = parse_expr_str("if true { 1 } else { 0 }");
+    let expr = parse_expr_str("if true then 1 else 0 end");
 
     if let Expression::If(if_expr) = expr {
         if let Expression::Literal(Literal::Value(Value::Bool(true)), _) = *if_expr.test {
@@ -117,17 +108,16 @@ fn test_if_expression() {
 
 #[test]
 fn test_syntax_error_missing_brace() {
-    let code = "if true { 1 "; // Missing closing brace
+    let code = "if true then 1 "; // Missing 'end'
     let result = parse_code(code);
     assert!(result.is_err());
     let err = result.err().unwrap();
-    // We verify it is indeed a parse error, specific message might vary
     println!("Caught expected error: {:?}", err);
 }
 
 #[test]
 fn test_syntax_error_unexpected_token() {
-    let code = "let x = +"; // unexpected operator
+    let code = "local x = +"; // unexpected operator
     let result = parse_code(code);
     assert!(result.is_err());
 }
@@ -164,8 +154,7 @@ fn test_function_call_with_args() {
 
 #[test]
 fn test_object_literal() {
-    // ${ x: 1, y: 2 }
-    let expr = parse_expr_str("${ x: 1, y: 2 }");
+    let expr = parse_expr_str("{ x = 1, y = 2 }");
     if let Expression::ObjectLiteral(fields, _) = expr {
         assert_eq!(fields.len(), 2);
         assert_eq!(fields[0].0, "x");

@@ -78,10 +78,103 @@ impl VM {
 
     pub fn with_writer(writer: Box<dyn Write>) -> Self {
         let mut variables = IndexMap::new();
-        variables.insert("null".to_string(), Value::null());
+        variables.insert("nil".to_string(), Value::null());
         variables.insert("coroutine".to_string(), create_coroutine_object());
         let object_prototype = create_object_prototype();
         variables.insert("Object".to_string(), object_prototype.clone());
+
+        let print_fn = |vm: &mut VM, args: Vec<Value>| {
+            for val in args {
+                write!(vm.stdout, "{}", val).unwrap();
+            }
+            vm.stdout.flush().unwrap();
+            Ok(Value::null())
+        };
+        variables.insert("print".to_string(), Value::NativeFunction(Rc::new(Box::new(print_fn))));
+
+        let println_fn = |vm: &mut VM, args: Vec<Value>| {
+            for val in args {
+                write!(vm.stdout, "{}", val).unwrap();
+            }
+            writeln!(vm.stdout).unwrap();
+            vm.stdout.flush().unwrap();
+            Ok(Value::null())
+        };
+        variables.insert("println".to_string(), Value::NativeFunction(Rc::new(Box::new(println_fn))));
+
+        let require_fn = |vm: &mut VM, args: Vec<Value>| {
+            let err = |msg: &str| {
+                Err(crate::vm::VMRuntimeError::UncaughtException(msg.to_string()))
+            };
+            if args.is_empty() {
+                return err("require() expects a module path");
+            }
+            let path = match &args[0] {
+                Value::String(s) => s.as_ref().clone(),
+                _ => return err("require() expects a string argument"),
+            };
+            if path.starts_with("stdlib/") {
+                let module = match path.as_str() {
+                    "stdlib/json" => crate::vm::native_json::create_json_object(),
+                    "stdlib/date" => crate::vm::native_date::create_date_object(),
+                    "stdlib/fs" => crate::vm::native_fs::create_fs_object(),
+                    "stdlib/http" => {
+                        #[cfg(feature = "http")]
+                        { crate::vm::native_http::create_http_object() }
+                        #[cfg(not(feature = "http"))]
+                        { Value::Null }
+                    }
+                    "stdlib/process" => crate::vm::native_process::create_process_object(),
+                    "stdlib/io" => crate::vm::native_io::create_io_object(),
+                    "stdlib/timer" => crate::vm::native_timer::create_timer_object(),
+                    _ => return err(&format!("Stdlib module not found: {}", path)),
+                };
+                return Ok(module);
+            }
+            if let Some(cached) = vm.module_cache.get(&path) {
+                return Ok(cached.clone());
+            }
+            let code = match std::fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(e) => return err(&format!("Failed to require {}: {}", path, e)),
+            };
+            let ast = match crate::parser::parse_from_source(&code) {
+                Ok(a) => a,
+                Err(e) => return err(&format!("Parse error in {}: {}", path, e)),
+            };
+            let module_program = crate::compiler::compile(&code.chars().collect::<Vec<char>>(), ast);
+            let saved_stack = vm.stack.len();
+            let saved_pc = vm.pc;
+            let saved_fp = vm.fp;
+            vm.fp = vm.stack.len();
+            vm.pc = 0;
+            match vm.execute(&module_program) {
+                Ok(return_val) => {
+                    vm.stack.truncate(saved_stack);
+                    vm.pc = saved_pc;
+                    vm.fp = saved_fp;
+                    vm.module_cache.insert(path.clone(), return_val.clone());
+                    Ok(return_val)
+                }
+                Err(e) => {
+                    vm.stack.truncate(saved_stack);
+                    vm.pc = saved_pc;
+                    vm.fp = saved_fp;
+                    err(&format!("Error loading {}: {}", path, e))
+                }
+            }
+        };
+        variables.insert("require".to_string(), Value::NativeFunction(Rc::new(Box::new(require_fn))));
+
+        let error_fn = |_vm: &mut VM, args: Vec<Value>| {
+            let msg = if args.is_empty() {
+                "error".to_string()
+            } else {
+                args[0].to_string()
+            };
+            Err(crate::vm::VMRuntimeError::UncaughtException(msg))
+        };
+        variables.insert("error".to_string(), Value::NativeFunction(Rc::new(Box::new(error_fn))));
 
         VM {
             stack: Vec::with_capacity(1024),

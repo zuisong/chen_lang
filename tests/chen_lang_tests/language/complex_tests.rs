@@ -3,9 +3,9 @@ use crate::common::run_chen_lang_code;
 #[test]
 fn test_string_operations() {
     let code = r#"
-let hello = "Hello"
-let world = "World"
-let result = hello + " " + world
+local hello = "Hello"
+local world = "World"
+local result = hello + " " + world
 print(result)
 "#;
 
@@ -17,17 +17,17 @@ print(result)
 #[test]
 fn test_nine_nine_multiply_table() {
     let code = r#"
-let i=1
-for i<=9 {
-    let j = 1
-    for j <= i {
-        let temp_prod = i*j
+local i=1
+while i<=9 do
+    local j = 1
+    while j <= i do
+        local temp_prod = i*j
         print(j + "x" + i + "=" + temp_prod + " ")
         j = j + 1
-    }
+    end
     println("")
     i=i+1
-}
+end
 "#;
 
     let output = run_chen_lang_code(code).unwrap();
@@ -40,21 +40,21 @@ for i<=9 {
 #[test]
 fn test_sum_example() {
     let code = r#"
-def aaa(n){
-    let i = 100
-    let sum = 0
-    for i != 0 {
+function aaa(n)
+    local i = 100
+    local sum = 0
+    while i ~= 0 do
         i = i - 1
-        if (i%2!=0) || (i%3==0)  {
+        if (i%2~=0) or (i%3==0) then
             println(i)
             sum = sum + i
-        }
-    }
+        end
+    end
     println("100以内的 奇数或者是能被三整除的偶数 之和是")
     println(sum)
-    sum
-}
-let sum = 0
+    return sum
+end
+local sum = 0
 sum = aaa(100)
 println(sum)
 "#;

@@ -1,260 +1,267 @@
 use crate::common::run_chen_lang_code;
 
+fn run_code_and_check(code: &str, expected_contains: &[&str]) {
+    let output = run_chen_lang_code(code).expect("Execution failed");
+    for s in expected_contains {
+        assert!(output.contains(s), "Output missing: {:?} in {:?}", s, output);
+    }
+}
+
 #[test]
 fn test_array_creation() {
-    let code = r#"
-        let arr = [10, 20, 30]
+    run_code_and_check(
+        r#"
+        local arr = [10, 20, 30]
         println(arr[0])
         println(arr[1])
         println(arr[2])
-    "#;
-    let output = run_chen_lang_code(code).expect("Execution failed");
-    assert!(output.contains("10"));
-    assert!(output.contains("20"));
-    assert!(output.contains("30"));
+    "#,
+        &["10", "20", "30"],
+    );
 }
 
 #[test]
 fn test_array_indexing() {
-    let code = r#"
-        let arr = [10, 20]
+    run_code_and_check(
+        r#"
+        local arr = [10, 20]
         println(arr[0])
         arr[1] = 50
         println(arr[1])
-    "#;
-    let output = run_chen_lang_code(code).expect("Execution failed");
-    assert!(output.contains("10"));
-    assert!(output.contains("50"));
+    "#,
+        &["10", "50"],
+    );
 }
 
 #[test]
 fn test_sparse_array() {
-    let code = r#"
-        let arr = [1]
+    run_code_and_check(
+        r#"
+        local arr = [1]
         arr[10] = "sparse"
         println(arr[10]) 
-    "#;
-    let output = run_chen_lang_code(code).expect("Execution failed");
-    assert!(output.contains("sparse"));
+    "#,
+        &["sparse"],
+    );
 }
 
 #[test]
 fn test_mixed_array() {
-    let code = r#"
-        let arr = [1, "two", true]
+    run_code_and_check(
+        r#"
+        local arr = [1, "two", true]
         println(arr[0])
         println(arr[1])
         println(arr[2])
-    "#;
-    let output = run_chen_lang_code(code).expect("Execution failed");
-    assert!(output.contains("1"));
-    assert!(output.contains("two"));
-    assert!(output.contains("true"));
+    "#,
+        &["1", "two", "true"],
+    );
 }
+
 #[test]
 fn test_array_push() {
-    // Requires method call optimization because push is native method on proto
-    let code = r#"
-        let arr = [10, 20]
-        let new_len = arr:push(30)
+    run_code_and_check(
+        r#"
+        local arr = [10, 20]
+        local new_len = arr:push(30)
         println(new_len)
         println(arr[2])
-    "#;
-    let output = run_chen_lang_code(code).expect("Execution failed");
-    assert!(output.contains("3"));
-    assert!(output.contains("30"));
+    "#,
+        &["3", "30"],
+    );
 }
 
 #[test]
 fn test_array_pop() {
-    let code = r#"
-        let arr = [10, 20]
-        let val = arr:pop()
+    run_code_and_check(
+        r#"
+        local arr = [10, 20]
+        local val = arr:pop()
         println(val)
-        let removed = arr[1] 
-        # Accessing "1" should be null.
-        if removed == null {
+        local removed = arr[1] 
+        if removed == nil then
             println("Removed")
-        }
-    "#;
-    let output = run_chen_lang_code(code).expect("Execution failed");
-    assert!(output.contains("20"));
-    assert!(output.contains("Removed"));
+        end
+    "#,
+        &["20", "Removed"],
+    );
 }
 
 #[test]
 fn test_array_len() {
-    let code = r#"
-        let arr = [1, 2, 300]
+    run_code_and_check(
+        r#"
+        local arr = [1, 2, 300]
         println(arr:len())
-    "#;
-    let output = run_chen_lang_code(code).expect("Execution failed");
-    assert!(output.contains("3"));
+    "#,
+        &["3"],
+    );
 }
 
 #[test]
 fn test_array_type_tag() {
-    let code = r#"
-        let arr = []
+    run_code_and_check(
+        r#"
+        local arr = []
         println(arr.__type)
-    "#;
-    let output = run_chen_lang_code(code).expect("Execution failed");
-    assert!(output.contains("Array"));
+    "#,
+        &["Array"],
+    );
 }
 
 #[test]
 fn test_array_like_object_creation() {
-    let code = r#"
-        let arr = ${ 
-            0: "first",
-            1: "second",
-            2: "third"
-        }
+    run_code_and_check(
+        r#"
+        local arr = {}
+        arr[0] = "first"
+        arr[1] = "second"
+        arr[2] = "third"
         println(arr[0])
         println(arr[1])
         println(arr[2])
-    "#;
-
-    let output = run_chen_lang_code(code).unwrap();
-    assert!(output.contains("first"));
-    assert!(output.contains("second"));
-    assert!(output.contains("third"));
+    "#,
+        &["first", "second", "third"],
+    );
 }
 
 #[test]
 fn test_array_like_index_access() {
-    let code = r#"
-        let arr = ${ 0: 10, 1: 20, 2: 30 }
-        let sum = arr[0] + arr[1] + arr[2]
+    run_code_and_check(
+        r#"
+        local arr = {}
+        arr[0] = 10
+        arr[1] = 20
+        arr[2] = 30
+        local sum = arr[0] + arr[1] + arr[2]
         println(sum)
-    "#;
-
-    let output = run_chen_lang_code(code).unwrap();
-    assert!(output.contains("60"));
+    "#,
+        &["60"],
+    );
 }
 
 #[test]
 fn test_array_like_index_assignment() {
-    let code = r#"
-        let arr = ${ 0: 1, 1: 2, 2: 3 }
+    run_code_and_check(
+        r#"
+        local arr = {}
+        arr[0] = 1
+        arr[1] = 2
+        arr[2] = 3
         arr[0] = 100
         arr[1] = 200
         println(arr[0])
         println(arr[1])
         println(arr[2])
-    "#;
-
-    let output = run_chen_lang_code(code).unwrap();
-    assert!(output.contains("100"));
-    assert!(output.contains("200"));
-    assert!(output.contains("3"));
+    "#,
+        &["100", "200", "3"],
+    );
 }
 
 #[test]
 fn test_array_like_dynamic_indexing() {
-    let code = r#"
-        let arr = ${ 0: "a", 1: "b", 2: "c" }
-        let i = 0
-        for i < 3 {
+    run_code_and_check(
+        r#"
+        local arr = {}
+        arr[0] = "a"
+        arr[1] = "b"
+        arr[2] = "c"
+        local i = 0
+        while i < 3 do
             println(arr[i])
             i = i + 1
-        }
-    "#;
-
-    let output = run_chen_lang_code(code).unwrap();
-    assert!(output.contains("a"));
-    assert!(output.contains("b"));
-    assert!(output.contains("c"));
+        end
+    "#,
+        &["a", "b", "c"],
+    );
 }
 
 #[test]
 fn test_array_like_sparse_array() {
-    let code = r#"
-        # 稀疏数组：只有索引 0 和 100
-        let sparse = ${ 0: "start", 100: "end" }
+    run_code_and_check(
+        r#"
+        local sparse = {}
+        sparse[0] = "start"
+        sparse[100] = "end"
         println(sparse[0])
         println(sparse[100])
-    "#;
-
-    let output = run_chen_lang_code(code).unwrap();
-    assert!(output.contains("start"));
-    assert!(output.contains("end"));
+    "#,
+        &["start", "end"],
+    );
 }
 
 #[test]
 fn test_array_like_mixed_keys() {
-    let code = r#"
-        # 混合使用数字键和字符串键
-        let mixed = ${ 
-            0: "first element",
-            1: "second element",
-            name: "my array",
-            length: 2
-        }
+    run_code_and_check(
+        r#"
+        local mixed = {}
+        mixed[0] = "first element"
+        mixed[1] = "second element"
+        mixed.name = "my array"
+        mixed.length = 2
         println(mixed[0])
         println(mixed[1])
         println(mixed.name)
         println(mixed.length)
-    "#;
-
-    let output = run_chen_lang_code(code).unwrap();
-    assert!(output.contains("first element"));
-    assert!(output.contains("second element"));
-    assert!(output.contains("my array"));
-    assert!(output.contains("2"));
+    "#,
+        &["first element", "second element", "my array", "2"],
+    );
 }
 
 #[test]
 fn test_array_like_nested() {
-    let code = r#"
-        # 嵌套数组（二维数组）
-        let matrix = ${ 
-            0: ${ 0: 1, 1: 2 },
-            1: ${ 0: 3, 1: 4 }
-        }
+    run_code_and_check(
+        r#"
+        local row0 = {}
+        row0[0] = 1
+        row0[1] = 2
+        local row1 = {}
+        row1[0] = 3
+        row1[1] = 4
+        local matrix = {}
+        matrix[0] = row0
+        matrix[1] = row1
         println(matrix[0][0])
         println(matrix[0][1])
         println(matrix[1][0])
         println(matrix[1][1])
-    "#;
-
-    let output = run_chen_lang_code(code).unwrap();
-    assert!(output.contains("1"));
-    assert!(output.contains("2"));
-    assert!(output.contains("3"));
-    assert!(output.contains("4"));
+    "#,
+        &["1", "2", "3", "4"],
+    );
 }
 
 #[test]
 fn test_array_like_iteration() {
-    let code = r#"
-        # 模拟数组迭代
-        let arr = ${ 0: 10, 1: 20, 2: 30, 3: 40 }
-        let sum = 0
-        let i = 0
-        for i < 4 {
+    run_code_and_check(
+        r#"
+        local arr = {}
+        arr[0] = 10
+        arr[1] = 20
+        arr[2] = 30
+        arr[3] = 40
+        local sum = 0
+        local i = 0
+        while i < 4 do
             sum = sum + arr[i]
             i = i + 1
-        }
+        end
         println(sum)
-    "#;
-
-    let output = run_chen_lang_code(code).unwrap();
-    assert!(output.contains("100"));
+    "#,
+        &["100"],
+    );
 }
 
 #[test]
 fn test_array_like_with_strings() {
-    let code = r#"
-        let names = ${ 
-            0: "Alice",
-            1: "Bob",
-            2: "Charlie"
-        }
-        let greeting = "Hello, " + names[0] + "!"
+    run_code_and_check(
+        r#"
+        local names = {}
+        names[0] = "Alice"
+        names[1] = "Bob"
+        names[2] = "Charlie"
+        local greeting = "Hello, " + names[0] + "!"
         println(greeting)
-    "#;
-
-    let output = run_chen_lang_code(code).unwrap();
-    assert!(output.contains("Hello, Alice!"));
+    "#,
+        &["Hello, Alice!"],
+    );
 }

@@ -238,7 +238,7 @@ impl fmt::Display for Value {
             Value::Fn(closure) => write!(f, "<fn {}>", closure.name),
             Value::NativeFunction(_) => write!(f, "<native function>"),
             Value::Coroutine(fiber) => write!(f, "<coroutine: {:?}>", fiber.borrow().state),
-            Value::Null => write!(f, "null"),
+            Value::Null => write!(f, "nil"),
         }
     }
 }
@@ -473,6 +473,23 @@ impl Value {
             }
             _ => Err(ValueError::InvalidOperation {
                 operator: "/".to_string(),
+                left_type: self.get_type(),
+                right_type: other.get_type(),
+            }),
+        }
+    }
+
+    pub fn floor_div(&self, other: &Value) -> Result<Value, ValueError> {
+        match (self, other) {
+            (Value::Int(a), Value::Int(b)) => {
+                if *b == 0 {
+                    Err(ValueError::DivisionByZero)
+                } else {
+                    Ok(Value::Int(a.div_euclid(*b)))
+                }
+            }
+            _ => Err(ValueError::InvalidOperation {
+                operator: "//".to_string(),
                 left_type: self.get_type(),
                 right_type: other.get_type(),
             }),

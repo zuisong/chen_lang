@@ -3,7 +3,7 @@ use crate::common::run_chen_lang_code;
 #[test]
 fn test_string_len() {
     let code = r#"
-    let s = "hello"
+    local s = "hello"
     println(s:len())
     println("abc":len())
     "#;
@@ -15,7 +15,7 @@ fn test_string_len() {
 #[test]
 fn test_string_upper_lower() {
     let code = r#"
-    let s = "Hello"
+    local s = "Hello"
     println(s:upper())
     println(s:lower())
     "#;
@@ -27,7 +27,7 @@ fn test_string_upper_lower() {
 #[test]
 fn test_string_trim() {
     let code = r#"
-    let s = "  hello world  "
+    local s = "  hello world  "
     println("'" + s:trim() + "'")
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");
@@ -37,7 +37,7 @@ fn test_string_trim() {
 #[test]
 fn test_string_metadata() {
     let code = r#"
-    let s = "test"
+    local s = "test"
     println(s.__type)
     "#;
     let output = run_chen_lang_code(code).expect("Execution failed");

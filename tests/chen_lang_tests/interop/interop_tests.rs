@@ -29,7 +29,7 @@ fn test_call_rust_object_method() {
     let code = r#"
     counter.increment()
     counter.increment()
-    let val = counter.get()
+    local val = counter.get()
     io.print(val)
     "#;
 
@@ -83,7 +83,7 @@ fn test_call_rust_object_method() {
 #[test]
 fn test_rust_object_with_args() {
     let code = r#"
-    let result = calculator.add(10, 20)
+    local result = calculator.add(10, 20)
     io.print(result)
     "#;
 

@@ -58,7 +58,6 @@ fn parse_statement(pair: Pair<Rule>) -> Statement {
         Rule::break_stmt => Statement::Break(loc),
         Rule::continue_stmt => Statement::Continue(loc),
         Rule::try_catch => parse_try_catch(inner),
-        Rule::throw_stmt => parse_throw_stmt(inner),
         Rule::expression => Statement::Expression(parse_expression(inner)),
         _ => unreachable!("Unexpected statement rule: {:?}", inner.as_rule()),
     }
@@ -402,7 +401,6 @@ fn parse_atom(pair: Pair<Rule>) -> Expression {
         Rule::object_literal => parse_object_literal(inner),
         Rule::function_def => Expression::Function(build_function_declaration(inner)),
         Rule::array_literal => parse_array_literal(inner),
-        Rule::import_expr => parse_import_expr(inner),
         _ => unreachable!("Unexpected rule in atom: {:?}", inner.as_rule()),
     }
 }
@@ -580,55 +578,4 @@ fn parse_try_catch(pair: Pair<Rule>) -> Statement {
     })
 }
 
-fn parse_throw_stmt(pair: Pair<Rule>) -> Statement {
-    // throw_stmt = { THROW ~ NEWLINE* ~ expression }
-    // Note: THROW is an atomic rule (@{...}) so it appears in into_inner()
-    let loc = loc_from_pair(&pair);
-    let mut inner = pair.into_inner();
 
-    // Skip THROW keyword if present
-    let mut expr_pair = inner.next();
-    while let Some(ref p) = expr_pair {
-        if p.as_rule() == Rule::THROW {
-            expr_pair = inner.next();
-        } else {
-            break;
-        }
-    }
-
-    let value = if let Some(p) = expr_pair {
-        match p.as_rule() {
-            Rule::expression => parse_expression(p),
-            _ => parse_logical_or(p),
-        }
-    } else {
-        Expression::Literal(Literal::Value(Value::string("Unknown error".to_string())), loc)
-    };
-
-    Statement::Throw { value, loc }
-}
-
-fn parse_import_expr(pair: Pair<Rule>) -> Expression {
-    let loc = loc_from_pair(&pair);
-    let mut inner = pair.into_inner();
-
-    // Skip IMPORT keyword if present
-    let mut path_pair = inner.next();
-    while let Some(ref p) = path_pair {
-        if p.as_rule() == Rule::IMPORT {
-            path_pair = inner.next();
-        } else {
-            break;
-        }
-    }
-
-    let path_str = path_pair.map(|p| p.as_str()).unwrap_or("");
-    // Strip quotes: "path" -> path
-    let path = if path_str.len() >= 2 {
-        path_str[1..path_str.len() - 1].to_string()
-    } else {
-        String::new()
-    };
-
-    Expression::Import { path, loc }
-}

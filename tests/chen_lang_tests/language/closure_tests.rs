@@ -3,12 +3,12 @@ use crate::common::run_chen_lang_code;
 #[test]
 fn test_basic_closure_capture() {
     let code = r#"
-    def make_adder(x) {
-        return def(y) {
+    function make_adder(x)
+        return function(y)
             return x + y
-        }
-    }
-    let add5 = make_adder(5)
+        end
+    end
+    local add5 = make_adder(5)
     println(add5(10))
     "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -18,13 +18,13 @@ fn test_basic_closure_capture() {
 #[test]
 fn test_closure_multiple_upvalues() {
     let code = r#"
-    def make_sandwich(bread) {
-        let cheese = "cheddar"
-        return def(meat) {
+    function make_sandwich(bread)
+        local cheese = "cheddar"
+        return function(meat)
             return bread + " with " + meat + " and " + cheese
-        }
-    }
-    let s = make_sandwich("rye")
+        end
+    end
+    local s = make_sandwich("rye")
     println(s("turkey"))
     "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -34,15 +34,15 @@ fn test_closure_multiple_upvalues() {
 #[test]
 fn test_nested_closures() {
     let code = r#"
-    def outer(a) {
-        return def(b) {
-            return def(c) {
+    function outer(a)
+        return function(b)
+            return function(c)
                 return a + b + c
-            }
-        }
-    }
-    let f1 = outer(100)
-    let f2 = f1(20)
+            end
+        end
+    end
+    local f1 = outer(100)
+    local f2 = f1(20)
     println(f2(3))
     "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -52,14 +52,14 @@ fn test_nested_closures() {
 #[test]
 fn test_closure_mutation() {
     let code = r#"
-    def make_counter() {
-        let count = 0
-        return def() {
+    function make_counter()
+        local count = 0
+        return function()
             count = count + 1
             return count
-        }
-    }
-    let counter = make_counter()
+        end
+    end
+    local counter = make_counter()
     println(counter())
     println(counter())
     println(counter())
@@ -75,10 +75,10 @@ fn test_closure_mutation() {
 fn test_global_closure_assignment() {
     // This previously failed with "Invalid operation: Null get_upvalue Null"
     let code = r#"
-    let captured = "success"
-    let f = def() {
+    local captured = "success"
+    local f = function()
         return captured
-    }
+    end
     println(f())
     "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -88,13 +88,13 @@ fn test_global_closure_assignment() {
 #[test]
 fn test_closure_in_loop() {
     let code = r#"
-    let funcs = []
-    let i = 0
-    for i < 3 {
-        let val = i
-        funcs:push(def() { return val })
+    local funcs = []
+    local i = 0
+    while i < 3 do
+        local val = i
+        funcs:push(function() return val end)
         i = i + 1
-    }
+    end
     println(funcs[0]())
     println(funcs[1]())
     println(funcs[2]())
@@ -110,13 +110,13 @@ fn test_closure_in_loop() {
 fn test_closure_across_files_simulated() {
     // Basic test to ensure current_closure is restored correctly after multiple calls
     let code = r#"
-    def a(x) {
-        return def() { return x }
-    }
-    def b(f) {
+    function a(x)
+        return function() return x end
+    end
+    function b(f)
         return f()
-    }
-    let c = a("hello")
+    end
+    local c = a("hello")
     println(b(c))
     "#;
     let output = run_chen_lang_code(code).unwrap();

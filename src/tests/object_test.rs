@@ -5,7 +5,6 @@ mod object_tests {
     use crate::value::Value;
     use crate::vm::{Instruction, Program, VM};
 
-    /// 测试 VM 指令：NewObject
     #[test]
     fn test_vm_new_object() {
         let mut program = Program::default();
@@ -17,20 +16,16 @@ mod object_tests {
         assert_matches!(result, Ok(Value::Object(_)), "Expected success");
     }
 
-    /// 测试 VM 指令：SetField 和 GetField
     #[test]
     fn test_vm_set_get_field() {
         let mut program = Program::default();
 
-        // 创建对象
         program.add_instruction(Instruction::NewObject);
 
-        // 设置字段 name = "Chen"
-        program.add_instruction(Instruction::Dup); // 复制对象引用
+        program.add_instruction(Instruction::Dup);
         program.add_instruction(Instruction::Push(Value::string("Chen".to_string())));
         program.add_instruction(Instruction::SetField("name".to_string()));
 
-        // 获取字段 name
         program.add_instruction(Instruction::GetField("name".to_string()));
 
         let mut vm = VM::new();
@@ -40,21 +35,17 @@ mod object_tests {
         assert_eq!(value, Value::string("Chen".to_string()));
     }
 
-    /// 测试 VM 指令：SetIndex 和 GetIndex
     #[test]
     fn test_vm_set_get_index() {
         let mut program = Program::default();
 
-        // 创建对象
         program.add_instruction(Instruction::NewObject);
 
-        // 设置索引 obj["age"] = 25
         program.add_instruction(Instruction::Dup);
         program.add_instruction(Instruction::Push(Value::string("age".to_string())));
         program.add_instruction(Instruction::Push(Value::int(25)));
         program.add_instruction(Instruction::SetIndex);
 
-        // 获取索引 obj["age"]
         program.add_instruction(Instruction::Push(Value::string("age".to_string())));
         program.add_instruction(Instruction::GetIndex);
 
@@ -65,11 +56,10 @@ mod object_tests {
         assert_eq!(value, Value::int(25));
     }
 
-    /// 测试基础对象字面量和字段访问
     #[test]
     fn test_object_basics() {
-        let code = r#"let io = import("stdlib/io")
-let obj = ${ name: "Chen", age: 25 }
+        let code = r#"local io = require("stdlib/io")
+local obj = { name = "Chen", age = 25 }
 io.println(obj.name)
 io.println(obj.age)"#;
 
@@ -81,11 +71,10 @@ io.println(obj.age)"#;
         assert!(output.contains("25"), "Output should contain '25'");
     }
 
-    /// 测试字段赋值
     #[test]
     fn test_field_assignment() {
-        let code = r#"let io = import("stdlib/io")
-let obj = ${ name: "Alice" }
+        let code = r#"local io = require("stdlib/io")
+local obj = { name = "Alice" }
 obj.city = "Shanghai"
 io.println(obj.city)"#;
 
@@ -96,11 +85,10 @@ io.println(obj.city)"#;
         assert!(output.contains("Shanghai"), "Output should contain 'Shanghai'");
     }
 
-    /// 测试索引访问
     #[test]
     fn test_index_operations() {
-        let code = r#"let io = import("stdlib/io")
-let obj = ${ name: "Bob" }
+        let code = r#"local io = require("stdlib/io")
+local obj = { name = "Bob" }
 obj["country"] = "China"
 io.println(obj["country"])"#;
 
@@ -111,11 +99,10 @@ io.println(obj["country"])"#;
         assert!(output.contains("China"), "Output should contain 'China'");
     }
 
-    /// 测试嵌套对象
     #[test]
     fn test_nested_objects() {
-        let code = r#"let io = import("stdlib/io")
-let person = ${ name: "Eve", address: ${ city: "Beijing", zip: 100000 } }
+        let code = r#"local io = require("stdlib/io")
+local person = { name = "Eve", address = { city = "Beijing", zip = 100000 } }
 io.println(person.address.city)"#;
 
         let result = crate::run_captured(code.to_string());
@@ -125,19 +112,18 @@ io.println(person.address.city)"#;
         assert!(output.contains("Beijing"), "Output should contain 'Beijing'");
     }
 
-    /// 测试 Metatable 原型继承
     #[test]
     fn test_metatable_inheritance() {
-        let code = r#"let io = import("stdlib/io")
-let Animal = ${
-    __index: ${
-        speak: "Some sound",
-        legs: 4
+        let code = r#"local io = require("stdlib/io")
+local Animal = {
+    __index = {
+        speak = "Some sound",
+        legs = 4
     }
 }
 
-let dog = ${ name: "Buddy" }
-set_meta(dog, Animal)
+local dog = { name = "Buddy" }
+setmetatable(dog, Animal)
 
 io.println(dog.name)
 io.println(dog.speak)
@@ -152,13 +138,12 @@ io.println(dog.legs)"#;
         assert!(output.contains("4"), "Output should contain '4'");
     }
 
-    /// 测试 set_meta 和 get_meta
     #[test]
     fn test_metatable_functions() {
-        let code = r#"let io = import("stdlib/io")
-let proto = ${ __index: ${ greet: "Hello" } }
-let obj = ${ name: "Alice" }
-set_meta(obj, proto)
+        let code = r#"local io = require("stdlib/io")
+local proto = { __index = { greet = "Hello" } }
+local obj = { name = "Alice" }
+setmetatable(obj, proto)
 io.println(obj.greet)"#;
 
         let result = crate::run_captured(code.to_string());
@@ -168,20 +153,18 @@ io.println(obj.greet)"#;
         assert!(output.contains("Hello"), "Output should contain 'Hello'");
     }
 
-    /// 测试直接字段优先于 metatable
     #[test]
     fn test_metatable_precedence() {
-        let code = r#"let io = import("stdlib/io")
-let proto = ${ value: 100 }
-let obj = ${ value: 10 }
-set_meta(obj, proto)
+        let code = r#"local io = require("stdlib/io")
+local proto = { value = 100 }
+local obj = { value = 10 }
+setmetatable(obj, proto)
 io.println(obj.value)"#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
 
         let output = result.unwrap();
-        // Should use direct field (10) not metatable field (100)
         assert!(
             output.contains("10"),
             "Output should contain '10' (direct field, not metatable)"
@@ -189,12 +172,11 @@ io.println(obj.value)"#;
         assert!(!output.contains("100"), "Output should not contain '100'");
     }
 
-    /// 测试对象引用共享
     #[test]
     fn test_object_reference() {
-        let code = r#"let io = import("stdlib/io")
-let obj1 = ${ value: 10 }
-let obj2 = obj1
+        let code = r#"local io = require("stdlib/io")
+local obj1 = { value = 10 }
+local obj2 = obj1
 obj2.value = 20
 io.println(obj1.value)"#;
 
@@ -202,15 +184,13 @@ io.println(obj1.value)"#;
         assert!(result.is_ok(), "Execution should succeed: {:?}", result.err());
 
         let output = result.unwrap();
-        // obj1 and obj2 share the same reference, so modifying obj2 affects obj1
         assert!(output.contains("20"), "Output should contain '20' (shared reference)");
     }
 
-    /// 测试动态添加字段
     #[test]
     fn test_dynamic_fields() {
-        let code = r#"let io = import("stdlib/io")
-let person = ${ name: "Grace" }
+        let code = r#"local io = require("stdlib/io")
+local person = { name = "Grace" }
 person.age = 28
 person.city = "Shanghai"
 io.println(person.name)
@@ -226,16 +206,15 @@ io.println(person.city)"#;
         assert!(output.contains("Shanghai"), "Output should contain 'Shanghai'");
     }
 
-    /// 测试对象相等性（引用比较）
     #[test]
     fn test_object_equality() {
-        let code = r#"let io = import("stdlib/io")
-        let obj1 = ${ a: 1 }
-        let obj2 = ${ a: 1 }
-        let obj3 = obj1
+        let code = r#"local io = require("stdlib/io")
+        local obj1 = { a = 1 }
+        local obj2 = { a = 1 }
+        local obj3 = obj1
 
-        io.println(obj1 == obj2) # Should be false (different references)
-        io.println(obj1 == obj3) # Should be true (same reference)
+        io.println(obj1 == obj2) -- Should be false (different references)
+        io.println(obj1 == obj3) -- Should be true (same reference)
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -247,17 +226,16 @@ io.println(person.city)"#;
         assert_eq!(lines[1], "true", "Same object reference should be equal");
     }
 
-    /// 测试对象存储多种类型
     #[test]
     fn test_object_mixed_types() {
-        let code = r#"let io = import("stdlib/io")
-        let obj = ${
-            i: 42,
-            f: 3.14,
-            b: true,
-            s: "string",
-            n: null,
-            o: ${ nested: true }
+        let code = r#"local io = require("stdlib/io")
+        local obj = {
+            i = 42,
+            f = 3.14,
+            b = true,
+            s = "string",
+            n = nil,
+            o = { nested = true }
         }
         io.println(obj.i)
         io.println(obj.f)
@@ -275,25 +253,24 @@ io.println(person.city)"#;
         assert!(output.contains("3.14"));
         assert!(output.contains("true"));
         assert!(output.contains("string"));
-        assert!(output.contains("null"));
+        assert!(output.contains("nil"));
     }
 
-    /// 测试多层 Metatable 继承
     #[test]
     fn test_metatable_chain() {
-        let code = r#"let io = import("stdlib/io")
-        let grand = ${ __index: ${ name: "Grandpa" } }
-        let parent = ${ __index: ${ age: 50 } }
+        let code = r#"local io = require("stdlib/io")
+        local grand = { __index = { name = "Grandpa" } }
+        local parent = { __index = { age = 50 } }
 
-        # Chain: parent -> grand
-        set_meta(parent.__index, grand)
+        -- Chain: parent -> grand
+        setmetatable(parent.__index, grand)
 
-        let child = ${ }
-        # Chain: child -> parent
-        set_meta(child, parent)
+        local child = { }
+        -- Chain: child -> parent
+        setmetatable(child, parent)
 
-        io.println("Age: " + child.age)
-        io.println("Name: " + child.name)
+        io.println("Age: " .. child.age)
+        io.println("Name: " .. child.name)
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -304,66 +281,64 @@ io.println(person.city)"#;
         assert!(output.contains("Name: Grandpa"), "Should find field in grandparent");
     }
 
-    /// 测试 get_meta 和清除 meta
     #[test]
     fn test_get_and_clear_meta() {
-        let code = r#"let io = import("stdlib/io")
-        let meta = ${ __index: ${ x: 1 } }
-        let obj = ${ }
+        let code = r#"local io = require("stdlib/io")
+        local meta = { __index = { x = 1 } }
+        local obj = { }
 
-        # 1. Initial should be null
-        if get_meta(obj) == null {
-            io.println("Initial: null")
-        } else {
-            io.println("Initial: not null")
-        }
+        -- 1. Initial should be nil
+        if getmetatable(obj) == nil then
+            io.println("Initial: nil")
+        else
+            io.println("Initial: not nil")
+        end
 
-        # 2. Set meta
-        set_meta(obj, meta)
-        let m = get_meta(obj)
-        if m == meta {
+        -- 2. Set meta
+        setmetatable(obj, meta)
+        local m = getmetatable(obj)
+        if m == meta then
             io.println("Meta match: true")
-        } else {
+        else
             io.println("Meta match: false")
-        }
+        end
 
-        io.println("Field x: " + obj.x)
+        io.println("Field x: " .. obj.x)
 
-        # 3. Clear meta
-        set_meta(obj, null)
-        if get_meta(obj) == null {
-            io.println("Cleared: null")
-        } else {
-            io.println("Cleared: not null")
-        }
+        -- 3. Clear meta
+        setmetatable(obj, nil)
+        if getmetatable(obj) == nil then
+            io.println("Cleared: nil")
+        else
+            io.println("Cleared: not nil")
+        end
 
-        if obj.x == null {
-            io.println("Field x cleared: null")
-        } else {
-            io.println("Field x cleared: " + obj.x)
-        }
+        if obj.x == nil then
+            io.println("Field x cleared: nil")
+        else
+            io.println("Field x cleared: " .. obj.x)
+        end
         "#;
 
         let result = crate::run_captured(code.to_string());
         assert!(result.is_ok());
 
         let output = result.unwrap();
-        assert!(output.contains("Initial: null"));
+        assert!(output.contains("Initial: nil"));
         assert!(output.contains("Meta match: true"));
         assert!(output.contains("Field x: 1"));
-        assert!(output.contains("Cleared: null"));
-        assert!(output.contains("Field x cleared: null"));
+        assert!(output.contains("Cleared: nil"));
+        assert!(output.contains("Field x cleared: nil"));
     }
 
-    /// 测试方法调用 (Assign function to field)
     #[test]
     fn test_method_call() {
-        let code = r#"let io = import("stdlib/io")
-        def greet(self, name) {
-            return "Hello " + name
-        }
+        let code = r#"local io = require("stdlib/io")
+        function greet(self, name)
+            return "Hello " .. name
+        end
 
-        let obj = ${ }
+        local obj = { }
         obj.say = greet
 
         io.println(obj:say("World"))
@@ -375,12 +350,11 @@ io.println(person.city)"#;
         assert!(output.contains("Hello World"));
     }
 
-    /// 测试循环引用（仅创建，不打印以免栈溢出）
     #[test]
     fn test_circular_reference() {
-        let code = r#"let io = import("stdlib/io")
-        let a = ${ name: "A" }
-        let b = ${ name: "B" }
+        let code = r#"local io = require("stdlib/io")
+        local a = { name = "A" }
+        local b = { name = "B" }
         a.next = b
         b.prev = a
         io.println(a.next.name)
@@ -395,17 +369,16 @@ io.println(person.city)"#;
         assert!(output.contains("A"));
     }
 
-    /// 测试原型方法继承 (通过 __index)
     #[test]
     fn test_prototype_method() {
-        let code = r#"let io = import("stdlib/io")
-        def speak(self) {
+        let code = r#"local io = require("stdlib/io")
+        function speak(self)
             return "I am an object"
-        }
+        end
 
-        let proto = ${ speak: speak }
-        let obj = ${ }
-        set_meta(obj, ${ __index: proto })
+        local proto = { speak = speak }
+        local obj = { }
+        setmetatable(obj, { __index = proto })
 
         io.println(obj:speak())
         "#;
@@ -416,15 +389,14 @@ io.println(person.city)"#;
         assert!(output.contains("I am an object"));
     }
 
-    /// 测试显式传递 self (模拟方法)
     #[test]
     fn test_explicit_self_method() {
-        let code = r#"let io = import("stdlib/io")
-        def increment(self) {
+        let code = r#"local io = require("stdlib/io")
+        function increment(self)
             self.count = self.count + 1
-        }
+        end
 
-        let counter = ${ count: 0 }
+        local counter = { count = 0 }
         counter.inc = increment
 
         counter:inc()
@@ -440,34 +412,33 @@ io.println(person.city)"#;
         assert!(output.contains("2"));
     }
 
-    /// 模拟 Class 的行为 (构造函数 + 原型链方法)
     #[test]
     fn test_class_simulation() {
-        let code = r#"let io = import("stdlib/io")
+        let code = r#"local io = require("stdlib/io")
 
 
-        def point_str(self) {
-            return "(" + self.x + "," + self.y + ")"
-        }
-        def NewPoint(x, y) {
+        function point_str(self)
+            return "(" .. self.x .. "," .. self.y .. ")"
+        end
+        function NewPoint(x, y)
 
 
-            # 1. 定义方法 (通常这些放在外面作为公共原型)
-            let methods = ${
-                str: point_str
+            -- 1. define methods (usually outside as public prototype)
+            local methods = {
+                str = point_str
             }
 
-            # 2. 创建实例
-            let instance = ${ x: x, y: y }
+            -- 2. create instance
+            local instance = { x = x, y = y }
 
-            # 3. 建立继承关系
-            set_meta(instance, ${ __index: methods })
+            -- 3. set up inheritance
+            setmetatable(instance, { __index = methods })
 
             return instance
-        }
+        end
 
-        let p = NewPoint(10, 20)
-        io.println(p:str()) # 像调用对象方法一样
+        local p = NewPoint(10, 20)
+        io.println(p:str())
         "#;
 
         let result = crate::run_captured(code.to_string());
@@ -478,19 +449,18 @@ io.println(person.city)"#;
         let output = result.unwrap();
         assert!(output.contains("(10,20)"));
     }
-    /// 测试 __index 是一个函数的情况
     #[test]
     fn test_metatable_index_function() {
-        let code = r#"let io = import("stdlib/io")
-        def index_handler(obj, key) {
-            return "fallback_" + key
-        }
+        let code = r#"local io = require("stdlib/io")
+        function index_handler(obj, key)
+            return "fallback_" .. key
+        end
 
-        let proto = ${
-            __index: index_handler
+        local proto = {
+            __index = index_handler
         }
-        let obj = ${ name: "Alice" }
-        set_meta(obj, proto)
+        local obj = { name = "Alice" }
+        setmetatable(obj, proto)
 
         io.println(obj.name)
         io.println(obj.age)
@@ -507,21 +477,20 @@ io.println(person.city)"#;
         assert_eq!(lines[2], "fallback_city");
     }
 
-    /// 测试 __newindex 是一个函数的情况
     #[test]
     fn test_metatable_newindex_function() {
-        let code = r#"let io = import("stdlib/io")
-        let store = ${}
-        
-        def newindex_handler(obj, key, value) {
-            store[key] = "intercepted_" + value 
-        }
+        let code = r#"local io = require("stdlib/io")
+        local store = {}
 
-        let proto = ${
-            __newindex: newindex_handler
+        function newindex_handler(obj, key, value)
+            store[key] = "intercepted_" .. value
+        end
+
+        local proto = {
+            __newindex = newindex_handler
         }
-        let obj = ${}
-        set_meta(obj, proto)
+        local obj = {}
+        setmetatable(obj, proto)
 
         obj.name = "Alice"
         obj["age"] = 25
@@ -536,33 +505,31 @@ io.println(person.city)"#;
 
         let output = result.unwrap();
         let lines: Vec<&str> = output.trim().lines().collect();
-        assert_eq!(lines[0], "null");
+        assert_eq!(lines[0], "nil");
         assert_eq!(lines[1], "intercepted_Alice");
         assert_eq!(lines[2], "intercepted_25");
     }
 }
 
-/// 测试嵌套函数定义 (Nested Functions)
 #[test]
 fn test_nested_function_class() {
-    let code = r#"let io = import("stdlib/io")
-        def NewPoint(x, y) {
-            # 嵌套定义函数
-            def point_str(self) {
-                return "(" + self.x + "," + self.y + ")"
+    let code = r#"local io = require("stdlib/io")
+        function NewPoint(x, y)
+            function point_str(self)
+                return "(" .. self.x .. "," .. self.y .. ")"
+            end
+
+            local methods = {
+                str = point_str
             }
 
-            let methods = ${
-                str: point_str
-            }
-
-            let instance = ${ x: x, y: y }
-            set_meta(instance, ${ __index: methods })
+            local instance = { x = x, y = y }
+            setmetatable(instance, { __index = methods })
 
             return instance
-        }
+        end
 
-        let p = NewPoint(10, 20)
+        local p = NewPoint(10, 20)
         io.println(p:str())
         "#;
 

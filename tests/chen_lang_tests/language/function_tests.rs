@@ -3,10 +3,10 @@ use crate::common::run_chen_lang_code;
 #[test]
 fn test_minimal_test() {
     let code = r#"
-def func(){
+function func()
     return 123
-}
-let x = 1
+end
+local x = 1
 x = func()
 println(x)
 "#;
@@ -18,11 +18,11 @@ println(x)
 #[test]
 fn test_simple_test() {
     let code = r#"
-def test(){
+function test()
     println("hello")
     return 42
-}
-let x = 0
+end
+local x = 0
 x = test()
 println("done")
 "#;
@@ -35,12 +35,12 @@ println("done")
 #[test]
 fn test_fibonacci_example() {
     let code = r#"
-def fibonacci(n){
-    if n <= 1 {
+function fibonacci(n)
+    if n <= 1 then
         return n
-    }
+    end
     return fibonacci(n-1) + fibonacci(n-2)
-}
+end
 println(fibonacci(1))
 println(fibonacci(2))
 println(fibonacci(3))
@@ -58,9 +58,9 @@ println(fibonacci(3))
 fn test_anonymous_function_variable() {
     let output = run_chen_lang_code(
         r#"
-        let add_one = def(x) {
+        local add_one = function(x)
             return x + 1
-        }
+        end
         println(add_one(10))
     "#,
     )
@@ -72,9 +72,9 @@ fn test_anonymous_function_variable() {
 fn test_immediate_invocation() {
     let output = run_chen_lang_code(
         r#"
-        let result = def(x, y) {
+        local result = function(x, y)
             return x * y
-        } (5, 6)
+        end (5, 6)
         println(result)
     "#,
     )
@@ -86,11 +86,11 @@ fn test_immediate_invocation() {
 fn test_high_order_function() {
     let output = run_chen_lang_code(
         r#"
-        def apply(f, val) {
+        function apply(f, val)
             return f(val)
-        }
+        end
         
-        let res = apply(def(x){ return x * 2 }, 21)
+        local res = apply(function(x) return x * 2 end, 21)
         println(res)
     "#,
     )
@@ -101,9 +101,9 @@ fn test_high_order_function() {
 #[test]
 fn test_implicit_return_add() {
     let code = r#"
-    def add(a, b) {
+    function add(a, b)
         a + b
-    }
+    end
     println(add(1, 2))
     "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -113,9 +113,9 @@ fn test_implicit_return_add() {
 #[test]
 fn test_explicit_return() {
     let code = r#"
-    def explicit_return(a) {
+    function explicit_return(a)
         return a * 2
-    }
+    end
     println(explicit_return(10))
     "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -125,47 +125,47 @@ fn test_explicit_return() {
 #[test]
 fn test_empty_function_returns_null() {
     let code = r#"
-    def empty() {
-    }
+    function empty()
+    end
     println(empty())
     "#;
     let output = run_chen_lang_code(code).unwrap();
-    assert_eq!(output.trim(), "null");
+    assert_eq!(output.trim(), "nil");
 }
 
 #[test]
 fn test_statement_end_returns_null() {
     let code = r#"
-    def statement_end() {
-        let x = 1
-    }
+    function statement_end()
+        local x = 1
+    end
     println(statement_end())
     "#;
     let output = run_chen_lang_code(code).unwrap();
-    assert_eq!(output.trim(), "null");
+    assert_eq!(output.trim(), "nil");
 }
 
 #[test]
 fn test_all_implicit_returns() {
     // Run the complete test file
     let code = r#"
-def add(a, b) {
+function add(a, b)
     a + b
-}
+end
 println(add(1, 2))
 
-def explicit_return(a) {
+function explicit_return(a)
     return a * 2
-}
+end
 println(explicit_return(10))
 
-def empty() {
-}
+function empty()
+end
 println(empty())
 
-def statement_end() {
-    let x = 1
-}
+function statement_end()
+    local x = 1
+end
 println(statement_end())
     "#;
     let output = run_chen_lang_code(code).unwrap();
@@ -173,6 +173,6 @@ println(statement_end())
     assert_eq!(lines.len(), 4);
     assert_eq!(lines[0].trim(), "3");
     assert_eq!(lines[1].trim(), "20");
-    assert_eq!(lines[2].trim(), "null");
-    assert_eq!(lines[3].trim(), "null");
+    assert_eq!(lines[2].trim(), "nil");
+    assert_eq!(lines[3].trim(), "nil");
 }

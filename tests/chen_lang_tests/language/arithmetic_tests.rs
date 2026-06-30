@@ -3,11 +3,11 @@ use crate::common::run_chen_lang_code;
 #[test]
 fn test_simple_arithmetic() {
     let code = r#"
-let io = import("stdlib/io")
-let print = io.print
-let i = 1
-let j = 2
-let k = i + j
+local io = require("stdlib/io")
+local print = io.print
+local i = 1
+local j = 2
+local k = i + j
 print(k)
 "#;
 
@@ -18,11 +18,11 @@ print(k)
 #[test]
 fn test_modulo_operation() {
     let code = r#"
-let io = import("stdlib/io")
-let print = io.print
-let a = 10
-let b = 3
-let result = a % b
+local io = require("stdlib/io")
+local print = io.print
+local a = 10
+local b = 3
+local result = a % b
 print(result)
 "#;
 
@@ -33,14 +33,14 @@ print(result)
 #[test]
 fn test_complex_expression() {
     let code = r#"
-let io = import("stdlib/io")
-let print = io.print
-let a = 2
-let b = 3
-let c = 4
-let result = a + b * c
+local io = require("stdlib/io")
+local print = io.print
+local a = 2
+local b = 3
+local c = 4
+local result = a + b * c
 print(result)
-let result2 = (a + b) * c
+local result2 = (a + b) * c
 print(result2)
 "#;
 
@@ -52,21 +52,21 @@ print(result2)
 #[test]
 fn test_metatable_add_operator() {
     let code = r#"
-        let io = import("stdlib/io")
-        let print = io.print
-        let PointMeta = ${
-            __add: def(a, b) {
-                return ${ x: a.x + b.x, y: a.y + b.y }
-            }
+        local io = require("stdlib/io")
+        local print = io.print
+        local PointMeta = {
+            __add = function(a, b)
+                return { x = a.x + b.x, y = a.y + b.y }
+            end
         }
 
-        let p1 = ${ x: 10, y: 20 }
-        set_meta(p1, PointMeta)
+        local p1 = { x = 10, y = 20 }
+        setmetatable(p1, PointMeta)
 
-        let p2 = ${ x: 3, y: 5 }
-        set_meta(p2, PointMeta)
+        local p2 = { x = 3, y = 5 }
+        setmetatable(p2, PointMeta)
 
-        let p3 = p1 + p2
+        local p3 = p1 + p2
         print(p3.x)
         print(p3.y)
     "#;
@@ -79,20 +79,20 @@ fn test_metatable_add_operator() {
 #[test]
 fn test_metatable_add_symmetric_lookup() {
     let code = r#"
-        let io = import("stdlib/io")
-        let print = io.print
-        let VectorMeta = ${
-            __add: def(a, b) {
-                return ${ x: a.x + b.x, y: a.y + b.y }
-            }
+        local io = require("stdlib/io")
+        local print = io.print
+        local VectorMeta = {
+            __add = function(a, b)
+                return { x = a.x + b.x, y = a.y + b.y }
+            end
         }
 
-        let point = ${ x: 1, y: 2 } # No metatable for point
+        local point = { x = 1, y = 2 } -- No metatable for point
 
-        let vector = ${ x: 10, y: 20 }
-        set_meta(vector, VectorMeta)
+        local vector = { x = 10, y = 20 }
+        setmetatable(vector, VectorMeta)
 
-        let result = point + vector # point is left_val, vector is right_val. left_val has no metamethod.
+        local result = point + vector -- point is left_val, vector is right_val. left_val has no metamethod.
         print(result.x)
         print(result.y)
     "#;
@@ -105,21 +105,21 @@ fn test_metatable_add_symmetric_lookup() {
 #[test]
 fn test_metatable_subtract_operator() {
     let code = r#"
-        let io = import("stdlib/io")
-        let print = io.print
-        let PointMeta = ${
-            __sub: def(a, b) {
-                return ${ x: a.x - b.x, y: a.y - b.y }
-            }
+        local io = require("stdlib/io")
+        local print = io.print
+        local PointMeta = {
+            __sub = function(a, b)
+                return { x = a.x - b.x, y = a.y - b.y }
+            end
         }
 
-        let p1 = ${ x: 30, y: 25 }
-        set_meta(p1, PointMeta)
+        local p1 = { x = 30, y = 25 }
+        setmetatable(p1, PointMeta)
 
-        let p2 = ${ x: 10, y: 5 }
-        set_meta(p2, PointMeta)
+        local p2 = { x = 10, y = 5 }
+        setmetatable(p2, PointMeta)
 
-        let p3 = p1 - p2
+        local p3 = p1 - p2
         print(p3.x)
         print(p3.y)
     "#;
@@ -132,21 +132,21 @@ fn test_metatable_subtract_operator() {
 #[test]
 fn test_metatable_multiply_operator() {
     let code = r#"
-        let io = import("stdlib/io")
-        let print = io.print
-        let PointMeta = ${
-            __mul: def(a, b) {
-                return ${ x: a.x * b.x, y: a.y * b.y }
-            }
+        local io = require("stdlib/io")
+        local print = io.print
+        local PointMeta = {
+            __mul = function(a, b)
+                return { x = a.x * b.x, y = a.y * b.y }
+            end
         }
 
-        let p1 = ${ x: 5, y: 10 }
-        set_meta(p1, PointMeta)
+        local p1 = { x = 5, y = 10 }
+        setmetatable(p1, PointMeta)
 
-        let p2 = ${ x: 2, y: 3 }
-        set_meta(p2, PointMeta)
+        local p2 = { x = 2, y = 3 }
+        setmetatable(p2, PointMeta)
 
-        let p3 = p1 * p2
+        local p3 = p1 * p2
         print(p3.x)
         print(p3.y)
     "#;
@@ -159,20 +159,20 @@ fn test_metatable_multiply_operator() {
 #[test]
 fn test_metatable_subtract_symmetric_lookup() {
     let code = r#"
-        let io = import("stdlib/io")
-        let print = io.print
-        let VectorMeta = ${
-            __sub: def(a, b) {
-                return ${ x: a.x - b.x, y: a.y - b.y }
-            }
+        local io = require("stdlib/io")
+        local print = io.print
+        local VectorMeta = {
+            __sub = function(a, b)
+                return { x = a.x - b.x, y = a.y - b.y }
+            end
         }
 
-        let point = ${ x: 10, y: 20 } # No metatable for point
+        local point = { x = 10, y = 20 } -- No metatable for point
 
-        let vector = ${ x: 100, y: 50 }
-        set_meta(vector, VectorMeta)
+        local vector = { x = 100, y = 50 }
+        setmetatable(vector, VectorMeta)
 
-        let result = vector - point # vector is left_val, point is right_val. point has no metamethod.
+        local result = vector - point -- vector is left_val, point is right_val. point has no metamethod.
         print(result.x)
         print(result.y)
     "#;
@@ -185,20 +185,20 @@ fn test_metatable_subtract_symmetric_lookup() {
 #[test]
 fn test_metatable_multiply_symmetric_lookup() {
     let code = r#"
-        let io = import("stdlib/io")
-        let print = io.print
-        let VectorMeta = ${
-            __mul: def(a, b) {
-                return ${ x: a.x * b.x, y: a.y * b.y }
-            }
+        local io = require("stdlib/io")
+        local print = io.print
+        local VectorMeta = {
+            __mul = function(a, b)
+                return { x = a.x * b.x, y = a.y * b.y }
+            end
         }
 
-        let point = ${ x: 3, y: 5 } # No metatable for point
+        local point = { x = 3, y = 5 } -- No metatable for point
 
-        let vector = ${ x: 10, y: 20 }
-        set_meta(vector, VectorMeta)
+        local vector = { x = 10, y = 20 }
+        setmetatable(vector, VectorMeta)
 
-        let result = vector * point # vector is left_val, point is right_val. point has no metamethod.
+        local result = vector * point -- vector is left_val, point is right_val. point has no metamethod.
         print(result.x)
         print(result.y)
     "#;

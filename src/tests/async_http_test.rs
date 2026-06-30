@@ -28,9 +28,9 @@ fn test_http_get_async() {
     let url = server.url();
     let code = format!(
         r#"
-    let http = import("stdlib/http")
-    let url = "{}/hello"
-    let resp = http.request("GET", url)
+    local http = require("stdlib/http")
+    local url = "{}/hello"
+    local resp = http.request("GET", url)
     return resp.body
     "#,
         url
@@ -55,11 +55,11 @@ fn test_http_get_json_async() {
     let url = server.url();
     let code = format!(
         r#"
-    let http = import("stdlib/http")
-    let json = import("stdlib/json")
-    let url = "{}/data"
-    let resp = http.request("GET", url)
-    let data = json.parse(resp.body)
+    local http = require("stdlib/http")
+    local json = require("stdlib/json")
+    local url = "{}/data"
+    local resp = http.request("GET", url)
+    local data = json.parse(resp.body)
     return data.status
     "#,
         url
@@ -73,12 +73,12 @@ fn test_http_get_json_async() {
 #[test]
 fn test_http_request_async_error_propagates() {
     let code = r#"
-    let http = import("stdlib/http")
+    local http = require("stdlib/http")
     try {
         http.request("BAD METHOD", "http://example.com")
         return "NO_ERROR"
     } catch err {
-        return "CAUGHT: " + err
+        return "CAUGHT: " .. err
     }
     "#;
 

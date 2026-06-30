@@ -3,11 +3,11 @@ use crate::common::run_chen_lang_code as run_captured;
 #[test]
 fn test_import_simple_debug() {
     let source = r#"
-        let io = import("stdlib/io")  
+        local io = require("stdlib/io")  
         io.println("Hello from test!")
-        let mod = import("tests/fixtures/simple_test.ch")
+        local mod = require("tests/fixtures/simple_test.chen.luau")
         io.println("Module imported")
-        let result = mod.test()
+        local result = mod.test()
         io.println(result)
     "#;
 
@@ -20,8 +20,8 @@ fn test_import_simple_debug() {
 #[test]
 fn test_access_imported_field() {
     let source = r#"
-        let io = import("stdlib/io")
-        let math = import("tests/fixtures/math_utils.ch")
+        local io = require("stdlib/io")
+        local math = require("tests/fixtures/math_utils.chen.luau")
         io.println("math object:")
         io.println(math)
         io.println("math.add:")

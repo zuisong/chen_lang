@@ -19,123 +19,90 @@ pub enum TokenError {
     Unknown,
 }
 
-/// 关键字
+/// 关键字 (Luau 风格)
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Keyword {
-    /// if
     IF,
-    LET,
-    /// else
+    THEN,
     ELSE,
-    /// for
-    FOR,
-    /// def
-    DEF,
-    /// return
+    ELSEIF,
+    END,
+    /// local (replaces let)
+    LOCAL,
+    /// function (replaces def)
+    FUNCTION,
     RETURN,
-    /// break
     BREAK,
-    /// continue
     CONTINUE,
-    /// try
-    TRY,
-    /// catch
-    CATCH,
-    /// finally
-    FINALLY,
-    /// throw
-    THROW,
-    /// import
-    IMPORT,
-    /// in
+    WHILE,
+    DO,
+    REPEAT,
+    UNTIL,
+    FOR,
     IN,
+    AND,
+    OR,
+    NOT,
+    NIL,
+    TRUE,
+    FALSE,
+    TRY,
+    CATCH,
+    FINALLY,
 }
 
-/// 操作符
+/// 操作符 (Luau 风格)
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum Operator {
-    /// +
     Add,
-    /// -
     Subtract,
-    /// *
     Multiply,
-    /// /
     Divide,
-    /// %
     Mod,
-    /// =
+    FloorDiv,
+    Concat,
     Assign,
-    /// &&
-    And,
-    /// ==
+    AddAssign,
+    SubAssign,
+    MulAssign,
+    DivAssign,
+    FloorDivAssign,
+    ModAssign,
+    ConcatAssign,
     Equals,
-    /// !=
     NotEquals,
-    /// ||
-    Or,
-    /// !
-    Not,
-    /// >
-    Gt,
-    /// <
     Lt,
-    /// >=
-    GtE,
-    /// <=
     LtE,
+    Gt,
+    GtE,
+    And,
+    Or,
+    Not,
+    Len,
 }
 
-/// 标准库函数
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum StdFunction {
-    /// print  bool表示是否换行
-    Print(bool),
-}
-
-/// token 类型
+/// token 类型 (Luau 风格)
 #[derive(Debug, PartialEq, Clone)]
 pub enum Token {
-    /// 关键字
     Keyword(Keyword),
-    /// 操作符
     Operator(Operator),
-    /// int
     Int(i32),
-    /// float
     Float(Decimal),
-    /// bool
     Bool(bool),
-    /// string
     String(String),
-    /// 标识符
     Identifier(String),
-    /// ${
-    DollarLBig,
-    /// .
     Dot,
-    /// 左大括号
     LBig,
-    /// 右大括号
     RBig,
-    /// 左方括号
     LSquare,
-    /// 右方括号
     RSquare,
-    /// 冒号
     Colon,
-    /// 逗号
     COMMA,
-    /// (
     LParen,
-    /// )
     RParen,
-    /// 换行符
     NewLine,
-    // 注释
-    Comment,
-    // 空格
     Space,
+    Vararg,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -221,8 +188,7 @@ pub mod winnow {
 
     pub fn parse_with_winnow(chars: &str) -> ModalResult<(&str, Token)> {
         alt((
-            literal("${").value(Token::DollarLBig),
-            (literal("#"), till_line_ending).map(|_| Token::Comment),
+            (literal("--"), till_line_ending).map(|_| Token::Space),
             alt((
                 line_ending.value(Token::NewLine),
                 one_of((' ', '\t', '\r', '\n')).value(Token::Space),
@@ -233,25 +199,36 @@ pub mod winnow {
                 literal("(").value(Token::LParen),
                 literal(")").value(Token::RParen),
                 literal(":").value(Token::Colon),
-                literal(".").value(Token::Dot),
                 literal(",").value(Token::COMMA),
             )),
             alt((
-                literal("+").value(Token::Operator(Operator::Add)),
-                literal("*").value(Token::Operator(Operator::Multiply)),
-                literal("/").value(Token::Operator(Operator::Divide)),
-                literal("%").value(Token::Operator(Operator::Mod)),
-                literal("==").value(Token::Operator(Operator::Equals)),
-                literal("=").value(Token::Operator(Operator::Assign)),
-                literal("&&").value(Token::Operator(Operator::And)),
-                literal("||").value(Token::Operator(Operator::Or)),
-                literal("!=").value(Token::Operator(Operator::NotEquals)),
-                literal("!").value(Token::Operator(Operator::Not)),
-                literal("<=").value(Token::Operator(Operator::LtE)),
-                literal("<").value(Token::Operator(Operator::Lt)),
-                literal(">=").value(Token::Operator(Operator::GtE)),
-                literal(">").value(Token::Operator(Operator::Gt)),
-                literal("-").value(Token::Operator(Operator::Subtract)),
+                alt((
+                    literal("..=").value(Token::Operator(Operator::ConcatAssign)),
+                    literal("..").value(Token::Operator(Operator::Concat)),
+                    literal(".").value(Token::Dot),
+                    literal("+=").value(Token::Operator(Operator::AddAssign)),
+                    literal("+").value(Token::Operator(Operator::Add)),
+                    literal("-=").value(Token::Operator(Operator::SubAssign)),
+                    literal("-").value(Token::Operator(Operator::Subtract)),
+                    literal("*=").value(Token::Operator(Operator::MulAssign)),
+                    literal("*").value(Token::Operator(Operator::Multiply)),
+                    literal("//=").value(Token::Operator(Operator::FloorDivAssign)),
+                    literal("//").value(Token::Operator(Operator::FloorDiv)),
+                    literal("/=").value(Token::Operator(Operator::DivAssign)),
+                )),
+                alt((
+                    literal("/").value(Token::Operator(Operator::Divide)),
+                    literal("%=").value(Token::Operator(Operator::ModAssign)),
+                    literal("%").value(Token::Operator(Operator::Mod)),
+                    literal("==").value(Token::Operator(Operator::Equals)),
+                    literal("=").value(Token::Operator(Operator::Assign)),
+                    literal("~=").value(Token::Operator(Operator::NotEquals)),
+                    literal("<=").value(Token::Operator(Operator::LtE)),
+                    literal("<").value(Token::Operator(Operator::Lt)),
+                    literal(">=").value(Token::Operator(Operator::GtE)),
+                    literal(">").value(Token::Operator(Operator::Gt)),
+                    literal("#").value(Token::Operator(Operator::Len)),
+                )),
                 alt((
                     delimited(literal("\""), take_until(0.., "\""), literal("\"")),
                     delimited(literal("'"), take_until(0.., "'"), literal("'")),
@@ -269,22 +246,31 @@ pub mod winnow {
                 take_while(1.., |c: char| c.is_alphanumeric() || c == '_').map(|arr: &str| {
                     let s = arr;
                     match s {
-                        "let" => Token::Keyword(Keyword::LET),
+                        "local" => Token::Keyword(Keyword::LOCAL),
+                        "function" => Token::Keyword(Keyword::FUNCTION),
                         "return" => Token::Keyword(Keyword::RETURN),
                         "if" => Token::Keyword(Keyword::IF),
-                        "def" => Token::Keyword(Keyword::DEF),
+                        "then" => Token::Keyword(Keyword::THEN),
                         "else" => Token::Keyword(Keyword::ELSE),
+                        "elseif" => Token::Keyword(Keyword::ELSEIF),
+                        "end" => Token::Keyword(Keyword::END),
+                        "while" => Token::Keyword(Keyword::WHILE),
+                        "do" => Token::Keyword(Keyword::DO),
+                        "repeat" => Token::Keyword(Keyword::REPEAT),
+                        "until" => Token::Keyword(Keyword::UNTIL),
                         "for" => Token::Keyword(Keyword::FOR),
+                        "in" => Token::Keyword(Keyword::IN),
                         "break" => Token::Keyword(Keyword::BREAK),
                         "continue" => Token::Keyword(Keyword::CONTINUE),
+                        "and" => Token::Keyword(Keyword::AND),
+                        "or" => Token::Keyword(Keyword::OR),
+                        "not" => Token::Keyword(Keyword::NOT),
+                        "nil" => Token::Keyword(Keyword::NIL),
+                        "true" => Token::Bool(true),
+                        "false" => Token::Bool(false),
                         "try" => Token::Keyword(Keyword::TRY),
                         "catch" => Token::Keyword(Keyword::CATCH),
                         "finally" => Token::Keyword(Keyword::FINALLY),
-                        "throw" => Token::Keyword(Keyword::THROW),
-                        "import" => Token::Keyword(Keyword::IMPORT),
-                        "in" => Token::Keyword(Keyword::IN),
-                        "true" => Token::Bool(true),
-                        "false" => Token::Bool(false),
                         _ => Token::Identifier(s.to_string()),
                     }
                 }),
@@ -311,7 +297,7 @@ pub mod winnow {
             let consumed_text = &input[..consumed_len];
             loc = advance_location(loc, consumed_text);
 
-            if !matches!(token, Token::Comment | Token::Space) {
+            if !matches!(token, Token::Space) {
                 tokens.push((token, start_loc));
             }
             if remain_input.is_empty() {
@@ -347,26 +333,19 @@ mod handwritten {
 
     use super::{Keyword, Location, Operator, Token, TokenError};
 
-    #[allow(unused)]
     fn parse_token(input: &str, loc: &Location) -> Result<(Token, Location), TokenError> {
         let chars: Vec<char> = input.chars().collect();
         let cur = *chars.get(loc.index).unwrap_or(&' ');
         let next = *chars.get(loc.index + 1).unwrap_or(&' ');
+        let third = *chars.get(loc.index + 2).unwrap_or(&' ');
         let res = match cur {
-            '$' => {
-                // Check for ${
-                if next == '{' {
-                    (Token::DollarLBig, loc.incr2())
-                } else {
-                    return Err(TokenError::UnknownToken { token: cur });
-                }
-            }
-            '#' => {
-                let mut l = loc.incr();
+            // -- line comment
+            '-' if next == '-' => {
+                let mut l = loc.incr2();
                 while l.index < chars.len() && chars[l.index] != '\n' {
                     l = l.incr();
                 }
-                (Token::Comment, l) // Don't consume newline here, let next iteration handle it or just stop at newline
+                (Token::Space, l)
             }
             '\n' | '\r' => (Token::NewLine, loc.new_line()),
             _ if cur.is_whitespace() => (Token::Space, loc.incr()),
@@ -377,23 +356,29 @@ mod handwritten {
             '(' => (Token::LParen, loc.incr()),
             ')' => (Token::RParen, loc.incr()),
             ':' => (Token::Colon, loc.incr()),
+            '.' if next == '.' => (Token::Operator(Operator::Concat), loc.incr2()),
             '.' => (Token::Dot, loc.incr()),
             ',' => (Token::COMMA, loc.incr()),
+            '+' if next == '=' => (Token::Operator(Operator::AddAssign), loc.incr2()),
             '+' => (Token::Operator(Operator::Add), loc.incr()),
+            '-' if next == '=' => (Token::Operator(Operator::SubAssign), loc.incr2()),
+            '-' => (Token::Operator(Operator::Subtract), loc.incr()),
+            '*' if next == '=' => (Token::Operator(Operator::MulAssign), loc.incr2()),
             '*' => (Token::Operator(Operator::Multiply), loc.incr()),
+            '/' if next == '/' && third == '=' => (Token::Operator(Operator::FloorDivAssign), loc.incr_n(3)),
+            '/' if next == '/' => (Token::Operator(Operator::FloorDiv), loc.incr2()),
+            '/' if next == '=' => (Token::Operator(Operator::DivAssign), loc.incr2()),
             '/' => (Token::Operator(Operator::Divide), loc.incr()),
+            '%' if next == '=' => (Token::Operator(Operator::ModAssign), loc.incr2()),
             '%' => (Token::Operator(Operator::Mod), loc.incr()),
+            '#' => (Token::Operator(Operator::Len), loc.incr()),
+            '~' if next == '=' => (Token::Operator(Operator::NotEquals), loc.incr2()),
             '=' if next == '=' => (Token::Operator(Operator::Equals), loc.incr2()),
             '=' if next != '=' => (Token::Operator(Operator::Assign), loc.incr()),
-            '&' if next == '&' => (Token::Operator(Operator::And), loc.incr2()),
-            '|' if next == '|' => (Token::Operator(Operator::Or), loc.incr2()),
-            '!' if next == '=' => (Token::Operator(Operator::NotEquals), loc.incr2()),
-            '!' if next != '=' => (Token::Operator(Operator::Not), loc.incr()),
             '<' if next == '=' => (Token::Operator(Operator::LtE), loc.incr2()),
             '<' if next != '=' => (Token::Operator(Operator::Lt), loc.incr()),
             '>' if next == '=' => (Token::Operator(Operator::GtE), loc.incr2()),
             '>' if next != '=' => (Token::Operator(Operator::Gt), loc.incr()),
-            '-' => (Token::Operator(Operator::Subtract), loc.incr()),
             '"' | '\'' => {
                 let mut l = loc.incr();
                 while l.index < chars.len() && cur != chars[l.index] {
@@ -462,22 +447,31 @@ mod handwritten {
 
                 let s: String = chars.as_slice()[loc.index..l.index].iter().collect();
                 let token = match s.as_str() {
-                    "let" => Token::Keyword(Keyword::LET),
+                    "local" => Token::Keyword(Keyword::LOCAL),
+                    "function" => Token::Keyword(Keyword::FUNCTION),
                     "return" => Token::Keyword(Keyword::RETURN),
                     "if" => Token::Keyword(Keyword::IF),
-                    "def" => Token::Keyword(Keyword::DEF),
+                    "then" => Token::Keyword(Keyword::THEN),
                     "else" => Token::Keyword(Keyword::ELSE),
+                    "elseif" => Token::Keyword(Keyword::ELSEIF),
+                    "end" => Token::Keyword(Keyword::END),
+                    "while" => Token::Keyword(Keyword::WHILE),
+                    "do" => Token::Keyword(Keyword::DO),
+                    "repeat" => Token::Keyword(Keyword::REPEAT),
+                    "until" => Token::Keyword(Keyword::UNTIL),
                     "for" => Token::Keyword(Keyword::FOR),
+                    "in" => Token::Keyword(Keyword::IN),
                     "break" => Token::Keyword(Keyword::BREAK),
                     "continue" => Token::Keyword(Keyword::CONTINUE),
+                    "and" => Token::Keyword(Keyword::AND),
+                    "or" => Token::Keyword(Keyword::OR),
+                    "not" => Token::Keyword(Keyword::NOT),
+                    "nil" => Token::Keyword(Keyword::NIL),
+                    "true" => Token::Bool(true),
+                    "false" => Token::Bool(false),
                     "try" => Token::Keyword(Keyword::TRY),
                     "catch" => Token::Keyword(Keyword::CATCH),
                     "finally" => Token::Keyword(Keyword::FINALLY),
-                    "throw" => Token::Keyword(Keyword::THROW),
-                    "import" => Token::Keyword(Keyword::IMPORT),
-                    "in" => Token::Keyword(Keyword::IN),
-                    "true" => Token::Bool(true),
-                    "false" => Token::Bool(false),
                     _ => Token::Identifier(s),
                 };
                 (token, l)
@@ -500,8 +494,7 @@ mod handwritten {
             // debug!("Parsing at loc: {:?}", loc);
             let (token, new_loc) = parse_token(&code, &loc)?;
 
-            if !matches!(token, Token::Comment | Token::Space) {
-                // Use the location from where the token *started*
+            if !matches!(token, Token::Space) {
                 tokens.push((token, loc));
             }
 

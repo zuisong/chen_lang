@@ -3,8 +3,8 @@ use crate::common::run_chen_lang_code as run_captured;
 #[test]
 fn test_import_custom_module_simple() {
     let source = r#"
-        let io = import("stdlib/io")
-        let mod = import("tests/fixtures/temp_module.ch")
+        local io = require("stdlib/io")
+        local mod = require("tests/fixtures/temp_module.chen.luau")
         io.println(mod.name)
         io.println(mod.greet("World"))
     "#;
@@ -19,8 +19,8 @@ fn test_import_custom_module_simple() {
 fn test_import_custom_module_relative_path() {
     // Note: Paths are currently relative to CWD (project root during cargo test)
     let source = r#"
-        let io = import("stdlib/io")
-        let math = import("tests/fixtures/math_utils.ch")
+        local io = require("stdlib/io")
+        local math = require("tests/fixtures/math_utils.chen.luau")
         io.print(math.add(10, 20))
     "#;
 
@@ -32,8 +32,8 @@ fn test_import_custom_module_relative_path() {
 #[test]
 fn test_import_custom_module_caching() {
     let source = r#"
-        let m1 = import("tests/fixtures/cached_module.ch")
-        let m2 = import("tests/fixtures/cached_module.ch")
+        local m1 = require("tests/fixtures/cached_module.chen.luau")
+        local m2 = require("tests/fixtures/cached_module.chen.luau")
     "#;
 
     let output = run_captured(&source.to_string()).unwrap();
@@ -46,10 +46,10 @@ fn test_import_custom_module_caching() {
 #[test]
 fn test_call_imported_function() {
     let source = r#"
-        let io = import("stdlib/io")
-        let math = import("tests/fixtures/math_utils.ch")
+        local io = require("stdlib/io")
+        local math = require("tests/fixtures/math_utils.chen.luau")
         io.println("Before call")
-        let result = math.add(10, 20)
+        local result = math.add(10, 20)
         io.println("After call")
         io.println(result)
     "#;

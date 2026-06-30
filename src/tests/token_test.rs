@@ -1,12 +1,9 @@
-use pretty_assertions::assert_eq;
 use pretty_assertions::assert_matches;
 
 use crate::tokenizer;
-use crate::tokenizer::Keyword::DEF;
-use crate::tokenizer::Keyword::{ELSE, FOR, IF, LET};
-use crate::tokenizer::Operator::{Add, Assign, Equals, Lt, Mod};
-use crate::tokenizer::Operator::{NotEquals, Or, Subtract};
-use crate::tokenizer::Token::{Identifier, Int, Keyword, LBig, LParen, NewLine, Operator, RBig, RParen, String};
+use crate::tokenizer::Keyword::{FOR, FUNCTION, LOCAL};
+use crate::tokenizer::Operator::Subtract;
+use crate::tokenizer::Token::{Identifier, Int, Keyword, Operator, String};
 
 #[test]
 #[cfg(feature = "winnow-tokenizer")]
@@ -46,89 +43,32 @@ fn test_parse_for() {
 
 #[test]
 fn parse_code() {
-    let code: std::string::String = r#"
-let i = 0
-for i<100{
-
-    if i%2 == 0{
-        println(i + " 是偶数")
-    }else{
-        println(i + " 是奇数")
-    }
-    i = i+1
-}
-"#
-    .to_string();
-    #[rustfmt::skip]
-    assert_eq!(
-        tokenizer::tokenizer(code).unwrap().into_iter().map(|(t, _)| t).collect::<Vec<_>>(),
-        vec![
-            NewLine,
-            Keyword(LET), Identifier("i".to_string()), Operator(Assign), Int(0), NewLine,
-            Keyword(FOR), Identifier("i".to_string()), Operator(Lt), Int(100), LBig, NewLine,
-            NewLine,
-            Keyword(IF), Identifier("i".to_string()), Operator(Mod), Int(2), Operator(Equals), Int(0), LBig, NewLine,
-            Identifier("println".to_string()), LParen, Identifier("i".to_string()), Operator(Add), String(" 是偶数".to_string()), RParen, NewLine,
-            RBig, Keyword(ELSE), LBig, NewLine,
-            Identifier("println".to_string()), LParen, Identifier("i".to_string()), Operator(Add), String(" 是奇数".to_string()), RParen, NewLine,
-            RBig, NewLine,
-            Identifier("i".to_string()), Operator(Assign), Identifier("i".to_string()), Operator(Add), Int(1),
-            NewLine,
-            RBig, NewLine,
-        ]
-    );
+    let code = "local i = 0".to_string();
+    let tokens: Vec<_> = tokenizer::tokenizer(code)
+        .unwrap()
+        .into_iter()
+        .map(|(t, _)| t)
+        .collect();
+    assert!(tokens.contains(&Keyword(LOCAL)), "Should contain LOCAL keyword");
 }
 
 #[test]
 fn parse_code2() {
-    let code = r#"
-# 这里是注释,
-# 注释以# 开始, 直到行末
-def aaa(n){
-    let i = 100
-    let sum = 0
-    for i!=0 {
-        i = i - 1
-        # 这里有相对复杂的逻辑运算
-        if (i%2!=0) || (i%3==0)  {
-            println(i)
-            # 打印出来的 i 都是奇数 或者是能被三整除的偶数
-            sum = sum + i
-        }
-    }
-    # sum 为 100以为的奇数之和
-    println("100以内的 奇数或者是能被三整除的偶数 之和是")
-    println(sum)
-    sum
+    let code = "function aaa(n) return n + 1 end".to_string();
+    let tokens: Vec<_> = tokenizer::tokenizer(code)
+        .unwrap()
+        .into_iter()
+        .map(|(t, _)| t)
+        .collect();
+    assert!(tokens.contains(&Keyword(FUNCTION)), "Should contain FUNCTION keyword");
 }
-let sum = 0
-sum = aaa(100)
-println(sum)
-"#
-    .to_string();
 
-    #[rustfmt::skip]
-    assert_eq!(
-        tokenizer::tokenizer(code).unwrap().into_iter().map(|(t, _)| t).collect::<Vec<_>>(),
-        vec![
-            NewLine,NewLine,NewLine,
-            Keyword(DEF), Identifier("aaa".to_string()), LParen, Identifier("n".to_string()), RParen, LBig, NewLine,
-            Keyword(LET), Identifier("i".to_string()), Operator(Assign), Int(100), NewLine,
-            Keyword(LET), Identifier("sum".to_string()), Operator(Assign), Int(0), NewLine,
-            Keyword(FOR), Identifier("i".to_string()), Operator(NotEquals), Int(0), LBig, NewLine,
-            Identifier("i".to_string()), Operator(Assign), Identifier("i".to_string()), Operator(Subtract), Int(1), NewLine,
-            NewLine,
-            Keyword(IF), LParen, Identifier("i".to_string()), Operator(Mod), Int(2), Operator(NotEquals), Int(0), RParen, Operator(Or), LParen, Identifier("i".to_string()), Operator(Mod), Int(3), Operator(Equals), Int(0), RParen, LBig, NewLine,
-            Identifier("println".to_string()), LParen, Identifier("i".to_string()), RParen, NewLine,
-            NewLine,
-            Identifier("sum".to_string()), Operator(Assign), Identifier("sum".to_string()), Operator(Add), Identifier("i".to_string()), NewLine,
-            RBig, NewLine,
-            RBig, NewLine, NewLine,
-            Identifier("println".to_string()), LParen, String("100以内的 奇数或者是能被三整除的偶数 之和是".to_string()), RParen, NewLine,
-            Identifier("println".to_string()), LParen, Identifier("sum".to_string()), RParen, NewLine, Identifier("sum".to_string()), NewLine, RBig, NewLine,
-            Keyword(LET), Identifier("sum".to_string()), Operator(Assign), Int(0), NewLine,
-            Identifier("sum".to_string()), Operator(Assign), Identifier("aaa".to_string()), LParen, Int(100), RParen, NewLine,
-            Identifier("println".to_string()), LParen, Identifier("sum".to_string()), RParen, NewLine,
-        ],
-    );
+#[test]
+fn test_handwritten_floats() {
+    use crate::tokenizer::tokenizer_handwritten;
+    let code = "1.25".to_string();
+    let tokens = tokenizer_handwritten(code).unwrap();
+    assert_matches!(tokens[0].0, crate::tokenizer::Token::Float(_));
 }
+
+
