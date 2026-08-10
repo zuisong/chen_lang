@@ -20,8 +20,10 @@ mod native_fs;
 mod native_http;
 mod native_io;
 mod native_json;
+mod native_libs;
 mod native_object_prototype;
 mod native_process;
+mod native_string_lib;
 mod native_string_prototype;
 mod native_timer;
 
@@ -32,7 +34,7 @@ use rt::AsyncState;
 mod vm_tests;
 
 pub use error::{RuntimeErrorWithContext, VMResult, VMRuntimeError};
-pub use fiber::{ExceptionHandler, Fiber, FiberState};
+pub use fiber::{ExceptionHandler, Fiber, FiberState, WANT_ALL};
 use native_array_prototype::create_array_prototype;
 use native_coroutine::create_coroutine_object;
 use native_object_prototype::create_object_prototype;
@@ -84,9 +86,11 @@ impl VM {
         variables.insert("Object".to_string(), object_prototype.clone());
 
         let print_fn = |vm: &mut VM, args: Vec<Value>| {
-            for val in args {
-                write!(vm.stdout, "{}", val).unwrap();
-            }
+            let s: String = args
+                .iter()
+                .map(|val| crate::vm::native_libs::value_to_string(vm, val))
+                .collect::<String>();
+            write!(vm.stdout, "{}", s).unwrap();
             writeln!(vm.stdout).unwrap();
             vm.stdout.flush().unwrap();
             Ok(Value::null())
@@ -172,7 +176,7 @@ impl VM {
         };
         variables.insert("error".to_string(), Value::NativeFunction(Rc::new(Box::new(error_fn))));
 
-        VM {
+        let mut vm = VM {
             stack: Vec::with_capacity(1024),
             variables,
             pc: 0,
@@ -189,7 +193,11 @@ impl VM {
             current_closure: None,
             module_cache: IndexMap::new(),
             async_state: AsyncState::new(),
-        }
+        };
+
+        // 注册 Lua 风格全局函数和标准库
+        native_libs::register_global_libs(&mut vm);
+        vm
     }
 
     /// 注册全局变量

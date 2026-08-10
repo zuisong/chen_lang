@@ -16,8 +16,8 @@
 use thiserror::Error;
 
 use crate::expression::{
-    Assign, Ast, BinaryOperation, Expression, ForInLoop, FunctionCall, FunctionDeclaration, If, Literal, Local, Loop,
-    MethodCall, Repeat, Return, Statement, TryCatch, Unary,
+    Assign, AssignMulti, Ast, BinaryOperation, Expression, ForInLoop, FunctionCall, FunctionDeclaration, If, Literal,
+    Local, LocalList, Loop, MethodCall, Repeat, Return, Statement, TryCatch, Unary,
 };
 use crate::tokenizer::Keyword;
 use crate::tokenizer::Location;
@@ -228,6 +228,32 @@ impl Parser {
 
         let expr = self.parse_expression_logic()?;
 
+        // 多目标赋值: `a, b = expr[, expr]*`
+        if matches!(expr, Expression::Identifier(..)) && self.check(&Token::COMMA) {
+            let mut names = Vec::new();
+            if let Expression::Identifier(name, _) = expr {
+                names.push(name);
+            }
+            while self.match_token(&Token::COMMA) {
+                self.skip_newlines();
+                let name = self.consume_identifier()?;
+                names.push(name);
+            }
+            self.skip_newlines();
+            if self.match_token(&Token::Operator(Operator::Assign)) {
+                let values = self.parse_expression_list()?;
+                return Ok(vec![Statement::AssignMulti(AssignMulti {
+                    names,
+                    exprs: values,
+                    loc: start_loc,
+                })]);
+            }
+            return Err(ParseError::Message {
+                msg: "Expected '=' after variable list".to_string(),
+                loc: self.peek_location(),
+            });
+        }
+
         // Compound assignment operators: += -= *= /= //= %= ..=
         let compound_map = [
             (Operator::AddAssign, Operator::Add),
@@ -290,6 +316,20 @@ impl Parser {
         }
     }
 
+    fn consume_identifier(&mut self) -> Result<String, ParseError> {
+        match self.peek() {
+            Some(Token::Identifier(name)) => {
+                let name = name.clone();
+                self.advance();
+                Ok(name)
+            }
+            _ => Err(ParseError::Message {
+                msg: "Expected variable name".to_string(),
+                loc: self.peek_location(),
+            }),
+        }
+    }
+
     fn parse_name_list(&mut self) -> Result<Vec<(String, Location)>, ParseError> {
         let mut names = Vec::new();
         match self.peek() {
@@ -337,11 +377,21 @@ impl Parser {
 
     /// `local name [, name]* [= expr [, expr]*]`
     fn parse_local(&mut self) -> Result<Vec<Statement>, ParseError> {
+        let start_loc = self.peek_location();
         let names = self.parse_name_list()?;
 
         let mut values = Vec::new();
         if self.match_token(&Token::Operator(Operator::Assign)) {
             values = self.parse_expression_list()?;
+        }
+
+        // 多变量或多值声明 -> LocalList（支持多返回值展开）
+        if names.len() > 1 || values.len() > 1 {
+            return Ok(vec![Statement::LocalList(LocalList {
+                names: names.into_iter().map(|(n, _)| n).collect(),
+                values,
+                loc: start_loc,
+            })]);
         }
 
         let mut stmts = Vec::new();
@@ -375,15 +425,15 @@ impl Parser {
     /// `return [expr [, expr]*]`
     fn parse_return(&mut self) -> Result<Vec<Statement>, ParseError> {
         let start_loc = self.peek_location();
-        let exprs = self.parse_expression_list()?;
-        let expr = exprs
-            .into_iter()
-            .next()
-            .unwrap_or(Expression::Literal(Literal::Value(Value::Null), start_loc));
-        Ok(vec![Statement::Return(Return {
-            expression: expr,
-            loc: start_loc,
-        })])
+        self.skip_newlines();
+        if self.is_at_end() || matches!(self.peek(), Some(Token::Keyword(Keyword::END))) {
+            return Ok(vec![Statement::Return(Return {
+                values: Vec::new(),
+                loc: start_loc,
+            })]);
+        }
+        let values = self.parse_expression_list()?;
+        Ok(vec![Statement::Return(Return { values, loc: start_loc })])
     }
 
     /// `function name ( params ) body end`
@@ -415,12 +465,12 @@ impl Parser {
         self.consume(&Token::LParen, "Expected '(' after function name")?;
 
         let mut parameters = Vec::new();
+        let mut vararg = false;
         if !self.check(&Token::RParen) {
             loop {
                 self.skip_newlines();
                 if self.match_token(&Token::Vararg) {
-                    // Treat variadic parameter as a regular name
-                    parameters.push("...".to_string());
+                    vararg = true;
                 } else if let Some(Token::Identifier(param)) = self.peek() {
                     parameters.push(param.clone());
                     self.advance();
@@ -446,6 +496,7 @@ impl Parser {
         Ok(FunctionDeclaration {
             name,
             parameters,
+            vararg,
             body,
             loc: name_loc.unwrap_or(start_loc),
         })
@@ -492,13 +543,22 @@ impl Parser {
 
         // Peek ahead to distinguish numeric for (name = ...) from generic for (name in ...)
         if let Some(Token::Identifier(_)) = self.peek() {
-            if self
-                .tokens
-                .get(self.current + 1)
-                .map(|(t, _)| t == &Token::Keyword(Keyword::IN))
-                .unwrap_or(false)
-            {
-                return self.parse_for_in(start_loc);
+            // 跳过 `name [, name]*`，看是否以 `in` 结尾
+            let mut i = self.current + 1;
+            loop {
+                while i < self.tokens.len() && self.tokens[i].0 == Token::NewLine {
+                    i += 1;
+                }
+                match self.tokens.get(i).map(|(t, _)| t) {
+                    Some(Token::COMMA) | Some(Token::Identifier(_)) => {
+                        i += 1;
+                        continue;
+                    }
+                    Some(Token::Keyword(Keyword::IN)) => {
+                        return self.parse_for_in(start_loc);
+                    }
+                    _ => break,
+                }
             }
         }
 
@@ -541,7 +601,8 @@ impl Parser {
 
         // Desugar to:
         //   local var = start
-        //   while var <= end do
+        //   local step = <step>
+        //   while (step >= 0 and var <= end) or (step < 0 and var >= end) do
         //     body
         //     var = var + step
         //   end
@@ -551,11 +612,61 @@ impl Parser {
             expr: Box::new(Expression::BinaryOperation(BinaryOperation {
                 left: Box::new(Expression::Identifier(var_name.clone(), var_loc)),
                 operator: Operator::Add,
-                right: Box::new(step),
+                right: Box::new(Expression::Identifier("@step".to_string(), start_loc)),
                 loc: start_loc,
             })),
             loc: start_loc,
         }));
+
+        let var_expr = Expression::Identifier(var_name.clone(), var_loc);
+        let step_expr = Expression::Identifier("@step".to_string(), start_loc);
+        let end_expr = end;
+
+        // (step >= 0)
+        let step_ge_zero = Expression::BinaryOperation(BinaryOperation {
+            left: Box::new(step_expr.clone()),
+            operator: Operator::GtE,
+            right: Box::new(Expression::Literal(Literal::Value(Value::Int(0)), start_loc)),
+            loc: start_loc,
+        });
+        // (step >= 0 and var <= end)
+        let asc_cond = Expression::BinaryOperation(BinaryOperation {
+            left: Box::new(step_ge_zero),
+            operator: Operator::And,
+            right: Box::new(Expression::BinaryOperation(BinaryOperation {
+                left: Box::new(var_expr.clone()),
+                operator: Operator::LtE,
+                right: Box::new(end_expr.clone()),
+                loc: start_loc,
+            })),
+            loc: start_loc,
+        });
+        // (step < 0)
+        let step_lt_zero = Expression::BinaryOperation(BinaryOperation {
+            left: Box::new(step_expr.clone()),
+            operator: Operator::Lt,
+            right: Box::new(Expression::Literal(Literal::Value(Value::Int(0)), start_loc)),
+            loc: start_loc,
+        });
+        // (step < 0 and var >= end)
+        let desc_cond = Expression::BinaryOperation(BinaryOperation {
+            left: Box::new(step_lt_zero),
+            operator: Operator::And,
+            right: Box::new(Expression::BinaryOperation(BinaryOperation {
+                left: Box::new(var_expr.clone()),
+                operator: Operator::GtE,
+                right: Box::new(end_expr.clone()),
+                loc: start_loc,
+            })),
+            loc: start_loc,
+        });
+        // (asc) or (desc)
+        let test = Expression::BinaryOperation(BinaryOperation {
+            left: Box::new(asc_cond),
+            operator: Operator::Or,
+            right: Box::new(desc_cond),
+            loc: start_loc,
+        });
 
         Ok(vec![
             Statement::Local(Local {
@@ -563,13 +674,13 @@ impl Parser {
                 expression: start,
                 loc: var_loc,
             }),
+            Statement::Local(Local {
+                name: "@step".to_string(),
+                expression: step,
+                loc: start_loc,
+            }),
             Statement::Loop(Loop {
-                test: Expression::BinaryOperation(BinaryOperation {
-                    left: Box::new(Expression::Identifier(var_name, var_loc)),
-                    operator: Operator::LtE,
-                    right: Box::new(end),
-                    loc: start_loc,
-                }),
+                test,
                 body: loop_body,
                 loc: start_loc,
             }),
@@ -578,11 +689,12 @@ impl Parser {
 
     /// `for namelist in explist do block end`
     fn parse_for_in(&mut self, start_loc: Location) -> Result<Vec<Statement>, ParseError> {
-        let var_name = if let Some(Token::Identifier(name)) = self.advance() {
-            name.clone()
-        } else {
-            unreachable!()
-        };
+        let mut vars = Vec::new();
+        vars.push(self.consume_identifier()?);
+        while self.match_token(&Token::COMMA) {
+            self.skip_newlines();
+            vars.push(self.consume_identifier()?);
+        }
 
         self.consume(&Token::Keyword(Keyword::IN), "Expected 'in' after variable name")?;
         let iterable = self.parse_expression_logic()?;
@@ -594,7 +706,7 @@ impl Parser {
         self.consume(&Token::Keyword(Keyword::END), "Expected 'end' after for-in block")?;
 
         Ok(vec![Statement::ForIn(ForInLoop {
-            var: var_name,
+            vars,
             iterable,
             body,
             loc: start_loc,
@@ -899,7 +1011,22 @@ impl Parser {
             }));
         }
 
-        self.parse_postfix()
+        self.parse_power()
+    }
+
+    /// `^` (幂运算，右结合，优先级高于一元运算符)
+    fn parse_power(&mut self) -> Result<Expression, ParseError> {
+        let mut left = self.parse_postfix()?;
+        if self.match_token(&Token::Operator(Operator::Pow)) {
+            let right = self.parse_power()?;
+            left = Expression::BinaryOperation(BinaryOperation {
+                left: Box::new(left),
+                operator: Operator::Pow,
+                right: Box::new(right),
+                loc: self.peek_location(),
+            });
+        }
+        Ok(left)
     }
 
     /// Calls, field access, index access, method calls
@@ -1015,6 +1142,7 @@ impl Parser {
                 self.consume(&Token::RParen, "Expected ')' after expression")?;
                 Ok(expr)
             }
+            Token::Vararg => Ok(Expression::Vararg(start_loc)),
             _ => Err(ParseError::UnexpectedToken { token, loc: start_loc }),
         }
     }
@@ -1029,6 +1157,9 @@ impl Parser {
         if !self.check(&Token::RBig) {
             loop {
                 self.skip_newlines();
+                if self.check(&Token::RBig) {
+                    break;
+                }
                 // Check for key-value pair: identifier = expr
                 if let Some(Token::Identifier(key_name)) = self.peek() {
                     // Look ahead for '=' (skip newlines)

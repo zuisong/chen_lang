@@ -60,12 +60,16 @@ pub enum Expression {
         loc: Location,
     },
     Function(FunctionDeclaration),
+    /// 变长参数 `...`
+    Vararg(Location),
 }
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct FunctionDeclaration {
     pub name: Option<String>,
     pub parameters: Vec<String>,
+    /// 是否为变长参数函数（`function f(...)`）
+    pub vararg: bool,
     pub body: Vec<Statement>,
     pub loc: Location,
 }
@@ -87,7 +91,7 @@ pub struct Local {
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Return {
-    pub expression: Expression,
+    pub values: Vec<Expression>,
     pub loc: Location,
 }
 
@@ -98,7 +102,11 @@ pub enum Statement {
     FunctionDeclaration(FunctionDeclaration),
     Return(Return),
     Local(Local),
+    /// 多变量/多值声明: `local a, b = expr[, expr]*`（支持多返回值）
+    LocalList(LocalList),
     Assign(Assign),
+    /// 多目标赋值: `a, b = expr[, expr]*`（支持多返回值）
+    AssignMulti(AssignMulti),
     ForIn(ForInLoop),
     /// Repeat-Until 循环
     Repeat(Repeat),
@@ -141,6 +149,22 @@ pub struct Assign {
     pub loc: Location,
 }
 
+/// 多目标赋值语句
+#[derive(Debug, PartialEq, Clone)]
+pub struct AssignMulti {
+    pub names: Vec<String>,
+    pub exprs: Vec<Expression>,
+    pub loc: Location,
+}
+
+/// 多变量/多值声明语句
+#[derive(Debug, PartialEq, Clone)]
+pub struct LocalList {
+    pub names: Vec<String>,
+    pub values: Vec<Expression>,
+    pub loc: Location,
+}
+
 /// 循环语句
 #[derive(Debug, PartialEq, Clone)]
 pub struct Loop {
@@ -154,8 +178,8 @@ pub struct Loop {
 /// For-In 循环语句
 #[derive(Debug, PartialEq, Clone)]
 pub struct ForInLoop {
-    /// 循环变量名
-    pub var: String,
+    /// 循环变量名（可为多个，例如 `for k, v in pairs(t)`）
+    pub vars: Vec<String>,
     /// 可迭代对象表达式 (例如一个协程或数组)
     pub iterable: Expression,
     /// 循环体

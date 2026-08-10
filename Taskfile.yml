@@ -10,6 +10,56 @@ tasks:
     cmds:
       - echo "{{.GREETING}}"
     silent: true
+
+  # ---------------------------------------------------------------------------
+  # 测试矩阵：解析器（handwritten / pest）× 分词器（handwritten / winnow）
+  # 每个组合都必须通过，任何一组失败即视为 test 任务失败。
+  # ---------------------------------------------------------------------------
+  test:
+    desc: 运行全量测试矩阵（解析器 × 分词器），确保每个组合都通过
+    cmds:
+      - task: test:token-parity
+      - task: test:handwritten-handwritten
+      - task: test:handwritten-winnow
+      - task: test:pest-handwritten
+      - task: test:pest-winnow
+    silent: true
+
+  # 分词器一致性：handwritten 与 winnow 的 token 分析结果必须一致
+  test:token-parity:
+    desc: Token 分析一致性测试（handwritten vs winnow 分词器）
+    cmds:
+      - echo "==> Token 分析一致性 (handwritten vs winnow)"
+      - cargo test -q tokenizer::tests
+
+  # 手写解析器 + 手写分词器
+  test:handwritten-handwritten:
+    desc: 手写解析器 + 手写分词器
+    cmds:
+      - echo "==> 手写解析器 + 手写分词器"
+      - cargo test -q --no-default-features --features binaries,http
+
+  # 手写解析器 + Winnow 分词器（默认特性）
+  test:handwritten-winnow:
+    desc: 手写解析器 + Winnow 分词器（默认特性）
+    cmds:
+      - echo "==> 手写解析器 + Winnow 分词器"
+      - cargo test -q
+
+  # Pest 解析器 + 手写分词器
+  test:pest-handwritten:
+    desc: Pest 解析器 + 手写分词器
+    cmds:
+      - echo "==> Pest 解析器 + 手写分词器"
+      - cargo test -q --no-default-features --features binaries,http,pest-parser
+
+  # Pest 解析器 + Winnow 分词器
+  test:pest-winnow:
+    desc: Pest 解析器 + Winnow 分词器
+    cmds:
+      - echo "==> Pest 解析器 + Winnow 分词器"
+      - cargo test -q --no-default-features --features binaries,http,pest-parser,winnow-tokenizer
+
   test-cov:
     cmds:
       - cargo tarpaulin --config tarpaulin.toml
@@ -18,7 +68,6 @@ tasks:
     desc: Build the WASM package
     cmds:
       - wasm-pack build --target web --out-dir docs/pkg
-
 
   wasm-test:
     desc: Run WASM tests

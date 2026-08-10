@@ -441,41 +441,54 @@ impl Value {
         }
     }
 
-    pub fn divide(&self, other: &Value) -> Result<Value, ValueError> {
+    pub fn divide(&self, other: &Value) -> Result<OpResult, ValueError> {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => {
                 if *b == 0 {
                     Err(ValueError::DivisionByZero)
                 } else {
-                    Ok(Value::Int(a / b))
+                    Ok(OpResult::Value(Value::Int(a / b)))
                 }
             }
             (Value::Float(a), Value::Float(b)) => {
                 if *b == Decimal::ZERO {
                     Err(ValueError::DivisionByZero)
                 } else {
-                    Ok(Value::Float(a / b))
+                    Ok(OpResult::Value(Value::Float(a / b)))
                 }
             }
             (Value::Int(a), Value::Float(b)) => {
                 if *b == Decimal::ZERO {
                     Err(ValueError::DivisionByZero)
                 } else {
-                    Ok(Value::Float(Decimal::from(*a) / b))
+                    Ok(OpResult::Value(Value::Float(Decimal::from(*a) / b)))
                 }
             }
             (Value::Float(a), Value::Int(b)) => {
                 if *b == 0 {
                     Err(ValueError::DivisionByZero)
                 } else {
-                    Ok(Value::Float(a / Decimal::from(*b)))
+                    Ok(OpResult::Value(Value::Float(a / Decimal::from(*b))))
                 }
             }
-            _ => Err(ValueError::InvalidOperation {
-                operator: "/".to_string(),
-                left_type: self.get_type(),
-                right_type: other.get_type(),
-            }),
+            // Metamethod lookup for __div
+            (left_val, right_val) => {
+                let metamethod = left_val
+                    .get_metamethod_from_object("__div")
+                    .or_else(|| right_val.get_metamethod_from_object("__div"));
+                if let Some(metamethod_func) = metamethod {
+                    Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                        metamethod: metamethod_func,
+                        args: vec![left_val.clone(), right_val.clone()],
+                    }))
+                } else {
+                    Err(ValueError::InvalidOperation {
+                        operator: "/".to_string(),
+                        left_type: self.get_type(),
+                        right_type: other.get_type(),
+                    })
+                }
+            }
         }
     }
 
@@ -496,112 +509,247 @@ impl Value {
         }
     }
 
-    pub fn modulo(&self, other: &Value) -> Result<Value, ValueError> {
+    pub fn pow(&self, other: &Value) -> Result<OpResult, ValueError> {
+        match (self, other) {
+            (Value::Int(a), Value::Int(b)) => {
+                if *b < 0 {
+                    return Ok(OpResult::Value(Value::Float(
+                        Decimal::from_f64_retain((*a as f64).powi(*b)).unwrap_or_default(),
+                    )));
+                }
+                Ok(OpResult::Value(Value::Float(
+                    Decimal::from_f64_retain((*a as f64).powi(*b)).unwrap_or_default(),
+                )))
+            }
+            (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(
+                Decimal::from_f64_retain(a.to_f64().unwrap_or(0.0).powf(b.to_f64().unwrap_or(0.0))).unwrap_or_default(),
+            ))),
+            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::Float(
+                Decimal::from_f64_retain((*a as f64).powf(b.to_f64().unwrap_or(0.0))).unwrap_or_default(),
+            ))),
+            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::Float(
+                Decimal::from_f64_retain(a.to_f64().unwrap_or(0.0).powi(*b)).unwrap_or_default(),
+            ))),
+            (left_val, right_val) => {
+                let metamethod = left_val
+                    .get_metamethod_from_object("__pow")
+                    .or_else(|| right_val.get_metamethod_from_object("__pow"));
+                if let Some(metamethod_func) = metamethod {
+                    Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                        metamethod: metamethod_func,
+                        args: vec![left_val.clone(), right_val.clone()],
+                    }))
+                } else {
+                    Err(ValueError::InvalidOperation {
+                        operator: "^".to_string(),
+                        left_type: self.get_type(),
+                        right_type: other.get_type(),
+                    })
+                }
+            }
+        }
+    }
+
+    pub fn modulo(&self, other: &Value) -> Result<OpResult, ValueError> {
         match (self, other) {
             (Value::Int(a), Value::Int(b)) => {
                 if *b == 0 {
                     Err(ValueError::DivisionByZero)
                 } else {
-                    Ok(Value::Int(a % b))
+                    Ok(OpResult::Value(Value::Int(a % b)))
                 }
             }
             (Value::Float(a), Value::Float(b)) => {
                 if *b == Decimal::ZERO {
                     Err(ValueError::DivisionByZero)
                 } else {
-                    Ok(Value::Float(a % b))
+                    Ok(OpResult::Value(Value::Float(a % b)))
                 }
             }
             (Value::Int(a), Value::Float(b)) => {
                 if *b == Decimal::ZERO {
                     Err(ValueError::DivisionByZero)
                 } else {
-                    Ok(Value::Float(Decimal::from(*a) % b))
+                    Ok(OpResult::Value(Value::Float(Decimal::from(*a) % b)))
                 }
             }
             (Value::Float(a), Value::Int(b)) => {
                 if *b == 0 {
                     Err(ValueError::DivisionByZero)
                 } else {
-                    Ok(Value::Float(a % Decimal::from(*b)))
+                    Ok(OpResult::Value(Value::Float(a % Decimal::from(*b))))
                 }
             }
-            _ => Err(ValueError::InvalidOperation {
-                operator: "%".to_string(),
-                left_type: self.get_type(),
-                right_type: other.get_type(),
-            }),
+            // Metamethod lookup for __mod
+            (left_val, right_val) => {
+                let metamethod = left_val
+                    .get_metamethod_from_object("__mod")
+                    .or_else(|| right_val.get_metamethod_from_object("__mod"));
+                if let Some(metamethod_func) = metamethod {
+                    Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                        metamethod: metamethod_func,
+                        args: vec![left_val.clone(), right_val.clone()],
+                    }))
+                } else {
+                    Err(ValueError::InvalidOperation {
+                        operator: "%".to_string(),
+                        left_type: self.get_type(),
+                        right_type: other.get_type(),
+                    })
+                }
+            }
         }
     }
 }
 
 /// 比较运算实现
 impl Value {
-    pub fn equal(&self, other: &Value) -> Value {
-        Value::bool(self == other)
+    pub fn equal(&self, other: &Value) -> Result<OpResult, ValueError> {
+        let eq = self == other;
+        if eq {
+            return Ok(OpResult::Value(Value::bool(true)));
+        }
+        // __eq: 仅当两者都是对象（table）且引用不同时触发
+        if matches!(self, Value::Object(_)) && matches!(other, Value::Object(_)) {
+            let metamethod = self
+                .get_metamethod_from_object("__eq")
+                .or_else(|| other.get_metamethod_from_object("__eq"));
+            if let Some(metamethod_func) = metamethod {
+                return Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                    metamethod: metamethod_func,
+                    args: vec![self.clone(), other.clone()],
+                }));
+            }
+        }
+        Ok(OpResult::Value(Value::bool(false)))
     }
 
-    pub fn not_equal(&self, other: &Value) -> Value {
-        Value::bool(self != other)
-    }
-
-    pub fn less_than(&self, other: &Value) -> Result<Value, ValueError> {
-        match (self, other) {
-            (Value::Int(a), Value::Int(b)) => Ok(Value::bool(a < b)),
-            (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a < b)),
-            (Value::Int(a), Value::Float(b)) => Ok(Value::bool(Decimal::from(*a) < *b)),
-            (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a < Decimal::from(*b))),
-            (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) < String::as_str(b))),
-            _ => Err(ValueError::InvalidOperation {
-                operator: "<".to_string(),
+    pub fn not_equal(&self, other: &Value) -> Result<OpResult, ValueError> {
+        let eq = self.equal(other)?;
+        match eq {
+            OpResult::Value(v) => Ok(OpResult::Value(Value::bool(!v.as_bool().unwrap_or(false)))),
+            OpResult::MetamethodCall(_) => Err(ValueError::InvalidOperation {
+                operator: "~=".to_string(),
                 left_type: self.get_type(),
                 right_type: other.get_type(),
             }),
         }
     }
 
-    pub fn less_equal(&self, other: &Value) -> Result<Value, ValueError> {
-        match (self, other) {
-            (Value::Int(a), Value::Int(b)) => Ok(Value::bool(a <= b)),
-            (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a <= b)),
-            (Value::Int(a), Value::Float(b)) => Ok(Value::bool(Decimal::from(*a) <= *b)),
-            (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a <= Decimal::from(*b))),
-            (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) <= String::as_str(b))),
-            _ => Err(ValueError::InvalidOperation {
-                operator: "<=".to_string(),
-                left_type: self.get_type(),
-                right_type: other.get_type(),
-            }),
+    fn comparison_metamethod(left: &Value, right: &Value, name: &str, prefer_right: bool) -> Option<Value> {
+        if prefer_right {
+            right
+                .get_metamethod_from_object(name)
+                .or_else(|| left.get_metamethod_from_object(name))
+        } else {
+            left.get_metamethod_from_object(name)
+                .or_else(|| right.get_metamethod_from_object(name))
         }
     }
 
-    pub fn greater_than(&self, other: &Value) -> Result<Value, ValueError> {
+    pub fn less_than(&self, other: &Value) -> Result<OpResult, ValueError> {
         match (self, other) {
-            (Value::Int(a), Value::Int(b)) => Ok(Value::bool(a > b)),
-            (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a > b)),
-            (Value::Int(a), Value::Float(b)) => Ok(Value::bool(Decimal::from(*a) > *b)),
-            (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a > Decimal::from(*b))),
-            (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) > String::as_str(b))),
-            _ => Err(ValueError::InvalidOperation {
-                operator: ">".to_string(),
-                left_type: self.get_type(),
-                right_type: other.get_type(),
-            }),
+            (Value::Int(a), Value::Int(b)) => Ok(OpResult::Value(Value::bool(a < b))),
+            (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::bool(a < b))),
+            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::bool(Decimal::from(*a) < *b))),
+            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::bool(*a < Decimal::from(*b)))),
+            (Value::String(a), Value::String(b)) => {
+                Ok(OpResult::Value(Value::bool(String::as_str(a) < String::as_str(b))))
+            }
+            (left_val, right_val) => {
+                if let Some(mm) = Value::comparison_metamethod(left_val, right_val, "__lt", false) {
+                    Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                        metamethod: mm,
+                        args: vec![left_val.clone(), right_val.clone()],
+                    }))
+                } else {
+                    Err(ValueError::InvalidOperation {
+                        operator: "<".to_string(),
+                        left_type: self.get_type(),
+                        right_type: other.get_type(),
+                    })
+                }
+            }
         }
     }
 
-    pub fn greater_equal(&self, other: &Value) -> Result<Value, ValueError> {
+    pub fn less_equal(&self, other: &Value) -> Result<OpResult, ValueError> {
         match (self, other) {
-            (Value::Int(a), Value::Int(b)) => Ok(Value::bool(a >= b)),
-            (Value::Float(a), Value::Float(b)) => Ok(Value::bool(a >= b)),
-            (Value::Int(a), Value::Float(b)) => Ok(Value::bool(Decimal::from(*a) >= *b)),
-            (Value::Float(a), Value::Int(b)) => Ok(Value::bool(*a >= Decimal::from(*b))),
-            (Value::String(a), Value::String(b)) => Ok(Value::bool(String::as_str(a) >= String::as_str(b))),
-            _ => Err(ValueError::InvalidOperation {
-                operator: ">=".to_string(),
-                left_type: self.get_type(),
-                right_type: other.get_type(),
-            }),
+            (Value::Int(a), Value::Int(b)) => Ok(OpResult::Value(Value::bool(a <= b))),
+            (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::bool(a <= b))),
+            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::bool(Decimal::from(*a) <= *b))),
+            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::bool(*a <= Decimal::from(*b)))),
+            (Value::String(a), Value::String(b)) => {
+                Ok(OpResult::Value(Value::bool(String::as_str(a) <= String::as_str(b))))
+            }
+            (left_val, right_val) => {
+                if let Some(mm) = Value::comparison_metamethod(left_val, right_val, "__le", false) {
+                    Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                        metamethod: mm,
+                        args: vec![left_val.clone(), right_val.clone()],
+                    }))
+                } else {
+                    Err(ValueError::InvalidOperation {
+                        operator: "<=".to_string(),
+                        left_type: self.get_type(),
+                        right_type: other.get_type(),
+                    })
+                }
+            }
+        }
+    }
+
+    pub fn greater_than(&self, other: &Value) -> Result<OpResult, ValueError> {
+        match (self, other) {
+            (Value::Int(a), Value::Int(b)) => Ok(OpResult::Value(Value::bool(a > b))),
+            (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::bool(a > b))),
+            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::bool(Decimal::from(*a) > *b))),
+            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::bool(*a > Decimal::from(*b)))),
+            (Value::String(a), Value::String(b)) => {
+                Ok(OpResult::Value(Value::bool(String::as_str(a) > String::as_str(b))))
+            }
+            (left_val, right_val) => {
+                // a > b 等价于 b < a，因此从右边找 __lt
+                if let Some(mm) = Value::comparison_metamethod(left_val, right_val, "__lt", true) {
+                    Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                        metamethod: mm,
+                        args: vec![right_val.clone(), left_val.clone()],
+                    }))
+                } else {
+                    Err(ValueError::InvalidOperation {
+                        operator: ">".to_string(),
+                        left_type: self.get_type(),
+                        right_type: other.get_type(),
+                    })
+                }
+            }
+        }
+    }
+
+    pub fn greater_equal(&self, other: &Value) -> Result<OpResult, ValueError> {
+        match (self, other) {
+            (Value::Int(a), Value::Int(b)) => Ok(OpResult::Value(Value::bool(a >= b))),
+            (Value::Float(a), Value::Float(b)) => Ok(OpResult::Value(Value::bool(a >= b))),
+            (Value::Int(a), Value::Float(b)) => Ok(OpResult::Value(Value::bool(Decimal::from(*a) >= *b))),
+            (Value::Float(a), Value::Int(b)) => Ok(OpResult::Value(Value::bool(*a >= Decimal::from(*b)))),
+            (Value::String(a), Value::String(b)) => {
+                Ok(OpResult::Value(Value::bool(String::as_str(a) >= String::as_str(b))))
+            }
+            (left_val, right_val) => {
+                // a >= b 等价于 b <= a，因此从右边找 __le
+                if let Some(mm) = Value::comparison_metamethod(left_val, right_val, "__le", true) {
+                    Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                        metamethod: mm,
+                        args: vec![right_val.clone(), left_val.clone()],
+                    }))
+                } else {
+                    Err(ValueError::InvalidOperation {
+                        operator: ">=".to_string(),
+                        left_type: self.get_type(),
+                        right_type: other.get_type(),
+                    })
+                }
+            }
         }
     }
 }
@@ -620,10 +768,17 @@ impl Value {
         Value::bool(!self.is_truthy())
     }
 
-    pub fn len(&self) -> Result<i32, ValueError> {
+    pub fn len(&self) -> Result<OpResult, ValueError> {
         match self {
-            Value::String(s) => Ok(s.chars().count() as i32),
+            Value::String(s) => Ok(OpResult::Value(Value::Int(s.chars().count() as i32))),
             Value::Object(table_rc) => {
+                // 先检查 __len 元方法
+                if let Some(mm) = self.get_metamethod_from_object("__len") {
+                    return Ok(OpResult::MetamethodCall(MetamethodCallInfo {
+                        metamethod: mm,
+                        args: vec![self.clone()],
+                    }));
+                }
                 let table = table_rc.borrow();
                 let mut max_idx = -1i32;
                 for key in table.data.keys() {
@@ -633,7 +788,7 @@ impl Value {
                         }
                     }
                 }
-                Ok(max_idx + 1)
+                Ok(OpResult::Value(Value::Int(max_idx + 1)))
             }
             _ => Err(ValueError::InvalidOperation {
                 operator: "len".to_string(),
@@ -644,35 +799,45 @@ impl Value {
     }
 }
 
+/// 深度优先搜索元方法：沿着元表链和 __index 链查找（支持继承）。
+fn search_meta_chain(table_ref: &Rc<RefCell<Table>>, metamethod_name: &str, depth: usize) -> Option<Value> {
+    if depth > 32 {
+        return None;
+    }
+    let table = table_ref.borrow();
+    let metatable_ref = table.metatable.clone()?;
+    let metatable = metatable_ref.borrow();
+
+    if let Some(metamethod_val) = metatable.data.get(metamethod_name)
+        && matches!(metamethod_val, Value::Fn(_) | Value::NativeFunction(_))
+    {
+        return Some(metamethod_val.clone());
+    }
+
+    // 通过 __index 表查找（继承链）
+    if let Some(Value::Object(index_ref)) = metatable.data.get("__index") {
+        if let Some(metamethod_val) = index_ref.borrow().data.get(metamethod_name)
+            && matches!(metamethod_val, Value::Fn(_) | Value::NativeFunction(_))
+        {
+            return Some(metamethod_val.clone());
+        }
+        if let Some(found) = search_meta_chain(index_ref, metamethod_name, depth + 1) {
+            return Some(found);
+        }
+    }
+
+    // 继续沿元表的元表链查找
+    search_meta_chain(&metatable_ref, metamethod_name, depth + 1)
+}
+
 /// Metatable support methods
 impl Value {
     /// Recursively search for a metamethod in the object's metatable chain.
     /// Returns the metamethod Value if found, otherwise None.
     pub fn get_metamethod_from_object(&self, metamethod_name: &str) -> Option<Value> {
-        let mut current_obj_owned = self.clone(); // Own the Value directly
-        loop {
-            match current_obj_owned {
-                Value::Object(table_ref) => {
-                    let table = table_ref.borrow();
-                    if let Some(metatable_ref) = &table.metatable {
-                        let metatable = metatable_ref.borrow();
-                        if let Some(metamethod_val) = metatable.data.get(metamethod_name) {
-                            return match metamethod_val {
-                                Value::Fn(_) | Value::NativeFunction(_) => Some(metamethod_val.clone()),
-                                _ => {
-                                    // Found a value, but it's not a function, treat as not found
-                                    None
-                                }
-                            };
-                        }
-                        // Continue search in the metatable's metatable (Lua's behavior for __index chain)
-                        current_obj_owned = Value::Object(metatable_ref.clone());
-                    } else {
-                        return None; // No metatable, end of chain
-                    }
-                }
-                _ => return None, // Not an object, cannot have a metatable
-            }
+        match self {
+            Value::Object(table_ref) => search_meta_chain(table_ref, metamethod_name, 0),
+            _ => None,
         }
     }
     /// Get field with metatable support (__index metamethod)

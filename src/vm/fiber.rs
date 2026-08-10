@@ -19,6 +19,9 @@ pub enum FiberState {
     Dead,
 }
 
+/// 希望从被调用函数获得的返回值数量。`usize::MAX` 表示"全部"（对应 Lua 的多返回值语义）。
+pub const WANT_ALL: usize = usize::MAX;
+
 /// Call stack frame
 #[derive(Debug, Clone)]
 pub struct CallFrame {
@@ -28,6 +31,10 @@ pub struct CallFrame {
     pub closure: Option<Rc<ObjClosure>>,
     pub discard_return: bool,
     pub push_values_after_return: Vec<Value>,
+    /// 调用方期望的返回值数量（`WANT_ALL` = 全部）。用于多返回值截断/补齐。
+    pub want_return: usize,
+    /// 变长参数数组（从参数中收集的额外实参）。非变长函数为 None。
+    pub varargs: Option<Rc<RefCell<crate::value::Table>>>,
 }
 
 #[derive(Clone)]

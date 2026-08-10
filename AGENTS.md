@@ -2,54 +2,62 @@
 
 ## 项目概述
 
-Chen Lang 是一个用 Rust 实现的简单编程语言解释器，支持基本的编程语言特性。
+Chen Lang 是一个用 Rust 实现的 Luau/Lua 风格编程语言解释器。支持闭包、多返回值、变长参数、
+元表（原型继承）、协程、异常处理以及丰富的标准库（string/table/math/os/json/fs/http/date 等）。
+
+> ⚠️ **重要**：当前语法为 Luau 风格（`local`、`function`、`end`、`--` 注释），
+> 旧文档中的 `let`/`def`/`import`/`#` 注释语法已废弃。详见 `LANGUAGE_REFERENCE.md` 和 `LUA_COMPAT.md`。
 
 ## 核心架构
 
-### 1. 词法分析器 (`token.rs`)
+### 1. 词法分析器 (`tokenizer.rs`)
 - 负责将源代码转换为 Token 流
 - 支持关键字、标识符、数字、字符串、操作符等
-- 特殊支持：浮点数、注释（以 `#` 开头）
+- 特殊支持：浮点数、注释（以 `--` 开头）
 
-### 2. 语法分析器 (`parse.rs`)
+### 2. 语法分析器 (`parser/handwritten.rs`)
 - 将 Token 流转换为 AST（抽象语法树）
 - 支持表达式、语句、函数定义等语法结构
 
-### 3. 编译器 (`lib.rs`)
+### 3. 编译器 (`compiler.rs`)
 - 将 AST 编译为字节码指令
-- 支持函数定义、循环、条件语句等
+- 支持函数定义、循环、条件语句、闭包 upvalue 等
 - 实现变量作用域和类型检查
 
-### 4. 虚拟机 (`vm.rs`)
+### 4. 虚拟机 (`vm/interpreter.rs`)
 - 执行字节码指令
-- 栈式虚拟机，支持函数调用和返回
-- 内置函数：`print`, `println`
+- 栈式虚拟机，支持函数调用和返回、多返回值、协程
+- 内置函数：`print`, `type`, `pairs`, `pcall`, `require` 等
 
 ### 5. 值系统 (`value.rs`)
 - 统一的值类型系统
-- 支持：整数、浮点数、布尔值、字符串、空值
-- 自动类型提升和转换
+- 支持：整数、浮点数、布尔值、字符串、表/对象、函数、协程、空值
+- 自动类型提升和转换、元表元方法
 
 ## 语言特性
 
 ### 数据类型
 - `int`: 32位整数
-- `float`: 32位浮点数
-- `bool`: 布尔值
+- `float`: 高精度 Decimal
+- `boolean`: 布尔值
 - `string`: 字符串
-- `null`: 空值
+- `table`: 表（对象/数组）
+- `function`: 函数
+- `thread`: 协程
+- `nil`: 空值
 
 ### 运算符
-- 算术：`+`, `-`, `*`, `/`, `%`
-- 比较：`==`, `!=`, `<`, `<=`, `>`, `>=`
-- 逻辑：`&&`, `||`, `!`
-- 字符串连接：`+` (自动类型转换)
+- 算术：`+`, `-`, `*`, `/`, `%`, `^`, `//`
+- 比较：`==`, `~=`, `<`, `<=`, `>`, `>=`
+- 逻辑：`and`, `or`, `not`
+- 字符串连接：`..` (以及 `+` 自动类型转换)
 
 ### 控制流
-- 条件语句：`if`/`else`
-- 循环：`for`
-- 函数定义：`def function_name() { ... }`
-- 函数调用：`function_name()`
+- 条件语句：`if`/`elseif`/`else`
+- 循环：`while`、`for i = a, b, step`、`for k, v in pairs(t)`、`repeat`/`until`
+- 函数定义：`function name(a, b) ... end`、`local function`、匿名 `function(a) ... end`
+- 变长参数：`function f(...)`，使用 `...`
+- 异常处理：`try`/`catch`/`finally`/`throw`、`pcall`/`xpcall`
 
 ### 变量
 - 声明：`let variable_name = value`

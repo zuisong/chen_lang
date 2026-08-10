@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::expression::Repeat;
 use crate::expression::*;
 use crate::tokenizer::{Location, Operator};
-use crate::vm::{Instruction, Program, Symbol};
+use crate::vm::{Instruction, Program, Symbol, WANT_ALL};
 
 // A scope holds the local variables for a block or function.
 struct Scope {
@@ -356,6 +356,7 @@ impl<'a> Compiler<'a> {
                     narguments: 0,
                     nlocals: 0,
                     upvalues: Vec::new(),
+                    is_vararg: false,
                 },
             );
         }
@@ -366,6 +367,9 @@ impl<'a> Compiler<'a> {
             Statement::FunctionDeclaration(fd) => self.compile_function_def(fd),
             Statement::Return(r) => self.compile_return(r),
             Statement::Local(loc) => self.compile_local(loc),
+            Statement::LocalList(ll) => self.compile_local_list(ll),
+            Statement::Assign(a) => self.compile_assign(a),
+            Statement::AssignMulti(am) => self.compile_assign_multi(am),
             Statement::Expression(e) => {
                 // To access the loc number of expression 'e', we need to check its variant.
                 // But e is moved into compile_expression.
@@ -383,7 +387,6 @@ impl<'a> Compiler<'a> {
             Statement::Loop(e) => self.compile_loop(e),
             Statement::ForIn(e) => self.compile_for_in(e),
             Statement::Repeat(r) => self.compile_repeat(r),
-            Statement::Assign(e) => self.compile_assign(e),
             Statement::Break(loc) => {
                 let end_label = self
                     .current_state()
@@ -444,6 +447,7 @@ impl<'a> Compiler<'a> {
             Expression::Index { loc, .. } => *loc,
             Expression::Function(fd) => fd.loc,
             Expression::MethodCall(mc) => mc.loc,
+            Expression::Vararg(loc) => *loc,
         }
     }
 
@@ -469,6 +473,7 @@ impl<'a> Compiler<'a> {
                     narguments: 0,
                     nlocals: 0,
                     upvalues: Vec::new(),
+                    is_vararg: false,
                 },
             );
         }
@@ -485,8 +490,8 @@ impl<'a> Compiler<'a> {
     fn compile_expression(&mut self, exp: Expression) {
         match exp {
             Expression::BinaryOperation(bop) => self.compile_binary_operation(bop),
-            Expression::FunctionCall(fc) => self.compile_function_call(fc),
-            Expression::MethodCall(mc) => self.compile_method_call(mc),
+            Expression::FunctionCall(fc) => self.compile_function_call(fc, 1),
+            Expression::MethodCall(mc) => self.compile_method_call(mc, 1),
             Expression::Literal(lit, loc) => self.compile_literal(lit, loc),
             Expression::Identifier(ident, loc) => {
                 if let Some(var_location) = self.resolve_variable(&ident) {
@@ -524,12 +529,22 @@ impl<'a> Compiler<'a> {
                     self.emit(Instruction::SetField(key), loc);
                 }
             }
-            Expression::ArrayLiteral(elements, loc) => {
-                let count = elements.len();
-                for elem in elements {
-                    self.compile_expression(elem);
+            Expression::ArrayLiteral(mut elements, loc) => {
+                // 若最后一个元素是变长参数 `...`，使用 BuildArrayVariadic
+                if let Some(Expression::Vararg(_)) = elements.last() {
+                    elements.pop();
+                    let fixed = elements.len();
+                    for elem in elements {
+                        self.compile_expression(elem);
+                    }
+                    self.emit(Instruction::BuildArrayVariadic(fixed), loc);
+                } else {
+                    let count = elements.len();
+                    for elem in elements {
+                        self.compile_expression(elem);
+                    }
+                    self.emit(Instruction::BuildArray(count), loc);
                 }
-                self.emit(Instruction::BuildArray(count), loc);
             }
             Expression::GetField { object, field, loc } => {
                 self.compile_expression(*object);
@@ -561,11 +576,15 @@ impl<'a> Compiler<'a> {
                             narguments: 0,
                             nlocals: 0,
                             upvalues: Vec::new(),
+                            is_vararg: false,
                         },
                     );
 
                     self.emit(Instruction::Closure(format!("func_{}", func_name)), loc);
                 }
+            }
+            Expression::Vararg(loc) => {
+                self.emit(Instruction::Vararg(1), loc);
             }
         }
     }
@@ -654,27 +673,26 @@ impl<'a> Compiler<'a> {
             Operator::Or => Instruction::Or,
             Operator::Concat => Instruction::Concat,
             Operator::FloorDiv => Instruction::FloorDiv,
+            Operator::Pow => Instruction::Pow,
             Operator::Len | Operator::Not => panic!("Unable to compile binary operation: {:?}", bop.operator),
             _ => panic!("Unsupported binary operator: {:?}", bop.operator),
         };
         self.emit(instruction, loc);
     }
 
-    fn compile_function_call(&mut self, fc: FunctionCall) {
+    fn compile_function_call(&mut self, fc: FunctionCall, want: usize) {
         let loc = fc.loc;
-        let len = fc.arguments.len();
-        let arguments = fc.arguments;
+        let mut arguments = fc.arguments;
         let other_callee = *fc.callee;
 
+        // 最后一个参数是变长参数 `...` -> 展开所有可变参数
+        let vararg_call = matches!(arguments.last(), Some(Expression::Vararg(_)));
+
         {
-            // Optimized call
             let is_optimized_call = if let Expression::Identifier(ref name, _) = other_callee {
                 match self.resolve_variable(name) {
                     Some(VarLocation::Local(_)) | Some(VarLocation::Upvalue(_)) => false,
-                    _ => {
-                        // Global or not found (function declaration)
-                        true
-                    }
+                    _ => true,
                 }
             } else {
                 false
@@ -682,40 +700,203 @@ impl<'a> Compiler<'a> {
 
             if is_optimized_call {
                 if let Expression::Identifier(name, _) = other_callee {
-                    for arg in arguments {
-                        self.compile_expression(arg);
+                    if vararg_call {
+                        arguments.pop();
+                        for arg in &arguments {
+                            self.compile_expression(arg.clone());
+                        }
+                        self.emit(Instruction::Vararg(WANT_ALL), loc);
+                        self.emit(Instruction::CallVararg(name, arguments.len(), want), loc);
+                    } else {
+                        let len = arguments.len();
+                        for arg in arguments {
+                            self.compile_expression(arg);
+                        }
+                        self.emit(Instruction::Call(name, len, want), loc);
                     }
-                    self.emit(Instruction::Call(name, len), loc);
                 } else {
                     unreachable!();
                 }
             } else {
-                self.compile_expression(other_callee);
-                for arg in arguments {
-                    self.compile_expression(arg);
+                if vararg_call {
+                    arguments.pop();
+                    self.compile_expression(other_callee);
+                    for arg in &arguments {
+                        self.compile_expression(arg.clone());
+                    }
+                    self.emit(Instruction::Vararg(WANT_ALL), loc);
+                    self.emit(Instruction::CallStackVararg(arguments.len(), want), loc);
+                } else {
+                    self.compile_expression(other_callee);
+                    let len = arguments.len();
+                    for arg in arguments {
+                        self.compile_expression(arg);
+                    }
+                    self.emit(Instruction::CallStack(len, want), loc);
                 }
-                self.emit(Instruction::CallStack(len), loc);
             }
         }
     }
 
-    fn compile_method_call(&mut self, mc: MethodCall) {
+    fn compile_method_call(&mut self, mc: MethodCall, want: usize) {
         let loc = mc.loc;
         self.compile_expression(*mc.object);
         self.emit(Instruction::GetMethod(mc.method), loc);
 
-        let len = mc.arguments.len();
-        for arg in mc.arguments {
-            self.compile_expression(arg);
+        let mut args = mc.arguments;
+        let vararg_call = matches!(args.last(), Some(Expression::Vararg(_)));
+        if vararg_call {
+            args.pop();
+            for arg in &args {
+                self.compile_expression(arg.clone());
+            }
+            self.emit(Instruction::Vararg(WANT_ALL), loc);
+            self.emit(Instruction::CallStackVararg(args.len() + 1, want), loc);
+        } else {
+            let len = args.len();
+            for arg in args {
+                self.compile_expression(arg);
+            }
+            self.emit(Instruction::CallStack(len + 1, want), loc);
         }
+    }
 
-        self.emit(Instruction::CallStack(len + 1), loc);
+    /// 编译表达式，并指定期望的返回值个数（仅对函数/方法调用有意义）
+    fn compile_expression_with_want(&mut self, exp: Expression, want: usize) {
+        match exp {
+            Expression::FunctionCall(fc) => self.compile_function_call(fc, want),
+            Expression::MethodCall(mc) => self.compile_method_call(mc, want),
+            Expression::Vararg(loc) => {
+                self.emit(Instruction::Vararg(want), loc);
+            }
+            other => self.compile_expression(other),
+        }
     }
 
     fn compile_return(&mut self, ret: Return) {
         let loc = ret.loc;
-        self.compile_expression(ret.expression);
-        self.emit(Instruction::Return, loc);
+        let values = ret.values;
+        let len = values.len();
+        if len == 0 {
+            // `return` 不带值，返回 null
+            self.emit(Instruction::Push(crate::value::Value::Null), loc);
+        } else {
+            for (i, expr) in values.into_iter().enumerate() {
+                if i == len - 1 {
+                    // 最后一个表达式：若是函数调用，扩展为多返回值
+                    self.compile_expression_with_want(expr, crate::vm::WANT_ALL);
+                } else {
+                    self.compile_expression_with_want(expr, 1);
+                }
+            }
+        }
+        self.emit(Instruction::ReturnAll, loc);
+    }
+
+    /// 编译 `local a, b = expr[, expr]*`，支持多返回值展开
+    fn compile_local_list(&mut self, ll: LocalList) {
+        let loc = ll.loc;
+        let names = ll.names;
+        let values = ll.values;
+        let n_names = names.len();
+        let n_values = values.len();
+
+        let last_is_call = values.last().map_or(false, |v| {
+            matches!(v, Expression::FunctionCall(_) | Expression::MethodCall(_))
+        });
+
+        if n_values == 0 {
+            for _ in 0..n_names {
+                self.emit(Instruction::Push(crate::value::Value::Null), loc);
+            }
+        } else {
+            for (i, expr) in values.into_iter().enumerate() {
+                if i == n_values - 1 {
+                    // 最后一个值表达式填补剩余槽位（若是函数调用则多返回展开）
+                    let want = if n_names > n_values { n_names - n_values + 1 } else { 1 };
+                    self.compile_expression_with_want(expr, want);
+                } else {
+                    self.compile_expression_with_want(expr, 1);
+                }
+            }
+            // 值比变量多时，丢弃多余的（多余值在栈顶）
+            if n_values > n_names {
+                for _ in 0..(n_values - n_names) {
+                    self.emit(Instruction::Pop, loc);
+                }
+            } else if n_values < n_names && !last_is_call {
+                // 最后一个值不是函数调用，无法展开，补齐 nil
+                for _ in 0..(n_names - n_values) {
+                    self.emit(Instruction::Push(crate::value::Value::Null), loc);
+                }
+            }
+        }
+
+        // 栈顶是最后一个值，因此按逆序定义变量
+        for name in names.into_iter().rev() {
+            let var_location = self.define_variable(name.clone());
+            match var_location {
+                VarLocation::Local(offset) => {
+                    self.emit(Instruction::MovePlusFP(offset as usize), loc);
+                }
+                VarLocation::Global(global_name) => {
+                    self.emit(Instruction::Store(global_name), loc);
+                }
+                VarLocation::Upvalue(_) => panic!("Cannot define local variable as Upvalue"),
+            }
+        }
+    }
+
+    /// 编译 `a, b = expr[, expr]*`
+    fn compile_assign_multi(&mut self, am: AssignMulti) {
+        let loc = am.loc;
+        let names = am.names;
+        let values = am.exprs;
+        let n_names = names.len();
+        let n_values = values.len();
+
+        let last_is_call = values.last().map_or(false, |v| {
+            matches!(v, Expression::FunctionCall(_) | Expression::MethodCall(_))
+        });
+
+        if n_values == 0 {
+            for _ in 0..n_names {
+                self.emit(Instruction::Push(crate::value::Value::Null), loc);
+            }
+        } else {
+            for (i, expr) in values.into_iter().enumerate() {
+                if i == n_values - 1 {
+                    let want = if n_names > n_values { n_names - n_values + 1 } else { 1 };
+                    self.compile_expression_with_want(expr, want);
+                } else {
+                    self.compile_expression_with_want(expr, 1);
+                }
+            }
+            if n_values > n_names {
+                for _ in 0..(n_values - n_names) {
+                    self.emit(Instruction::Pop, loc);
+                }
+            } else if n_values < n_names && !last_is_call {
+                for _ in 0..(n_names - n_values) {
+                    self.emit(Instruction::Push(crate::value::Value::Null), loc);
+                }
+            }
+        }
+
+        for name in names.into_iter().rev() {
+            let var_location = self.resolve_variable(&name).expect("Undefined variable");
+            match var_location {
+                VarLocation::Local(offset) => {
+                    self.emit(Instruction::MovePlusFP(offset as usize), loc);
+                }
+                VarLocation::Global(global_name) => {
+                    self.emit(Instruction::Store(global_name), loc);
+                }
+                VarLocation::Upvalue(index) => {
+                    self.emit(Instruction::SetUpvalue(index), loc);
+                }
+            }
+        }
     }
 
     fn compile_declaration(&mut self, fd: FunctionDeclaration) {
@@ -758,6 +939,7 @@ impl<'a> Compiler<'a> {
         let state = self.states.pop().expect("Popped global state");
         let nlocals = state.locals_count;
         let upvalues: Vec<(bool, usize)> = state.upvalues.into_iter().map(|u| (u.is_local, u.index)).collect();
+        let is_vararg = fd.vararg;
 
         self.program.syms.insert(
             format!("func_{}", fd.name.as_ref().expect("Function must have a name")),
@@ -766,6 +948,7 @@ impl<'a> Compiler<'a> {
                 nlocals,
                 narguments,
                 upvalues,
+                is_vararg,
             },
         );
     }
@@ -791,6 +974,7 @@ impl<'a> Compiler<'a> {
                 nlocals: 0,
                 narguments: 0,
                 upvalues: Vec::new(),
+                is_vararg: false,
             },
         );
 
@@ -807,6 +991,7 @@ impl<'a> Compiler<'a> {
                 nlocals: 0,
                 narguments: 0,
                 upvalues: Vec::new(),
+                is_vararg: false,
             },
         );
     }
@@ -824,6 +1009,7 @@ impl<'a> Compiler<'a> {
                 narguments: 0,
                 nlocals: 0,
                 upvalues: Vec::new(),
+                is_vararg: false,
             },
         );
 
@@ -851,6 +1037,7 @@ impl<'a> Compiler<'a> {
                 narguments: 0,
                 nlocals: 0,
                 upvalues: Vec::new(),
+                is_vararg: false,
             },
         );
     }
@@ -868,6 +1055,7 @@ impl<'a> Compiler<'a> {
                 narguments: 0,
                 nlocals: 0,
                 upvalues: Vec::new(),
+                is_vararg: false,
             },
         );
 
@@ -883,9 +1071,11 @@ impl<'a> Compiler<'a> {
         self.end_scope(loc, false);
         self.current_state().loop_stack.pop();
 
+        // repeat-until: 循环体至少执行一次；`until test` 在 test 为真时退出。
+        // 因此 `test` 为假时应跳回循环体（取反后为真时跳转）。
         self.compile_expression(repeat.test);
         self.emit(Instruction::Not, loc);
-        self.emit(Instruction::JumpIfFalse(loop_start.clone()), loc);
+        self.emit(Instruction::JumpIfTrue(loop_start.clone()), loc);
 
         self.program.syms.insert(
             loop_end.clone(),
@@ -894,6 +1084,7 @@ impl<'a> Compiler<'a> {
                 narguments: 0,
                 nlocals: 0,
                 upvalues: Vec::new(),
+                is_vararg: false,
             },
         );
     }
@@ -910,7 +1101,7 @@ impl<'a> Compiler<'a> {
         // 1. Compile iterable, call :iter() on it, and store it in a hidden local variable
         self.compile_expression(for_in.iterable);
         self.emit(Instruction::GetMethod("iter".to_string()), loc); // [iterable, iter_fn, iterable]
-        self.emit(Instruction::CallStack(1), loc); // [coroutine]
+        self.emit(Instruction::CallStack(1, 1), loc); // [coroutine]
         let iter_loc = self.define_variable(iter_var);
         match iter_loc {
             VarLocation::Local(offset) => {
@@ -927,6 +1118,7 @@ impl<'a> Compiler<'a> {
                 narguments: 0,
                 nlocals: 0,
                 upvalues: Vec::new(),
+                is_vararg: false,
             },
         );
 
@@ -939,7 +1131,7 @@ impl<'a> Compiler<'a> {
             }
             _ => unreachable!(),
         }
-        self.emit(Instruction::CallStack(1), loc); // [status_val]
+        self.emit(Instruction::CallStack(1, 1), loc); // [status_val]
         self.emit(Instruction::Push(crate::value::Value::string("dead".to_string())), loc);
         self.emit(Instruction::Equal, loc);
         self.emit(Instruction::JumpIfTrue(loop_end.clone()), loc);
@@ -952,7 +1144,7 @@ impl<'a> Compiler<'a> {
             }
             _ => unreachable!(),
         }
-        self.emit(Instruction::CallStack(1), loc); // [resume_fn, iterable, yielded_val]
+        self.emit(Instruction::CallStack(1, 1), loc); // [resume_fn, iterable, yielded_val]
 
         // 3.5 Check status again after resume - if it just died, the returned value is the final result, not an iteration item.
         self.emit(Instruction::Load("coroutine".to_string()), loc); // [resume_fn, iterable, yielded_val, coroutine]
@@ -963,7 +1155,7 @@ impl<'a> Compiler<'a> {
             }
             _ => unreachable!(),
         }
-        self.emit(Instruction::CallStack(1), loc); // [resume_fn, iterable, yielded_val, status_val]
+        self.emit(Instruction::CallStack(1, 1), loc); // [resume_fn, iterable, yielded_val, status_val]
         self.emit(Instruction::Push(crate::value::Value::string("dead".to_string())), loc);
         self.emit(Instruction::Equal, loc);
         let continue_label = format!("for_in_continue_{}", unique_id);
@@ -978,20 +1170,84 @@ impl<'a> Compiler<'a> {
                 narguments: 0,
                 nlocals: 0,
                 upvalues: Vec::new(),
+                is_vararg: false,
             },
         );
 
-        // 4. Define loop variable and assign yielded value
+        // 4. Define loop variables from yielded value
+        // 单变量: 直接把 yielded 值赋给循环变量
+        // 多变量: 期望 yielded 值是 { key = ..., value = ... } 对，解包 key/value
         self.begin_scope();
-        let var_loc = self.define_variable(for_in.var);
-        match var_loc {
-            VarLocation::Local(offset) => {
-                self.emit(Instruction::MovePlusFP(offset as usize), loc);
+        let vars = for_in.vars;
+        if vars.len() == 1 {
+            let var_loc = self.define_variable(vars[0].clone());
+            match var_loc {
+                VarLocation::Local(offset) => {
+                    self.emit(Instruction::MovePlusFP(offset as usize), loc);
+                }
+                VarLocation::Global(name) => {
+                    self.emit(Instruction::Store(name), loc);
+                }
+                VarLocation::Upvalue(_) => unreachable!(),
             }
-            VarLocation::Global(name) => {
-                self.emit(Instruction::Store(name), loc);
+        } else {
+            // 栈顶: [.., co_obj, pair]
+            // 先把 pair 存入隐藏局部 @pair 槽位，避免被变量槽位覆盖
+            let pair_slot = match self.define_variable(format!("@pair_{}", unique_id)) {
+                VarLocation::Local(offset) => offset,
+                _ => unreachable!(),
+            };
+            self.emit(Instruction::MovePlusFP(pair_slot as usize), loc); // [.., co_obj, pair(slot)]
+
+            for (i, var) in vars.iter().enumerate() {
+                match i {
+                    0 => {
+                        // var0 = pair.key
+                        self.emit(Instruction::DupPlusFP(pair_slot), loc); // [.., pair, pair]
+                        self.emit(Instruction::GetField("key".to_string()), loc); // [.., pair, key]
+                        let var_loc = self.define_variable(var.clone());
+                        match var_loc {
+                            VarLocation::Local(offset) => {
+                                self.emit(Instruction::MovePlusFP(offset as usize), loc);
+                            }
+                            VarLocation::Global(name) => {
+                                self.emit(Instruction::Store(name), loc);
+                            }
+                            VarLocation::Upvalue(_) => unreachable!(),
+                        } // [.., pair]
+                    }
+                    1 => {
+                        // var1 = pair.value
+                        self.emit(Instruction::DupPlusFP(pair_slot), loc); // [.., pair, pair]
+                        self.emit(Instruction::GetField("value".to_string()), loc); // [.., pair, value]
+                        let var_loc = self.define_variable(var.clone());
+                        match var_loc {
+                            VarLocation::Local(offset) => {
+                                self.emit(Instruction::MovePlusFP(offset as usize), loc);
+                            }
+                            VarLocation::Global(name) => {
+                                self.emit(Instruction::Store(name), loc);
+                            }
+                            VarLocation::Upvalue(_) => unreachable!(),
+                        } // [.., pair]
+                    }
+                    _ => {
+                        // 多于两个变量: 剩余赋 nil
+                        self.emit(Instruction::Push(crate::value::Value::Null), loc);
+                        let var_loc = self.define_variable(var.clone());
+                        match var_loc {
+                            VarLocation::Local(offset) => {
+                                self.emit(Instruction::MovePlusFP(offset as usize), loc);
+                            }
+                            VarLocation::Global(name) => {
+                                self.emit(Instruction::Store(name), loc);
+                            }
+                            VarLocation::Upvalue(_) => unreachable!(),
+                        }
+                    }
+                }
             }
-            VarLocation::Upvalue(_) => unreachable!(),
+            // 循环体执行完后，end_scope 会弹出 @pair/k/v 等局部变量
         }
 
         self.current_state().loop_stack.push(LoopLabels {
@@ -1017,6 +1273,7 @@ impl<'a> Compiler<'a> {
                 narguments: 0,
                 nlocals: 0,
                 upvalues: Vec::new(),
+                is_vararg: false,
             },
         );
         self.end_scope(loc, false);
@@ -1057,6 +1314,7 @@ impl<'a> Compiler<'a> {
                 narguments: 0,
                 nlocals: 0,
                 upvalues: Vec::new(),
+                is_vararg: false,
             },
         );
 
@@ -1102,6 +1360,7 @@ impl<'a> Compiler<'a> {
                     narguments: 0,
                     nlocals: 0,
                     upvalues: Vec::new(),
+                    is_vararg: false,
                 },
             );
 
@@ -1120,6 +1379,7 @@ impl<'a> Compiler<'a> {
                 narguments: 0,
                 nlocals: 0,
                 upvalues: Vec::new(),
+                is_vararg: false,
             },
         );
     }

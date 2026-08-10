@@ -9,6 +9,8 @@ pub struct Symbol {
     pub narguments: usize,
     pub nlocals: usize,
     pub upvalues: Vec<(bool, usize)>, // (is_local, index)
+    /// 是否为变长参数函数
+    pub is_vararg: bool,
 }
 
 /// 指令集 - 简化后的统一指令
@@ -31,6 +33,7 @@ pub enum Instruction {
     Modulo,   // 取模
     Concat,   // 字符串拼接
     FloorDiv, // 向下取整除法
+    Pow,      // 幂运算
 
     // 比较操作
     Equal,              // 等于
@@ -51,8 +54,10 @@ pub enum Instruction {
     JumpIfTrue(String),  // 条件跳转：栈顶为真时跳转到标签
 
     // 函数调用
-    Call(String, usize), // 调用函数（函数名，参数个数）
-    Return,              // 返回：恢复调用帧并把返回值压栈
+    // Call(函数名, 参数个数, 期望返回值个数) - 期望个数为 WANT_ALL 表示全部
+    Call(String, usize, usize),
+    Return,    // 返回：恢复调用帧并压入单个返回值
+    ReturnAll, // 返回：把函数栈帧上 fp+nlocals 之上的所有值作为返回值压回调用方
 
     // 标签（用于跳转目标）
     Label(String), // 标签定义（当前实现主要用 syms 映射，非必需）
@@ -65,6 +70,8 @@ pub enum Instruction {
     Closure(String),           // 根据函数符号名创建闭包并压栈
     CloseUpvalue,              // 关闭栈顶相关的 upvalue（离开作用域）
     CloseUpvaluesAbove(usize), // 关闭所有位于 FP+offset 之上的 upvalue
+    /// 变长参数 `...`：压入当前函数的可变参数（期望个数）
+    Vararg(usize),
 
     // Object operations
     NewObject,         // 创建空对象
@@ -75,10 +82,16 @@ pub enum Instruction {
     GetIndex,          // 获取对象索引：obj[index]（弹出 index, obj，压入 value）
 
     // Call function from stack
-    CallStack(usize), // 从栈顶调用函数（函数对象在 args 之下）
+    // CallStack(参数个数, 期望返回值个数) - 期望个数为 WANT_ALL 表示全部
+    CallStack(usize, usize),
+    /// 调用函数，实参 = 固定参数 + 当前函数变长参数（用于 `f(...)`）
+    CallVararg(String, usize, usize),
+    /// 从栈调用，实参 = 固定参数 + 当前函数变长参数
+    CallStackVararg(usize, usize),
 
     // Array creation (Syntactic sugar for object with numeric keys)
-    BuildArray(usize), // 从栈顶 n 个元素构建数组对象
+    BuildArray(usize),         // 从栈顶 n 个元素构建数组对象
+    BuildArrayVariadic(usize), // 从栈顶 n 个元素 + 当前函数变长参数构建数组
 
     // Length operator (#)
     Length,

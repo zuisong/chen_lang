@@ -11,17 +11,21 @@ pub fn create_io_object() -> Value {
         let mut obj = obj.borrow_mut();
 
         let write_fn = |vm: &mut VM, args: Vec<Value>| {
-            for val in args {
-                write!(vm.stdout, "{}", val).unwrap();
-            }
+            let s: String = args
+                .iter()
+                .map(|val| crate::vm::native_libs::value_to_string(vm, val))
+                .collect::<String>();
+            write!(vm.stdout, "{}", s).unwrap();
             vm.stdout.flush().unwrap();
             Ok(Value::null())
         };
 
         let println_fn = |vm: &mut VM, args: Vec<Value>| {
-            for val in args {
-                write!(vm.stdout, "{}", val).unwrap();
-            }
+            let s: String = args
+                .iter()
+                .map(|val| crate::vm::native_libs::value_to_string(vm, val))
+                .collect::<String>();
+            write!(vm.stdout, "{}", s).unwrap();
             writeln!(vm.stdout).unwrap();
             vm.stdout.flush().unwrap();
             Ok(Value::null())

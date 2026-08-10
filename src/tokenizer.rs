@@ -79,6 +79,7 @@ pub enum Operator {
     Or,
     Not,
     Len,
+    Pow,
 }
 
 /// token 类型 (Luau 风格)
@@ -203,6 +204,7 @@ pub mod winnow {
             )),
             alt((
                 alt((
+                    literal("...").value(Token::Vararg),
                     literal("..=").value(Token::Operator(Operator::ConcatAssign)),
                     literal("..").value(Token::Operator(Operator::Concat)),
                     literal(".").value(Token::Dot),
@@ -223,6 +225,7 @@ pub mod winnow {
                     literal("==").value(Token::Operator(Operator::Equals)),
                     literal("=").value(Token::Operator(Operator::Assign)),
                     literal("~=").value(Token::Operator(Operator::NotEquals)),
+                    literal("^").value(Token::Operator(Operator::Pow)),
                     literal("<=").value(Token::Operator(Operator::LtE)),
                     literal("<").value(Token::Operator(Operator::Lt)),
                     literal(">=").value(Token::Operator(Operator::GtE)),
@@ -356,6 +359,7 @@ mod handwritten {
             '(' => (Token::LParen, loc.incr()),
             ')' => (Token::RParen, loc.incr()),
             ':' => (Token::Colon, loc.incr()),
+            '.' if next == '.' && third == '.' => (Token::Vararg, loc.incr_n(3)),
             '.' if next == '.' => (Token::Operator(Operator::Concat), loc.incr2()),
             '.' => (Token::Dot, loc.incr()),
             ',' => (Token::COMMA, loc.incr()),
@@ -371,6 +375,7 @@ mod handwritten {
             '/' => (Token::Operator(Operator::Divide), loc.incr()),
             '%' if next == '=' => (Token::Operator(Operator::ModAssign), loc.incr2()),
             '%' => (Token::Operator(Operator::Mod), loc.incr()),
+            '^' => (Token::Operator(Operator::Pow), loc.incr()),
             '#' => (Token::Operator(Operator::Len), loc.incr()),
             '~' if next == '=' => (Token::Operator(Operator::NotEquals), loc.incr2()),
             '=' if next == '=' => (Token::Operator(Operator::Equals), loc.incr2()),

@@ -11,6 +11,7 @@ mod if_expression_tests;
 mod import_tests;
 mod keys_tests;
 mod logic_tests;
+mod lua_compat_tests;
 mod multiline_tests;
 mod scope_tests;
 mod string_tests;

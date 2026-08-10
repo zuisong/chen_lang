@@ -10,8 +10,8 @@ fn test_arithmetic_operations() {
     assert_eq!(a.add(&b).unwrap().unwrap_value(), Value::int(8));
     assert_eq!(a.subtract(&b).unwrap().unwrap_value(), Value::int(2));
     assert_eq!(a.multiply(&b).unwrap().unwrap_value(), Value::int(15));
-    assert_eq!(a.divide(&b).unwrap(), Value::int(1));
-    assert_eq!(a.modulo(&b).unwrap(), Value::int(2));
+    assert_eq!(a.divide(&b).unwrap().unwrap_value(), Value::int(1));
+    assert_eq!(a.modulo(&b).unwrap().unwrap_value(), Value::int(2));
 }
 
 #[test]
@@ -22,7 +22,7 @@ fn test_float_operations() {
     assert_eq!(a.add(&b).unwrap().unwrap_value(), Value::float(dec!(7.5)));
     assert_eq!(a.subtract(&b).unwrap().unwrap_value(), Value::float(dec!(3.5)));
     assert_eq!(a.multiply(&b).unwrap().unwrap_value(), Value::float(dec!(11.0)));
-    assert_eq!(a.divide(&b).unwrap(), Value::float(dec!(2.75)));
+    assert_eq!(a.divide(&b).unwrap().unwrap_value(), Value::float(dec!(2.75)));
 }
 
 #[test]
@@ -41,10 +41,10 @@ fn test_comparison_operations() {
     let a = Value::int(5);
     let b = Value::int(3);
 
-    assert_eq!(a.less_than(&b).unwrap(), Value::bool(false));
-    assert_eq!(a.greater_than(&b).unwrap(), Value::bool(true));
-    assert_eq!(a.equal(&b), Value::bool(false));
-    assert_eq!(a.not_equal(&b), Value::bool(true));
+    assert_eq!(a.less_than(&b).unwrap().unwrap_value(), Value::bool(false));
+    assert_eq!(a.greater_than(&b).unwrap().unwrap_value(), Value::bool(true));
+    assert_eq!(a.equal(&b).unwrap().unwrap_value(), Value::bool(false));
+    assert_eq!(a.not_equal(&b).unwrap().unwrap_value(), Value::bool(true));
 }
 
 #[test]

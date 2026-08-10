@@ -84,7 +84,7 @@ fn test_comparison_operations() {
 fn test_builtin_functions() {
     let mut program = Program::default();
     program.add_instruction(Instruction::Push(Value::string("Hello".to_string())));
-    program.add_instruction(Instruction::Call("print".to_string(), 1));
+    program.add_instruction(Instruction::Call("print".to_string(), 1, 1));
 
     let mut vm = VM::new();
     vm.variables.insert(

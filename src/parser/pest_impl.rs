@@ -1,10 +1,14 @@
 //! Pest-based parser (optional, enabled with pest-parser feature)
 //!
 //! This module is only compiled when the `pest-parser` feature is enabled.
+//! It implements the Luau-style grammar defined in `src/chen.pest` and
+//! converts the resulting parse tree into the shared AST (`expression.rs`),
+//! mirroring the behavior of the handwritten parser.
 
 use pest::Parser;
 use pest::iterators::Pair;
 use pest_derive::Parser;
+use rust_decimal::Decimal;
 
 use crate::expression::*;
 use crate::tokenizer::Location;
@@ -24,7 +28,7 @@ pub fn parse(input: &str) -> Result<Ast, Box<pest::error::Error<Rule>>> {
             for inner_pair in pair.into_inner() {
                 match inner_pair.as_rule() {
                     Rule::statement => {
-                        statements.push(parse_statement(inner_pair));
+                        statements.extend(parse_statement(inner_pair));
                     }
                     Rule::EOI => (),
                     _ => unreachable!("Unexpected rule in program: {:?}", inner_pair.as_rule()),
@@ -46,250 +50,494 @@ fn loc_from_pair(pair: &Pair<Rule>) -> Location {
     }
 }
 
-fn parse_statement(pair: Pair<Rule>) -> Statement {
-    let loc = loc_from_pair(&pair);
-    let inner = pair.into_inner().next().unwrap();
-    match inner.as_rule() {
-        Rule::declaration => parse_declaration(inner, loc),
-        Rule::assignment => parse_assignment(inner, loc),
-        Rule::for_loop => parse_for_loop(inner, loc),
-        Rule::function_def => parse_function_def(inner, loc),
-        Rule::return_stmt => parse_return_stmt(inner, loc),
-        Rule::break_stmt => Statement::Break(loc),
-        Rule::continue_stmt => Statement::Continue(loc),
-        Rule::try_catch => parse_try_catch(inner),
-        Rule::expression => Statement::Expression(parse_expression(inner)),
-        _ => unreachable!("Unexpected statement rule: {:?}", inner.as_rule()),
-    }
-}
-
-fn parse_declaration(pair: Pair<Rule>, loc: Location) -> Statement {
-    let inner = pair.into_inner();
-
-    let mut name = String::new();
-    let mut name_loc = None;
-    let mut expr = Expression::Literal(Literal::Value(Value::Null), loc);
-
-    for p in inner {
-        match p.as_rule() {
-            Rule::identifier => {
-                name = p.as_str().to_string();
-                name_loc = Some(loc_from_pair(&p));
-            }
-            Rule::expression => expr = parse_expression(p),
-            Rule::LET | Rule::assign => {} // skip keywords/ops
-            _ => unreachable!("Unexpected rule in declaration: {:?}", p.as_rule()),
-        }
-    }
-
-    Statement::Local(Local {
-        name,
-        expression: expr,
-        loc: name_loc.unwrap_or(loc),
-    })
-}
-
-fn parse_assignment(pair: Pair<Rule>, loc: Location) -> Statement {
-    // assignment = { assignment_target ~ assign ~ expression }
-    // assignment_target = { identifier ~ postfix* }
-    let mut inner = pair.into_inner();
-    let target_pair = inner.next().unwrap();
-    let mut expr = Expression::Literal(Literal::Value(Value::Null), loc);
-
-    let lvalue = parse_assignment_target(target_pair);
-
-    for p in inner {
-        if p.as_rule() == Rule::expression {
-            expr = parse_expression(p);
-        }
-    }
-
-    match lvalue {
-        Expression::Identifier(name, loc) => Statement::Assign(Assign {
-            name,
-            expr: Box::new(expr),
-            loc,
-        }),
-        Expression::GetField { object, field, loc } => Statement::SetField {
-            object: *object,
-            field,
-            value: expr,
-            loc,
-        },
-        Expression::Index { object, index, loc } => Statement::SetIndex {
-            object: *object,
-            index: *index,
-            value: expr,
-            loc,
-        },
-        _ => unreachable!("Invalid l-value in assignment: {:?}", lvalue),
-    }
-}
-
-fn parse_assignment_target(pair: Pair<Rule>) -> Expression {
-    // assignment_target = { identifier ~ postfix* }
-    let loc = loc_from_pair(&pair);
-    let mut inner = pair.into_inner();
-    let identifier_pair = inner.next().unwrap();
-    let mut expr = Expression::Identifier(identifier_pair.as_str().to_string(), loc);
-
-    for p in inner {
-        match p.as_rule() {
-            Rule::postfix => expr = parse_postfix(expr, p),
-            _ => unreachable!("Unexpected rule in assignment_target"),
-        }
-    }
-    expr
-}
-
-fn parse_for_loop(pair: Pair<Rule>, loc: Location) -> Statement {
-    let inner = pair.into_inner();
-    let mut test = None;
-    let mut for_in = None;
-    let mut body = Vec::new();
-
-    for p in inner {
-        match p.as_rule() {
-            Rule::expression => test = Some(parse_expression(p)),
-            Rule::for_in_header => {
-                let mut header_inner = p.into_inner();
-                let var = header_inner.next().unwrap().as_str().to_string();
-                let iterable = parse_expression(header_inner.next().unwrap());
-                for_in = Some((var, iterable));
-            }
-            Rule::block => body = parse_block(p),
-            Rule::FOR | Rule::IN => {}
-            _ => unreachable!("Unexpected rule in for_loop: {:?}", p.as_rule()),
-        }
-    }
-
-    if let Some((var, iterable)) = for_in {
-        Statement::ForIn(ForInLoop {
-            var,
-            iterable,
-            body,
-            loc,
-        })
-    } else {
-        Statement::Loop(Loop {
-            test: test.unwrap_or(Expression::Literal(Literal::Value(Value::Bool(true)), loc)),
-            body,
-            loc,
-        })
-    }
-}
-
-fn build_function_declaration(pair: Pair<Rule>) -> FunctionDeclaration {
-    let loc = loc_from_pair(&pair);
-    let inner = pair.into_inner();
-    let mut name = None;
-    let mut name_loc = None;
-    let mut parameters = Vec::new();
-    let mut body = Vec::new();
-
-    for p in inner {
-        match p.as_rule() {
-            Rule::identifier => {
-                name = Some(p.as_str().to_string());
-                name_loc = Some(loc_from_pair(&p));
-            }
-            Rule::parameters => {
-                for param in p.into_inner() {
-                    parameters.push(param.as_str().to_string());
-                }
-            }
-            Rule::block => body = parse_block(p),
-            Rule::DEF => {}
-            _ => unreachable!("Unexpected rule in function_def: {:?}", p.as_rule()),
-        }
-    }
-
-    FunctionDeclaration {
-        name,
-        parameters,
-        body,
-        loc: name_loc.unwrap_or(loc),
-    }
-}
-
-fn parse_function_def(pair: Pair<Rule>, _loc: Location) -> Statement {
-    // The line from statement is passed but FunctionDeclaration also has its own line derived inside.
-    // We can use the passed line or derive again. Derive is cleaner for helper.
-    let decl = build_function_declaration(pair);
-    Statement::FunctionDeclaration(decl)
-}
-
-fn parse_return_stmt(pair: Pair<Rule>, loc: Location) -> Statement {
-    let mut expr = Expression::Literal(Literal::Value(Value::Null), loc);
-    for p in pair.into_inner() {
-        if p.as_rule() == Rule::expression {
-            expr = parse_expression(p);
-        }
-    }
-    Statement::Return(Return { expression: expr, loc })
-}
+// --- Statement parsing ---
 
 fn parse_block(pair: Pair<Rule>) -> Vec<Statement> {
     let mut stmts = Vec::new();
     for p in pair.into_inner() {
         if p.as_rule() == Rule::statement {
-            stmts.push(parse_statement(p));
+            stmts.extend(parse_statement(p));
         }
     }
     stmts
 }
 
-// Expression parsing logic
+fn parse_statement(pair: Pair<Rule>) -> Vec<Statement> {
+    let loc = loc_from_pair(&pair);
+    let first = pair.into_inner().next().unwrap();
+    let stmt = match first.as_rule() {
+        Rule::local_stmt => parse_local(first),
+        Rule::function_stmt => parse_function_stmt(first),
+        Rule::while_stmt => parse_while(first),
+        Rule::repeat_stmt => parse_repeat(first),
+        Rule::for_stmt => return parse_for(first),
+        Rule::do_stmt => {
+            let block = first.into_inner().next().unwrap();
+            Statement::Expression(Expression::Block(parse_block(block), loc))
+        }
+        Rule::return_stmt => parse_return(first),
+        Rule::break_stmt => Statement::Break(loc),
+        Rule::continue_stmt => Statement::Continue(loc),
+        Rule::try_stmt => parse_try(first),
+        Rule::if_stmt => Statement::Expression(parse_if(first)),
+        Rule::assign_multi => parse_assign_multi(first),
+        Rule::assign_stmt => parse_assign(first),
+        Rule::expr_stmt => {
+            let e = first.into_inner().next().unwrap();
+            Statement::Expression(parse_expr(e))
+        }
+        _ => unreachable!("Unexpected statement rule: {:?}", first.as_rule()),
+    };
+    vec![stmt]
+}
 
-fn parse_expression(pair: Pair<Rule>) -> Expression {
-    // expression = { logical_or }
-    // Check if there's an inner element, if not, treat current pair as logical_or
-    let mut inner = pair.clone().into_inner();
+/// `local name [= expr]` / `local a, b = e1, e2` / `local function f() ... end`
+fn parse_local(pair: Pair<Rule>) -> Statement {
+    let loc = loc_from_pair(&pair);
+    let mut inner = pair.into_inner();
+    inner.next().unwrap(); // LOCAL
+    let first = inner.next().unwrap();
+
+    // local function f() ... end
+    if first.as_rule() == Rule::FUNCTION {
+        let name_pair = inner.next().unwrap();
+        let name = name_pair.as_str().to_string();
+        let name_loc = loc_from_pair(&name_pair);
+        let func_body = inner.next().unwrap();
+        let (parameters, vararg, body, _) = parse_func_body(func_body);
+        return Statement::FunctionDeclaration(FunctionDeclaration {
+            name: Some(name),
+            parameters,
+            vararg,
+            body,
+            loc: name_loc,
+        });
+    }
+
+    // namelist
+    let mut names = Vec::new();
+    for n in first.into_inner() {
+        names.push(n.as_str().to_string());
+    }
+
+    let mut values = Vec::new();
+    if let Some(list) = inner.next() {
+        for e in list.into_inner() {
+            values.push(parse_expr(e));
+        }
+    }
+
+    // 与 handwritten 保持一致：多变量或多值 -> LocalList
+    if names.len() > 1 || values.len() > 1 {
+        return Statement::LocalList(LocalList { names, values, loc });
+    }
+
+    let name = names.into_iter().next().unwrap_or_default();
+    let val = values
+        .into_iter()
+        .next()
+        .unwrap_or(Expression::Literal(Literal::Value(Value::Null), loc));
+    Statement::Local(Local {
+        name,
+        expression: val,
+        loc,
+    })
+}
+
+/// `function name(params) body end`
+fn parse_function_stmt(pair: Pair<Rule>) -> Statement {
+    let mut inner = pair.into_inner();
+    inner.next().unwrap(); // FUNCTION
+    let name_pair = inner.next().unwrap();
+    let name = name_pair.as_str().to_string();
+    let name_loc = loc_from_pair(&name_pair);
+    let func_body = inner.next().unwrap();
+    let (parameters, vararg, body, _) = parse_func_body(func_body);
+    Statement::FunctionDeclaration(FunctionDeclaration {
+        name: Some(name),
+        parameters,
+        vararg,
+        body,
+        loc: name_loc,
+    })
+}
+
+/// 解析函数体 `(params) block end`，返回 (parameters, vararg, body, loc)
+fn parse_func_body(pair: Pair<Rule>) -> (Vec<String>, bool, Vec<Statement>, Location) {
+    let loc = loc_from_pair(&pair);
+    let mut inner = pair.into_inner();
+    let mut parameters = Vec::new();
+    let mut vararg = false;
+    let mut body = Vec::new();
+
     if let Some(first) = inner.next() {
-        parse_logical_or(first)
+        if first.as_rule() == Rule::params {
+            for p in first.into_inner() {
+                if p.as_rule() == Rule::vararg {
+                    vararg = true;
+                } else {
+                    parameters.push(p.as_str().to_string());
+                }
+            }
+            if let Some(b) = inner.next() {
+                body = parse_block(b);
+            }
+        } else {
+            body = parse_block(first);
+        }
+    }
+    (parameters, vararg, body, loc)
+}
+
+/// `while expr do block end`
+fn parse_while(pair: Pair<Rule>) -> Statement {
+    let loc = loc_from_pair(&pair);
+    let mut inner = pair.into_inner();
+    inner.next().unwrap(); // WHILE
+    let test = parse_expr(inner.next().unwrap());
+    inner.next().unwrap(); // DO
+    let body = parse_block(inner.next().unwrap());
+    Statement::Loop(Loop { test, body, loc })
+}
+
+/// `repeat block until expr`
+fn parse_repeat(pair: Pair<Rule>) -> Statement {
+    let loc = loc_from_pair(&pair);
+    let mut inner = pair.into_inner();
+    inner.next().unwrap(); // REPEAT
+    let body = parse_block(inner.next().unwrap());
+    inner.next().unwrap(); // UNTIL
+    let test = parse_expr(inner.next().unwrap());
+    Statement::Repeat(Repeat { body, test, loc })
+}
+
+/// `for i = a, b [, step] do ... end`（desugar 成 while）或 `for k, v in expr do ... end`
+fn parse_for(pair: Pair<Rule>) -> Vec<Statement> {
+    let loc = loc_from_pair(&pair);
+    let mut inner = pair.into_inner();
+    inner.next().unwrap(); // FOR
+    let first = inner.next().unwrap();
+
+    if first.as_rule() == Rule::for_numeric {
+        return parse_for_numeric(first, loc);
+    }
+
+    // for_in
+    let mut f = first.into_inner();
+    let mut vars = Vec::new();
+    for n in f.next().unwrap().into_inner() {
+        vars.push(n.as_str().to_string());
+    }
+    f.next().unwrap(); // IN
+    let iterable = parse_expr(f.next().unwrap());
+    f.next().unwrap(); // DO
+    let body = parse_block(f.next().unwrap());
+    vec![Statement::ForIn(ForInLoop {
+        vars,
+        iterable,
+        body,
+        loc,
+    })]
+}
+
+/// 复现 handwritten `parse_for_numeric` 的 desugar，生成 3 个顶层语句：
+///   local var = start
+///   local @step = step
+///   while (step >= 0 and var <= end) or (step < 0 and var >= end) do body; var = var + @step end
+fn parse_for_numeric(pair: Pair<Rule>, start_loc: Location) -> Vec<Statement> {
+    let mut f = pair.into_inner();
+    let var_pair = f.next().unwrap();
+    let var_name = var_pair.as_str().to_string();
+    let var_loc = loc_from_pair(&var_pair);
+    let start = parse_expr(f.next().unwrap());
+    let end = parse_expr(f.next().unwrap());
+
+    let mut step = None;
+    let mut do_pair = None;
+    while let Some(p) = f.next() {
+        match p.as_rule() {
+            Rule::expression => step = Some(parse_expr(p)),
+            Rule::DO => {
+                do_pair = Some(p);
+                break;
+            }
+            _ => unreachable!("Unexpected rule in for_numeric: {:?}", p.as_rule()),
+        }
+    }
+    debug_assert!(do_pair.is_some());
+    let step = step.unwrap_or(Expression::Literal(Literal::Value(Value::Int(1)), start_loc));
+    let body = parse_block(f.next().unwrap());
+
+    // Desugar（与 handwritten 完全一致）
+    let mut loop_body = body;
+    loop_body.push(Statement::Assign(Assign {
+        name: var_name.clone(),
+        expr: Box::new(Expression::BinaryOperation(BinaryOperation {
+            left: Box::new(Expression::Identifier(var_name.clone(), var_loc)),
+            operator: Operator::Add,
+            right: Box::new(Expression::Identifier("@step".to_string(), start_loc)),
+            loc: start_loc,
+        })),
+        loc: start_loc,
+    }));
+
+    let var_expr = Expression::Identifier(var_name.clone(), var_loc);
+    let step_expr = Expression::Identifier("@step".to_string(), start_loc);
+    let end_expr = end;
+
+    let step_ge_zero = Expression::BinaryOperation(BinaryOperation {
+        left: Box::new(step_expr.clone()),
+        operator: Operator::GtE,
+        right: Box::new(Expression::Literal(Literal::Value(Value::Int(0)), start_loc)),
+        loc: start_loc,
+    });
+    let asc_cond = Expression::BinaryOperation(BinaryOperation {
+        left: Box::new(step_ge_zero),
+        operator: Operator::And,
+        right: Box::new(Expression::BinaryOperation(BinaryOperation {
+            left: Box::new(var_expr.clone()),
+            operator: Operator::LtE,
+            right: Box::new(end_expr.clone()),
+            loc: start_loc,
+        })),
+        loc: start_loc,
+    });
+    let step_lt_zero = Expression::BinaryOperation(BinaryOperation {
+        left: Box::new(step_expr.clone()),
+        operator: Operator::Lt,
+        right: Box::new(Expression::Literal(Literal::Value(Value::Int(0)), start_loc)),
+        loc: start_loc,
+    });
+    let desc_cond = Expression::BinaryOperation(BinaryOperation {
+        left: Box::new(step_lt_zero),
+        operator: Operator::And,
+        right: Box::new(Expression::BinaryOperation(BinaryOperation {
+            left: Box::new(var_expr.clone()),
+            operator: Operator::GtE,
+            right: Box::new(end_expr.clone()),
+            loc: start_loc,
+        })),
+        loc: start_loc,
+    });
+    let test = Expression::BinaryOperation(BinaryOperation {
+        left: Box::new(asc_cond),
+        operator: Operator::Or,
+        right: Box::new(desc_cond),
+        loc: start_loc,
+    });
+
+    vec![
+        Statement::Local(Local {
+            name: var_name.clone(),
+            expression: start,
+            loc: var_loc,
+        }),
+        Statement::Local(Local {
+            name: "@step".to_string(),
+            expression: step,
+            loc: start_loc,
+        }),
+        Statement::Loop(Loop {
+            test,
+            body: loop_body,
+            loc: start_loc,
+        }),
+    ]
+}
+
+/// `return [expr [, expr]*]`
+fn parse_return(pair: Pair<Rule>) -> Statement {
+    let loc = loc_from_pair(&pair);
+    let mut inner = pair.into_inner();
+    inner.next().unwrap(); // RETURN
+    let mut values = Vec::new();
+    if let Some(list) = inner.next() {
+        for e in list.into_inner() {
+            values.push(parse_expr(e));
+        }
+    }
+    Statement::Return(Return { values, loc })
+}
+
+/// `try block catch [name] block [finally block] end`
+fn parse_try(pair: Pair<Rule>) -> Statement {
+    let loc = loc_from_pair(&pair);
+    let mut inner = pair.into_inner();
+    inner.next().unwrap(); // TRY
+    let try_body = parse_block(inner.next().unwrap());
+    inner.next().unwrap(); // CATCH
+
+    let mut error_name = None;
+    let next = inner.next().unwrap();
+    let catch_body = if next.as_rule() == Rule::catch_var {
+        error_name = Some(next.as_str().trim().to_string());
+        parse_block(inner.next().unwrap())
     } else {
-        // If no inner element, the pair itself might be the expression content
-        parse_logical_or(pair)
+        parse_block(next)
+    };
+
+    let mut finally_body = None;
+    if let Some(p) = inner.next() {
+        if p.as_rule() == Rule::FINALLY {
+            finally_body = Some(parse_block(inner.next().unwrap()));
+        }
+    }
+
+    Statement::TryCatch(TryCatch {
+        try_body,
+        error_name,
+        catch_body,
+        finally_body,
+        loc,
+    })
+}
+
+/// `a, b = e1, e2`
+fn parse_assign_multi(pair: Pair<Rule>) -> Statement {
+    let loc = loc_from_pair(&pair);
+    let mut inner = pair.into_inner();
+    let mut names = Vec::new();
+    while let Some(p) = inner.next() {
+        if p.as_rule() == Rule::identifier {
+            names.push(p.as_str().to_string());
+        } else if p.as_rule() == Rule::expression_list {
+            let mut exprs = Vec::new();
+            for e in p.into_inner() {
+                exprs.push(parse_expr(e));
+            }
+            return Statement::AssignMulti(AssignMulti { names, exprs, loc });
+        }
+    }
+    unreachable!("Malformed assign_multi")
+}
+
+/// `target = expr`（含复合赋值）
+fn parse_assign(pair: Pair<Rule>) -> Statement {
+    let loc = loc_from_pair(&pair);
+    let mut inner = pair.into_inner();
+    let target_pair = inner.next().unwrap();
+    let op_pair = inner.next().unwrap();
+    let value = parse_expr(inner.next().unwrap());
+
+    let op_text = op_pair.as_str();
+    let lvalue = parse_assignable(target_pair);
+
+    let final_value = match op_text {
+        "+=" => compound(lvalue.clone(), Operator::Add, value, loc),
+        "-=" => compound(lvalue.clone(), Operator::Subtract, value, loc),
+        "*=" => compound(lvalue.clone(), Operator::Multiply, value, loc),
+        "/=" => compound(lvalue.clone(), Operator::Divide, value, loc),
+        "//=" => compound(lvalue.clone(), Operator::FloorDiv, value, loc),
+        "%=" => compound(lvalue.clone(), Operator::Mod, value, loc),
+        "..=" => compound(lvalue.clone(), Operator::Concat, value, loc),
+        _ => value,
+    };
+
+    match lvalue {
+        Expression::Identifier(name, id_loc) => Statement::Assign(Assign {
+            name,
+            expr: Box::new(final_value),
+            loc: id_loc,
+        }),
+        Expression::GetField { object, field, loc } => Statement::SetField {
+            object: *object,
+            field,
+            value: final_value,
+            loc,
+        },
+        Expression::Index { object, index, loc } => Statement::SetIndex {
+            object: *object,
+            index: *index,
+            value: final_value,
+            loc,
+        },
+        _ => unreachable!("Invalid assignment target"),
     }
 }
 
-fn parse_binary_op<F>(pair: Pair<Rule>, parse_sub: F) -> Expression
-where
-    F: Fn(Pair<Rule>) -> Expression,
-{
+fn compound(lvalue: Expression, op: Operator, value: Expression, loc: Location) -> Expression {
+    Expression::BinaryOperation(BinaryOperation {
+        left: Box::new(lvalue),
+        operator: op,
+        right: Box::new(value),
+        loc,
+    })
+}
+
+fn parse_assignable(pair: Pair<Rule>) -> Expression {
+    let mut inner = pair.into_inner();
+    let mut expr = parse_primary(inner.next().unwrap());
+    for suffix in inner {
+        expr = match suffix.as_rule() {
+            Rule::dot_suffix => {
+                let sloc = loc_from_pair(&suffix);
+                let field = suffix.into_inner().next().unwrap().as_str().to_string();
+                Expression::GetField {
+                    object: Box::new(expr),
+                    field,
+                    loc: sloc,
+                }
+            }
+            Rule::index_suffix => {
+                let sloc = loc_from_pair(&suffix);
+                let index = parse_expr(suffix.into_inner().next().unwrap());
+                Expression::Index {
+                    object: Box::new(expr),
+                    index: Box::new(index),
+                    loc: sloc,
+                }
+            }
+            _ => unreachable!("Unexpected assignable suffix"),
+        };
+    }
+    expr
+}
+
+// --- Expression parsing ---
+
+fn parse_expr(pair: Pair<Rule>) -> Expression {
+    match pair.as_rule() {
+        Rule::expression => parse_expr(pair.into_inner().next().unwrap()),
+        Rule::or_expr
+        | Rule::and_expr
+        | Rule::equality
+        | Rule::comparison
+        | Rule::concat
+        | Rule::term
+        | Rule::factor => parse_binary(pair, parse_expr),
+        Rule::unary => parse_unary(pair),
+        Rule::power => parse_power(pair),
+        Rule::postfix => parse_postfix(pair),
+        Rule::primary => parse_primary(pair),
+        _ => unreachable!("Unexpected expression rule: {:?}", pair.as_rule()),
+    }
+}
+
+fn parse_binary(pair: Pair<Rule>, parse_sub: fn(Pair<Rule>) -> Expression) -> Expression {
     let loc = loc_from_pair(&pair);
     let mut inner = pair.into_inner();
-
-    let first = match inner.next() {
-        Some(p) => p,
-        None => {
-            // This should not happen with correct grammar, but handle gracefully
-            return Expression::Literal(Literal::Value(Value::Null), loc);
-        }
-    };
-
-    let mut left = parse_sub(first);
+    let mut left = parse_sub(inner.next().unwrap());
 
     while let Some(op_pair) = inner.next() {
         let op = match op_pair.as_str() {
-            "+" => Operator::Add,
-            "-" => Operator::Subtract,
-            "*" => Operator::Multiply,
-            "/" => Operator::Divide,
-            "%" => Operator::Mod,
+            "or" => Operator::Or,
+            "and" => Operator::And,
             "==" => Operator::Equals,
-            "!=" => Operator::NotEquals,
+            "~=" => Operator::NotEquals,
             "<" => Operator::Lt,
             "<=" => Operator::LtE,
             ">" => Operator::Gt,
             ">=" => Operator::GtE,
-            "&&" => Operator::And,
-            "||" => Operator::Or,
+            ".." => Operator::Concat,
+            "+" => Operator::Add,
+            "-" => Operator::Subtract,
+            "*" => Operator::Multiply,
+            "/" => Operator::Divide,
+            "//" => Operator::FloorDiv,
+            "%" => Operator::Mod,
             _ => unreachable!("Unknown operator: {}", op_pair.as_str()),
         };
-        let right_pair = inner.next().unwrap();
-        let right = parse_sub(right_pair);
-
+        let right = parse_sub(inner.next().unwrap());
         left = Expression::BinaryOperation(BinaryOperation {
             left: Box::new(left),
             operator: op,
@@ -300,223 +548,196 @@ where
     left
 }
 
-fn parse_logical_or(pair: Pair<Rule>) -> Expression {
-    parse_binary_op(pair, parse_logical_and)
-}
-
-fn parse_logical_and(pair: Pair<Rule>) -> Expression {
-    parse_binary_op(pair, parse_equality)
-}
-
-fn parse_equality(pair: Pair<Rule>) -> Expression {
-    parse_binary_op(pair, parse_comparison)
-}
-
-fn parse_comparison(pair: Pair<Rule>) -> Expression {
-    parse_binary_op(pair, parse_term)
-}
-
-fn parse_term(pair: Pair<Rule>) -> Expression {
-    parse_binary_op(pair, parse_factor)
-}
-
-fn parse_factor(pair: Pair<Rule>) -> Expression {
-    parse_binary_op(pair, parse_unary)
-}
-
 fn parse_unary(pair: Pair<Rule>) -> Expression {
-    // unary = { (not | subtract) ~ unary | primary }
     let loc = loc_from_pair(&pair);
     let mut inner = pair.into_inner();
     let first = inner.next().unwrap();
-
     match first.as_rule() {
-        Rule::not => {
-            let expr = parse_unary(inner.next().unwrap());
+        Rule::NOT => {
+            let right = parse_expr(inner.next().unwrap());
             Expression::Unary(Unary {
                 operator: Operator::Not,
-                expr: Box::new(expr),
+                expr: Box::new(right),
                 loc,
             })
         }
-        Rule::subtract => {
-            let expr = parse_unary(inner.next().unwrap());
-            // -x is 0 - x
+        Rule::sub => {
+            // -x  desugar 为 0 - x（与 handwritten 一致）
+            let right = parse_expr(inner.next().unwrap());
             Expression::BinaryOperation(BinaryOperation {
                 left: Box::new(Expression::Literal(Literal::Value(Value::Int(0)), loc)),
                 operator: Operator::Subtract,
-                right: Box::new(expr),
+                right: Box::new(right),
                 loc,
             })
         }
-        Rule::primary => parse_primary(first),
-        _ => unreachable!("Unexpected rule in unary: {:?}", first.as_rule()),
+        Rule::len => {
+            let right = parse_expr(inner.next().unwrap());
+            Expression::Unary(Unary {
+                operator: Operator::Len,
+                expr: Box::new(right),
+                loc,
+            })
+        }
+        _ => parse_expr(first),
     }
 }
 
-fn parse_primary(pair: Pair<Rule>) -> Expression {
-    // primary = { atom ~ postfix* }
+fn parse_power(pair: Pair<Rule>) -> Expression {
+    let loc = loc_from_pair(&pair);
     let mut inner = pair.into_inner();
-    let atom_pair = inner.next().unwrap();
-    let mut expr = parse_atom(atom_pair);
+    let left = parse_expr(inner.next().unwrap());
+    if let Some(_pow) = inner.next() {
+        let right = parse_expr(inner.next().unwrap());
+        Expression::BinaryOperation(BinaryOperation {
+            left: Box::new(left),
+            operator: Operator::Pow,
+            right: Box::new(right),
+            loc,
+        })
+    } else {
+        left
+    }
+}
 
-    for p in inner {
-        match p.as_rule() {
-            Rule::postfix => expr = parse_postfix(expr, p),
-            _ => unreachable!("Unexpected rule in primary"),
-        }
+fn parse_postfix(pair: Pair<Rule>) -> Expression {
+    let loc = loc_from_pair(&pair);
+    let mut inner = pair.into_inner();
+    let mut expr = parse_expr(inner.next().unwrap());
+
+    for suffix in inner {
+        expr = match suffix.as_rule() {
+            Rule::call_suffix => {
+                let mut s_inner = suffix.into_inner();
+                let args = match s_inner.next() {
+                    Some(arg_list) => parse_expr_list(arg_list),
+                    None => Vec::new(),
+                };
+                Expression::FunctionCall(FunctionCall {
+                    callee: Box::new(expr),
+                    arguments: args,
+                    loc,
+                })
+            }
+            Rule::dot_suffix => {
+                let sloc = loc_from_pair(&suffix);
+                let field = suffix.into_inner().next().unwrap().as_str().to_string();
+                Expression::GetField {
+                    object: Box::new(expr),
+                    field,
+                    loc: sloc,
+                }
+            }
+            Rule::index_suffix => {
+                let sloc = loc_from_pair(&suffix);
+                let index = parse_expr(suffix.into_inner().next().unwrap());
+                Expression::Index {
+                    object: Box::new(expr),
+                    index: Box::new(index),
+                    loc: sloc,
+                }
+            }
+            Rule::method_suffix => {
+                let sloc = loc_from_pair(&suffix);
+                let mut s_inner = suffix.into_inner();
+                let method = s_inner.next().unwrap().as_str().to_string();
+                let args = match s_inner.next() {
+                    Some(arg_list) => parse_expr_list(arg_list),
+                    None => Vec::new(),
+                };
+                Expression::MethodCall(MethodCall {
+                    object: Box::new(expr),
+                    method,
+                    arguments: args,
+                    loc: sloc,
+                })
+            }
+            _ => unreachable!("Unexpected postfix suffix: {:?}", suffix.as_rule()),
+        };
     }
     expr
 }
 
-fn parse_array_literal(pair: Pair<Rule>) -> Expression {
-    let loc = loc_from_pair(&pair);
-    let mut elements = Vec::new();
-    for p in pair.into_inner() {
-        if p.as_rule() == Rule::expression {
-            elements.push(parse_expression(p));
-        }
-    }
-    Expression::ArrayLiteral(elements, loc)
+fn parse_expr_list(pair: Pair<Rule>) -> Vec<Expression> {
+    pair.into_inner().map(parse_expr).collect()
 }
 
-fn parse_atom(pair: Pair<Rule>) -> Expression {
-    // atom = { float | integer | bool | string | identifier | "(" ~ expression ~ ")" | if_expr | block | object_literal }
+fn parse_primary(pair: Pair<Rule>) -> Expression {
     let loc = loc_from_pair(&pair);
-    let inner = pair.into_inner().next().unwrap();
-    match inner.as_rule() {
-        Rule::float => Expression::Literal(Literal::Value(Value::Float(inner.as_str().parse().unwrap())), loc),
-        Rule::integer => Expression::Literal(Literal::Value(Value::Int(inner.as_str().parse().unwrap())), loc),
-        Rule::bool => Expression::Literal(Literal::Value(Value::Bool(inner.as_str() == "true")), loc),
+    let first = pair.into_inner().next().unwrap();
+    match first.as_rule() {
+        Rule::number => parse_number(first),
         Rule::string => {
-            let s = inner.as_str();
-            // TODO: Better string unescaping
-            let content = &s[1..s.len() - 1];
-            Expression::Literal(Literal::Value(Value::string(content.to_string())), loc)
+            let raw = first.as_str();
+            let s = raw[1..raw.len() - 1].to_string();
+            Expression::Literal(Literal::Value(Value::string(s)), loc)
         }
-        Rule::identifier => Expression::Identifier(inner.as_str().to_string(), loc),
-        Rule::expression => parse_expression(inner), // ( expr )
-        Rule::if_expr => parse_if_expr(inner),
-        Rule::block => Expression::Block(parse_block(inner), loc),
-        Rule::object_literal => parse_object_literal(inner),
-        Rule::function_def => Expression::Function(build_function_declaration(inner)),
-        Rule::array_literal => parse_array_literal(inner),
-        _ => unreachable!("Unexpected rule in atom: {:?}", inner.as_rule()),
+        Rule::bool => Expression::Literal(Literal::Value(Value::Bool(first.as_str() == "true")), loc),
+        Rule::NIL => Expression::Literal(Literal::Value(Value::Null), loc),
+        Rule::identifier => Expression::Identifier(first.as_str().to_string(), loc),
+        Rule::vararg => Expression::Vararg(loc),
+        Rule::function_expr => parse_function_expr(first),
+        Rule::if_stmt => parse_if(first),
+        Rule::expression => parse_expr(first),
+        Rule::table_literal => parse_table(first),
+        Rule::array_literal => parse_array(first),
+        _ => unreachable!("Unexpected primary rule: {:?}", first.as_rule()),
     }
 }
 
-// parse_await_expr removed
-
-fn parse_postfix(base: Expression, pair: Pair<Rule>) -> Expression {
-    // postfix = { call_suffix | dot_suffix | index_suffix }
+fn parse_number(pair: Pair<Rule>) -> Expression {
     let loc = loc_from_pair(&pair);
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
-        Rule::call_suffix => {
-            // call_suffix = { "(" ~ arguments? ~ ")" }
-            let mut args = Vec::new();
-            for p in inner.into_inner() {
-                if p.as_rule() == Rule::arguments {
-                    for arg in p.into_inner() {
-                        args.push(parse_expression(arg));
-                    }
-                }
-            }
-
-            Expression::FunctionCall(FunctionCall {
-                callee: Box::new(base),
-                arguments: args,
-                loc,
-            })
+        Rule::integer => {
+            let v: i32 = inner.as_str().parse().expect("integer overflow");
+            Expression::Literal(Literal::Value(Value::Int(v)), loc)
         }
-        Rule::dot_suffix => {
-            // dot_suffix = { "." ~ identifier }
-            let field = inner.into_inner().next().unwrap().as_str().to_string();
-            Expression::GetField {
-                object: Box::new(base),
-                field,
-                loc,
-            }
+        Rule::float => {
+            let v: Decimal = inner.as_str().parse().expect("invalid float");
+            Expression::Literal(Literal::Value(Value::Float(v)), loc)
         }
-        Rule::index_suffix => {
-            // index_suffix = { "[" ~ expression ~ "]" }
-            let idx_expr = parse_expression(inner.into_inner().next().unwrap());
-            Expression::Index {
-                object: Box::new(base),
-                index: Box::new(idx_expr),
-                loc,
-            }
-        }
-        Rule::method_suffix => {
-            // method_suffix = { ":" ~ identifier ~ call_suffix }
-            let mut ms_inner = inner.into_inner();
-            let method = ms_inner.next().unwrap().as_str().to_string();
-            let call_suffix_pair = ms_inner.next().unwrap();
-
-            let mut args = Vec::new();
-            for p in call_suffix_pair.into_inner() {
-                if p.as_rule() == Rule::arguments {
-                    for arg in p.into_inner() {
-                        args.push(parse_expression(arg));
-                    }
-                }
-            }
-
-            Expression::MethodCall(MethodCall {
-                object: Box::new(base),
-                method,
-                arguments: args,
-                loc,
-            })
-        }
-        _ => unreachable!("Unexpected rule in postfix"),
+        _ => unreachable!("Unexpected number rule"),
     }
 }
 
-fn parse_object_literal(pair: Pair<Rule>) -> Expression {
-    // object_literal = { "${" ~ (pair ~ ("," ~ pair)*)? ~ "}" }
-    let loc = loc_from_pair(&pair);
-    let mut fields = Vec::new();
-
-    for p in pair.into_inner() {
-        if p.as_rule() == Rule::pair {
-            let mut inner = p.into_inner();
-            let key = inner.next().unwrap().as_str().to_string();
-            let val = parse_expression(inner.next().unwrap());
-            fields.push((key, val));
-        }
+fn parse_function_expr(pair: Pair<Rule>) -> Expression {
+    let mut inner = pair.into_inner();
+    inner.next().unwrap(); // FUNCTION
+    let first = inner.next().unwrap();
+    if first.as_rule() == Rule::identifier {
+        let name = first.as_str().to_string();
+        let name_loc = loc_from_pair(&first);
+        let func_body = inner.next().unwrap();
+        let (parameters, vararg, body, _) = parse_func_body(func_body);
+        Expression::Function(FunctionDeclaration {
+            name: Some(name),
+            parameters,
+            vararg,
+            body,
+            loc: name_loc,
+        })
+    } else {
+        let (parameters, vararg, body, loc) = parse_func_body(first);
+        Expression::Function(FunctionDeclaration {
+            name: None,
+            parameters,
+            vararg,
+            body,
+            loc,
+        })
     }
-
-    Expression::ObjectLiteral(fields, loc)
 }
 
-fn parse_if_expr(pair: Pair<Rule>) -> Expression {
+fn parse_if(pair: Pair<Rule>) -> Expression {
     let loc = loc_from_pair(&pair);
-    let inner = pair.into_inner();
-    let mut test = Expression::Literal(Literal::Value(Value::Null), loc);
-    let mut body = Vec::new();
-    let mut else_body = Vec::new();
+    let mut inner = pair.into_inner();
+    inner.next().unwrap(); // IF
+    let test = parse_expr(inner.next().unwrap());
+    inner.next().unwrap(); // THEN
+    let body = parse_block(inner.next().unwrap());
 
-    for p in inner {
-        match p.as_rule() {
-            Rule::expression => test = parse_expression(p),
-            Rule::block => {
-                if body.is_empty() {
-                    body = parse_block(p);
-                } else {
-                    else_body = parse_block(p);
-                }
-            }
-            Rule::if_expr => {
-                // Handle "else if"
-                let next_if = parse_if_expr(p);
-                else_body = vec![Statement::Expression(next_if)];
-            }
-            Rule::IF | Rule::ELSE => {}
-            _ => unreachable!("Unexpected rule in if_expr: {:?}", p.as_rule()),
-        }
-    }
-
+    let else_body = parse_if_rest(&mut inner, loc);
     Expression::If(If {
         test: Box::new(test),
         body,
@@ -525,55 +746,78 @@ fn parse_if_expr(pair: Pair<Rule>) -> Expression {
     })
 }
 
-fn parse_try_catch(pair: Pair<Rule>) -> Statement {
-    // try_catch = { TRY ~ block ~ CATCH ~ identifier? ~ block ~ (FINALLY ~ block)? }
-    // Note: TRY, CATCH, FINALLY are atomic rules (@{...}) so they appear in into_inner()
-    let loc = loc_from_pair(&pair);
-
-    // Collect all items, filtering out keyword rules
-    let items: Vec<_> = pair
-        .into_inner()
-        .filter(|p| !matches!(p.as_rule(), Rule::TRY | Rule::CATCH | Rule::FINALLY))
-        .collect();
-
-    let mut iter = items.into_iter();
-
-    // First item should be try block
-    let try_body = if let Some(try_block_pair) = iter.next() {
-        parse_block(try_block_pair)
-    } else {
-        Vec::new()
-    };
-
-    // Parse optional error variable name and catch block
-    let mut error_name = None;
-    let mut catch_body = Vec::new();
-
-    if let Some(next_pair) = iter.next() {
-        match next_pair.as_rule() {
-            Rule::identifier => {
-                error_name = Some(next_pair.as_str().to_string());
-                // Next must be catch block
-                if let Some(catch_block_pair) = iter.next() {
-                    catch_body = parse_block(catch_block_pair);
+/// 解析 if 的 elseif/else/end 剩余部分，返回 else 分支语句列表
+fn parse_if_rest(inner: &mut pest::iterators::Pairs<Rule>, loc: Location) -> Vec<Statement> {
+    let mut else_body = Vec::new();
+    loop {
+        match inner.next() {
+            Some(p) => match p.as_rule() {
+                Rule::ELSEIF => {
+                    let elseif_test = parse_expr(inner.next().unwrap());
+                    inner.next().unwrap(); // THEN
+                    let elseif_body = parse_block(inner.next().unwrap());
+                    let nested_else = parse_if_rest(inner, loc);
+                    let nested = Expression::If(If {
+                        test: Box::new(elseif_test),
+                        body: elseif_body,
+                        else_body: nested_else,
+                        loc,
+                    });
+                    else_body.push(Statement::Expression(nested));
+                    break;
                 }
-            }
-            Rule::block => {
-                // No error variable, this is the catch block
-                catch_body = parse_block(next_pair);
-            }
-            _ => {}
+                Rule::ELSE => {
+                    else_body = parse_block(inner.next().unwrap());
+                    break;
+                }
+                Rule::END => break,
+                _ => unreachable!("Unexpected rule in if tail: {:?}", p.as_rule()),
+            },
+            None => break,
+        }
+    }
+    else_body
+}
+
+fn parse_table(pair: Pair<Rule>) -> Expression {
+    let loc = loc_from_pair(&pair);
+    let mut fields: Vec<(String, Expression)> = Vec::new();
+    let mut array_elems: Vec<Expression> = Vec::new();
+    let mut has_fields = false;
+
+    for f in pair.into_inner() {
+        if f.as_rule() != Rule::field {
+            continue;
+        }
+        let mut f_inner = f.into_inner();
+        let first = f_inner.next().unwrap();
+        if first.as_rule() == Rule::identifier {
+            let key = first.as_str().to_string();
+            let val = parse_expr(f_inner.next().unwrap());
+            fields.push((key, val));
+            has_fields = true;
+        } else {
+            array_elems.push(parse_expr(first));
         }
     }
 
-    // Parse optional finally block
-    let finally_body = iter.next().map(parse_block);
+    // 与 handwritten 保持一致：有字段或无数组成员 -> ObjectLiteral
+    if has_fields || array_elems.is_empty() {
+        let mut result = fields;
+        for (i, elem) in array_elems.into_iter().enumerate() {
+            result.push(((i + 1).to_string(), elem));
+        }
+        Expression::ObjectLiteral(result, loc)
+    } else {
+        Expression::ArrayLiteral(array_elems, loc)
+    }
+}
 
-    Statement::TryCatch(TryCatch {
-        try_body,
-        error_name,
-        catch_body,
-        finally_body,
-        loc,
-    })
+fn parse_array(pair: Pair<Rule>) -> Expression {
+    let loc = loc_from_pair(&pair);
+    let mut elems = Vec::new();
+    if let Some(list) = pair.into_inner().next() {
+        elems = parse_expr_list(list);
+    }
+    Expression::ArrayLiteral(elems, loc)
 }

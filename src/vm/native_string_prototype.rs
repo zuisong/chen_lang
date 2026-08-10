@@ -1,4 +1,5 @@
 use super::*;
+use crate::vm::native_string_lib;
 
 pub fn create_string_prototype() -> Value {
     use native_string_prototype::*;
@@ -9,26 +10,28 @@ pub fn create_string_prototype() -> Value {
     table
         .data
         .insert("__type".to_string(), Value::string("String".to_string()));
-    table.data.insert(
-        "len".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_len) as Box<NativeFnType>)),
-    );
-    table.data.insert(
-        "trim".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_trim) as Box<NativeFnType>)),
-    );
-    table.data.insert(
-        "upper".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_upper) as Box<NativeFnType>)),
-    );
-    table.data.insert(
-        "lower".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_lower) as Box<NativeFnType>)),
-    );
-    table.data.insert(
-        "iter".to_string(),
-        Value::NativeFunction(Rc::new(Box::new(native_string_iter) as Box<NativeFnType>)),
-    );
+    let methods: Vec<(&str, fn(&mut VM, Vec<Value>) -> Result<Value, VMRuntimeError>)> = vec![
+        ("len", native_string_len),
+        ("trim", native_string_trim),
+        ("upper", native_string_upper),
+        ("lower", native_string_lower),
+        ("iter", native_string_iter),
+        ("sub", native_string_lib::native_string_sub),
+        ("rep", native_string_lib::native_string_rep),
+        ("byte", native_string_lib::native_string_byte),
+        ("char", native_string_lib::native_string_char),
+        ("reverse", native_string_lib::native_string_reverse),
+        ("find", native_string_lib::native_string_find),
+        ("match", native_string_lib::native_string_match),
+        ("gmatch", native_string_lib::native_string_gmatch),
+        ("gsub", native_string_lib::native_string_gsub),
+        ("format", native_string_lib::native_string_format),
+    ];
+    for (name, f) in methods {
+        table
+            .data
+            .insert(name.to_string(), Value::NativeFunction(Rc::new(Box::new(f))));
+    }
 
     let table_rc = Rc::new(std::cell::RefCell::new(table));
     let proto_val = Value::Object(table_rc.clone());

@@ -120,73 +120,84 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
         .into());
     };
 
-    let mut fiber = fiber_rc.borrow_mut();
-
-    if fiber.state == FiberState::Dead {
-        return Ok(Value::bool(false)); // Cannot resume dead fiber
-    }
-
-    if fiber.state == FiberState::Running {
-        return Err(ValueError::InvalidOperation {
-            operator: "resume".into(),
-            left_type: ValueType::Coroutine,
-            right_type: ValueType::Null,
-        }
-        .into());
-    }
-
     // Passed args (skipping coroutine itself)
-    let passed_args = &args[1..];
+    let passed_args = args[1..].to_vec();
+    resume_fiber(vm, fiber_rc, passed_args)
+}
 
-    // Check if it's a new fiber (PC == 0 and Call Stack is empty)
-    // Stack length can be > 1 if arguments are passed during creation.
-    let is_new = fiber.pc == 0 && fiber.call_stack.is_empty();
+/// 恢复一个协程 fiber，运行到 yield/return/error，并返回结果（或错误）。
+/// 被 `coroutine.resume` 和 `pcall`/`xpcall` 共用。
+pub(crate) fn resume_fiber(
+    vm: &mut VM,
+    fiber_rc: Rc<RefCell<Fiber>>,
+    passed_args: Vec<Value>,
+) -> Result<Value, VMRuntimeError> {
+    {
+        let mut fiber = fiber_rc.borrow_mut();
 
-    let is_native = fiber.native_function.is_some();
-
-    // If new, setup the call frame
-    if is_new {
-        let func_val = fiber.stack.remove(0); // Pop the function itself
-
-        if !is_native {
-            let closure = match func_val {
-                Value::Fn(c) => c,
-                _ => {
-                    return Err(ValueError::TypeMismatch {
-                        expected: ValueType::Function,
-                        found: func_val.get_type(),
-                        operation: "resume".into(),
-                    }
-                    .into());
-                }
-            };
-
-            // Use closure's symbol directly
-            let sym = &closure.func_symbol;
-            let program = closure.program.clone();
-
-            // Setup stack frame
-            for arg in passed_args {
-                fiber.stack.push(arg.clone());
-            }
-
-            fiber.fp = 0;
-            let new_size = fiber.fp + sym.nlocals;
-            fiber.stack.resize(new_size, Value::null());
-
-            // Start from function entry
-            fiber.pc = sym.location as usize;
-            fiber.program = Some(program);
-            fiber.current_closure = Some(closure);
+        if fiber.state == FiberState::Dead {
+            return Ok(Value::bool(false)); // Cannot resume dead fiber
         }
-    } else {
-        // Resuming yielded fiber: push first resume arg as the return value of `yield`.
-        let resume_val = if passed_args.is_empty() {
-            Value::Null
+
+        if fiber.state == FiberState::Running {
+            return Err(ValueError::InvalidOperation {
+                operator: "resume".into(),
+                left_type: ValueType::Coroutine,
+                right_type: ValueType::Null,
+            }
+            .into());
+        }
+
+        // Check if it's a new fiber (PC == 0 and Call Stack is empty)
+        // Stack length can be > 1 if arguments are passed during creation.
+        let is_new = fiber.pc == 0 && fiber.call_stack.is_empty();
+
+        let is_native = fiber.native_function.is_some();
+
+        // If new, setup the call frame
+        if is_new {
+            let func_val = fiber.stack.remove(0); // Pop the function itself
+
+            if !is_native {
+                let closure = match func_val {
+                    Value::Fn(c) => c,
+                    _ => {
+                        return Err(ValueError::TypeMismatch {
+                            expected: ValueType::Function,
+                            found: func_val.get_type(),
+                            operation: "resume".into(),
+                        }
+                        .into());
+                    }
+                };
+
+                // Use closure's symbol directly
+                let sym = &closure.func_symbol;
+                let program = closure.program.clone();
+
+                // Setup stack frame
+                for arg in &passed_args {
+                    fiber.stack.push(arg.clone());
+                }
+
+                fiber.fp = 0;
+                let new_size = fiber.fp + sym.nlocals;
+                fiber.stack.resize(new_size, Value::null());
+
+                // Start from function entry
+                fiber.pc = sym.location as usize;
+                fiber.program = Some(program);
+                fiber.current_closure = Some(closure);
+            }
         } else {
-            passed_args[0].clone()
-        };
-        fiber.stack.push(resume_val);
+            // Resuming yielded fiber: push first resume arg as the return value of `yield`.
+            let resume_val = if passed_args.is_empty() {
+                Value::Null
+            } else {
+                passed_args[0].clone()
+            };
+            fiber.stack.push(resume_val);
+        }
     }
 
     // Save caller VM state
@@ -195,9 +206,12 @@ fn native_coroutine_resume(vm: &mut VM, args: Vec<Value>) -> Result<Value, VMRun
     let caller_rc = Rc::new(RefCell::new(caller_state));
 
     // Switch to fiber and run until yield/return
-    fiber.state = FiberState::Running;
-    fiber.caller = Some(caller_rc.clone());
-    drop(fiber);
+    let is_native = fiber_rc.borrow().native_function.is_some();
+    {
+        let mut fiber = fiber_rc.borrow_mut();
+        fiber.state = FiberState::Running;
+        fiber.caller = Some(caller_rc.clone());
+    }
 
     let prev_current = vm.current_fiber.clone();
     vm.current_fiber = Some(fiber_rc.clone());

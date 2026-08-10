@@ -1,127 +1,140 @@
-// 隐式规则：自动忽略空格和注释（但不包括换行）
-WHITESPACE = _{ " " | "\t" | "\r" }
-NEWLINE = _{ "\n" }
-// 注释：# 开头直到行尾
-// 注意：注释不吞掉换行符，留给 stmt_sep 处理
-COMMENT = _{ "#" ~ (!NEWLINE ~ ANY)* }
+// Chen Lang - Luau 风格语法（与 handwritten 解析器保持一致）
+// 注释：-- 到行尾；换行作为空白处理
 
-// 关键字
-// 关键字
-LET = @{ "let" ~ !(ASCII_ALPHANUMERIC | "_") }
-FOR = @{ "for" ~ !(ASCII_ALPHANUMERIC | "_") }
-DEF = @{ "def" ~ !(ASCII_ALPHANUMERIC | "_") }
-RETURN = @{ "return" ~ !(ASCII_ALPHANUMERIC | "_") }
+NEWLINE = _{ "\n" | "\r" }
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT = _{ "--" ~ (!NEWLINE ~ ANY)* }
+
+// --- 关键字（原子规则，避免与标识符混淆） ---
 IF = @{ "if" ~ !(ASCII_ALPHANUMERIC | "_") }
+THEN = @{ "then" ~ !(ASCII_ALPHANUMERIC | "_") }
 ELSE = @{ "else" ~ !(ASCII_ALPHANUMERIC | "_") }
-TRUE = @{ "true" ~ !(ASCII_ALPHANUMERIC | "_") }
-FALSE = @{ "false" ~ !(ASCII_ALPHANUMERIC | "_") }
+ELSEIF = @{ "elseif" ~ !(ASCII_ALPHANUMERIC | "_") }
+END = @{ "end" ~ !(ASCII_ALPHANUMERIC | "_") }
+LOCAL = @{ "local" ~ !(ASCII_ALPHANUMERIC | "_") }
+FUNCTION = @{ "function" ~ !(ASCII_ALPHANUMERIC | "_") }
+RETURN = @{ "return" ~ !(ASCII_ALPHANUMERIC | "_") }
 BREAK = @{ "break" ~ !(ASCII_ALPHANUMERIC | "_") }
 CONTINUE = @{ "continue" ~ !(ASCII_ALPHANUMERIC | "_") }
+WHILE = @{ "while" ~ !(ASCII_ALPHANUMERIC | "_") }
+DO = @{ "do" ~ !(ASCII_ALPHANUMERIC | "_") }
+REPEAT = @{ "repeat" ~ !(ASCII_ALPHANUMERIC | "_") }
+UNTIL = @{ "until" ~ !(ASCII_ALPHANUMERIC | "_") }
+FOR = @{ "for" ~ !(ASCII_ALPHANUMERIC | "_") }
+IN = @{ "in" ~ !(ASCII_ALPHANUMERIC | "_") }
+AND = @{ "and" ~ !(ASCII_ALPHANUMERIC | "_") }
+OR = @{ "or" ~ !(ASCII_ALPHANUMERIC | "_") }
+NOT = @{ "not" ~ !(ASCII_ALPHANUMERIC | "_") }
+NIL = @{ "nil" ~ !(ASCII_ALPHANUMERIC | "_") }
+TRUE = @{ "true" ~ !(ASCII_ALPHANUMERIC | "_") }
+FALSE = @{ "false" ~ !(ASCII_ALPHANUMERIC | "_") }
 TRY = @{ "try" ~ !(ASCII_ALPHANUMERIC | "_") }
 CATCH = @{ "catch" ~ !(ASCII_ALPHANUMERIC | "_") }
 FINALLY = @{ "finally" ~ !(ASCII_ALPHANUMERIC | "_") }
-IN = @{ "in" ~ !(ASCII_ALPHANUMERIC | "_") }
-// NULL removed
 
-// 标识符 (不能是关键字)
+keyword = { IF | THEN | ELSE | ELSEIF | END | LOCAL | FUNCTION | RETURN | BREAK | CONTINUE |
+            WHILE | DO | REPEAT | UNTIL | FOR | IN | AND | OR | NOT | NIL | TRUE | FALSE |
+            TRY | CATCH | FINALLY }
+
 identifier = @{ !keyword ~ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
-keyword = { LET | FOR | DEF | RETURN | IF | ELSE | TRUE | FALSE | BREAK | CONTINUE | TRY | CATCH | FINALLY | IN }
 
-// 字面量
-integer = @{ "-"? ~ ASCII_DIGIT+ }
-float = @{ "-"? ~ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+// --- 字面量 ---
+integer = @{ ASCII_DIGIT+ }
+float = @{ ASCII_DIGIT+ ~ "." ~ ASCII_DIGIT+ }
+number = { float | integer }
 string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
 bool = { TRUE | FALSE }
+vararg = { "..." }
 
-// 操作符
+// --- 运算符 ---
 add = { "+" }
-subtract = { "-" }
-multiply = { "*" }
-divide = { "/" }
-modulo = { "%" }
-assign = { "=" }
+sub = { "-" }
+mul = { "*" }
+div = { "/" }
+floordiv = { "//" }
+mod = { "%" }
+pow = { "^" }
+concat_op = { ".." }
+len = { "#" }
 eq = { "==" }
-neq = { "!=" }
+neq = { "~=" }
 lt = { "<" }
 lte = { "<=" }
 gt = { ">" }
 gte = { ">=" }
-and = { "&&" }
-or = { "||" }
-not = { "!" }
+assign_op = { "+=" | "-=" | "*=" | "/=" | "//=" | "%=" | "..=" | "=" }
 
-// 表达式优先级处理
-// 表达式优先级处理
-expression = { logical_or }
+// --- 表达式（优先级从低到高） ---
+expression = { or_expr }
 
-logical_or = { logical_and ~ (or ~ NEWLINE* ~ logical_and)* }
-logical_and = { equality ~ (and ~ NEWLINE* ~ equality)* }
-equality = { comparison ~ ((eq | neq) ~ NEWLINE* ~ comparison)* }
-comparison = { term ~ ((lte | lt | gte | gt) ~ NEWLINE* ~ term)* }
-term = { factor ~ ((add | subtract) ~ NEWLINE* ~ factor)* }
-factor = { unary ~ ((multiply | divide | modulo) ~ NEWLINE* ~ unary)* }
-unary = { (not | subtract) ~ NEWLINE* ~ unary | primary }
+or_expr = { and_expr ~ (OR ~ and_expr)* }
+and_expr = { equality ~ (AND ~ equality)* }
+equality = { comparison ~ ((eq | neq) ~ comparison)* }
+comparison = { concat ~ ((lte | lt | gte | gt) ~ concat)* }
+concat = { term ~ (concat_op ~ term)* }
+term = { factor ~ ((add | sub) ~ factor)* }
+factor = { unary ~ ((floordiv | mul | div | mod) ~ unary)* }
+unary = { (NOT ~ unary | sub ~ unary | len ~ unary) | power }
+power = { postfix ~ (pow ~ unary)? }
+postfix = { primary ~ (call_suffix | dot_suffix | index_suffix | method_suffix)* }
 
-primary = { atom ~ postfix* }
-
-atom = {
-    float |
-    integer |
-    bool |
-    string |
-    identifier |
-    "(" ~ NEWLINE* ~ expression ~ NEWLINE* ~ ")" |
-    if_expr |
-    block |
-    object_literal |
-    function_def |
-    array_literal
+primary = {
+    number | string | bool | NIL | identifier | vararg |
+    function_expr | if_stmt |
+    "(" ~ expression ~ ")" |
+    table_literal | array_literal
 }
 
-postfix = { call_suffix | dot_suffix | method_suffix | index_suffix }
-call_suffix = { "(" ~ NEWLINE* ~ arguments? ~ NEWLINE* ~ ")" }
+call_suffix = { "(" ~ argument_list? ~ ")" }
 dot_suffix = { "." ~ identifier }
-method_suffix = { ":" ~ identifier ~ call_suffix }
-index_suffix = { "[" ~ NEWLINE* ~ expression ~ NEWLINE* ~ "]" }
+index_suffix = { "[" ~ expression ~ "]" }
+method_suffix = { ":" ~ identifier ~ "(" ~ argument_list? ~ ")" }
 
-object_literal = { "${" ~ NEWLINE* ~ (pair ~ ("," ~ NEWLINE* ~ pair)*)? ~ NEWLINE* ~ "}" }
-array_literal = { "[" ~ NEWLINE* ~ (expression ~ ("," ~ NEWLINE* ~ expression)*)? ~ NEWLINE* ~ "]" }
-pair = { (identifier | integer) ~ ":" ~ NEWLINE* ~ expression }
+argument_list = { expression ~ ("," ~ expression)* }
+expression_list = { expression ~ ("," ~ expression)* }
+namelist = { identifier ~ ("," ~ identifier)* }
 
-// 语句分隔符 - 使用换行
-stmt_sep = _{ NEWLINE+ }
+// --- 函数定义 ---
+func_body = { "(" ~ params? ~ ")" ~ block ~ END }
+params = { (identifier | vararg) ~ ("," ~ (identifier | vararg))* }
+function_stmt = { FUNCTION ~ identifier ~ func_body }
+function_expr = { FUNCTION ~ identifier? ~ func_body }
 
-// 语句
+// --- 表 / 数组字面量 ---
+table_literal = { "{" ~ (field ~ ("," ~ field)* ~ ","?)? ~ "}" }
+field = { (identifier ~ "=" ~ expression) | expression }
+array_literal = { "[" ~ expression_list? ~ "]" }
+
+// --- 块与语句 ---
+program = { SOI ~ statement* ~ EOI }
+block = { statement* }
+
 statement = {
-    declaration |
-    for_loop |
-    function_def |
-    return_stmt |
-    break_stmt |
-    continue_stmt |
-    try_catch |
-    assignment |
-    expression
+    local_stmt | function_stmt | while_stmt | repeat_stmt | for_stmt |
+    do_stmt | return_stmt | break_stmt | continue_stmt | try_stmt |
+    if_stmt | assign_multi | assign_stmt | expr_stmt
 }
 
-declaration = { LET ~ identifier ~ assign ~ NEWLINE* ~ expression }
-assignment_target = { identifier ~ postfix* }
-assignment = { assignment_target ~ assign ~ NEWLINE* ~ expression }
+local_stmt = { LOCAL ~ (FUNCTION ~ identifier ~ func_body | namelist ~ ("=" ~ expression_list)?) }
 
-for_loop = { FOR ~ NEWLINE* (for_in_header | expression)? ~ block }
-for_in_header = { identifier ~ IN ~ expression }
-function_def = { DEF ~ identifier? ~ "(" ~ NEWLINE* ~ parameters? ~ NEWLINE* ~ ")" ~ block }
-return_stmt = { RETURN ~ NEWLINE* ~ expression }
+while_stmt = { WHILE ~ expression ~ DO ~ block ~ END }
+repeat_stmt = { REPEAT ~ block ~ UNTIL ~ expression }
+
+for_stmt = { FOR ~ (for_numeric | for_in) }
+for_numeric = { identifier ~ "=" ~ expression ~ "," ~ expression ~ ("," ~ expression)? ~ DO ~ block ~ END }
+for_in = { namelist ~ IN ~ expression ~ DO ~ block ~ END }
+
+do_stmt = { DO ~ block ~ END }
+return_stmt = { RETURN ~ expression_list? }
 break_stmt = { BREAK }
 continue_stmt = { CONTINUE }
-try_catch = { TRY ~ block ~ CATCH ~ identifier? ~ block ~ (FINALLY ~ block)? }
-// await_expr removed
 
-// 复合结构
-block = { "{" ~ NEWLINE* ~ (statement ~ stmt_sep)* ~ statement? ~ NEWLINE* ~ "}" }
-if_expr = { IF ~ NEWLINE* ~ expression ~ block ~ (ELSE ~ NEWLINE* ~ (if_expr | block))? }
-parameters = { identifier ~ ("," ~ NEWLINE* ~ identifier)* }
-arguments = { expression ~ ("," ~ NEWLINE* ~ expression)* }
+try_stmt = { TRY ~ block ~ CATCH ~ catch_var? ~ block ~ (FINALLY ~ block)? ~ END }
+catch_var = { identifier ~ !("(") }
 
-// 程序入口 - 允许语句之间有换行
-program = { SOI ~ NEWLINE* ~ (statement ~ stmt_sep)* ~ statement? ~ NEWLINE* ~ EOI }
+if_stmt = { IF ~ expression ~ THEN ~ block ~ (ELSEIF ~ expression ~ THEN ~ block)* ~ (ELSE ~ block)? ~ END }
+
+assign_multi = { identifier ~ ("," ~ identifier)+ ~ "=" ~ expression_list }
+assignable = { primary ~ (dot_suffix | index_suffix)* }
+assign_stmt = { assignable ~ assign_op ~ expression }
+expr_stmt = { expression }
